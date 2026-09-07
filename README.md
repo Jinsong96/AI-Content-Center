@@ -68,7 +68,7 @@ python3 tools/deploy_demo.py cleanup    # 部署完立刻还原成干净版
 python3 tools/deploy_demo.py status     # 随时查看当前是干净版还是注入版
 ```
 
-- `prepare` 会先把干净版备份到 `/tmp/index.clean.html`，`cleanup` 从备份还原，**不依赖 git**，所以不会误伤你还没提交的改动。
+- `prepare` 会先把干净版备份到项目内 `.deploy_backup/`（已 gitignore），`cleanup` 从备份还原，**不依赖 git**，所以不会误伤你还没提交的改动。
 - 密钥在磁盘上的暴露窗口只有部署那几十秒。
 - 忘记 `cleanup` 也进不了 git，但**线上会留着密钥**，所以还是记得执行。
 
@@ -80,6 +80,17 @@ python3 tools/deploy_demo.py status     # 随时查看当前是干净版还是�
 ```
 
 脚本会**先检查 index.html 是否含密钥**，如果发现还处于注入版就直接拒绝提交，避免密钥误入 git。
+
+### 推送到 GitHub（换电脑 / 给同事看时）
+
+```bash
+gh auth login                          # 只需做一次，浏览器点一下授权
+./tools/git_setup_remote.sh 你的用户名   # 一键建私有库并推送
+
+git push                               # 之后每次想同步就这一条
+```
+
+> 详见 `docs/09-Git使用与协作指南.md`（含注册、建库必留空的勾选项、邀请同事、常见问题）。
 
 ### 状态速查
 
