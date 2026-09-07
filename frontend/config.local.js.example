@@ -1,0 +1,10 @@
+/* 本地密钥配置模板 —— 复制为 config.local.js 后填入真实值。
+ * config.local.js 已被 .gitignore 排除，不会进 git。
+ * 若缺失该文件，页面仍可打开，但生成/封面/TTS 等功能会提示「未配置」。 */
+window.WB_CONFIG = {
+  SF_API_KEY:    "",   // SiliconFlow：文生图 + LLM（控制台 https://cloud.siliconflow.cn）
+  DIFY_WF_MAIN:  "",   // Dify 主工作流 app key
+  DIFY_WF_GEN:   "",   // Dify 生成工作流 app key
+  DIFY_WF_FACT:  "",   // Dify 事实抽取工作流 app key
+  DEMO_PASS:     ""    // 演示账号统一密码（工程化后由后端鉴权取代）
+};

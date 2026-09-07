@@ -1,0 +1,49 @@
+# ==========================================================
+# ReadPal 内容生产平台 · .gitignore
+# 原则：仓库只放「代码 + 文档 + 配置模板」，不放「大文件 / 生成物 / 密钥 / 版权素材」
+# 注意：gitignore 不支持行尾注释，注释必须独占一行
+# ==========================================================
+
+# ---------- 1. 密钥与本地配置（绝对不能入库）----------
+frontend/config.local.js
+backend/.env
+backend/.env.*
+!backend/.env.example
+*.pem
+*.key
+*.p12
+
+# ---------- 2. 版权素材（有版权，不入库）----------
+# 位于仓库上层 material/，此处一并声明以防将来移入
+material/
+
+# ---------- 3. 生成物 / 可重新产出的二进制 ----------
+# TTS 合成产物约 240MB，可重新生成
+backend/audio/
+# 历史封面图约 13MB，现改为 base64 直存
+frontend/covers/
+
+# ---------- 4. 缓存与临时文件 ----------
+backend/*.tmp
+backend/.article_cache.json
+backend/.toutiao_en_cache.json
+backend/.content_tags_cache.json
+__pycache__/
+*.py[cod]
+.DS_Store
+._*
+
+# ---------- 5. 历史副本与归档（避免真源分叉）----------
+frontend_v2/
+frontend_original_index_2026-09-03.html
+*.zip
+*.tar.gz
+
+# ---------- 6. 死资产（89KB，代码中零引用）----------
+frontend/hotspots.json
+
+# ---------- 7. 编辑器 / 系统 ----------
+.vscode/
+.idea/
+*.swp
+Thumbs.db
