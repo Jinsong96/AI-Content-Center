@@ -26,7 +26,10 @@ import sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 INDEX = os.path.join(ROOT, "frontend", "index.html")
 CONFIG = os.path.join(ROOT, "frontend", "config.local.js")
-BACKUP = "/tmp/index.clean.html"
+# ⚠️ 备份不放 /tmp —— 系统清理会让 cleanup 找不到备份，只能从 git 救。
+#    放在家目录下的隐藏文件，并用「注入标记 + 大小」双重校验防止还原错版本。
+BACKUP_DIR = os.path.expanduser("~/.readpal")
+BACKUP = os.path.join(BACKUP_DIR, "index.clean.bak")
 MARKER = "/* __INJECTED_KEYS__ */"
 
 
@@ -64,6 +67,7 @@ def prepare():
     if MARKER in s:
         print("! 已经是注入版，先 cleanup 再 prepare")
         return 1
+    os.makedirs(BACKUP_DIR, exist_ok=True)
     shutil.copy2(INDEX, BACKUP)
     cfg = load_keys()
     # 把 <script src="config.local.js"></script> 替换为内联脚本
@@ -81,7 +85,12 @@ def prepare():
 
 def cleanup():
     if not os.path.exists(BACKUP):
-        sys.exit("✗ 找不到备份 " + BACKUP + "，无法还原。请手动检查 index.html 是否含密钥")
+        print("✗ 找不到备份 " + BACKUP)
+        print("  可能是备份被清理，或 prepare 与 cleanup 不在同一台机器/账号下执行。")
+        print()
+        print("  兜底方案（会丢弃 index.html 相对 git 的未提交改动，请先确认）：")
+        print("    git show HEAD:frontend/index.html > frontend/index.html")
+        sys.exit(1)
     shutil.copy2(BACKUP, INDEX)
     os.remove(BACKUP)
     s = read(INDEX)

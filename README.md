@@ -50,6 +50,47 @@ python3 agent_reach_bridge.py        # 默认监听 8787
 
 ---
 
+## 日常工作流（重要）
+
+这个项目有个特殊矛盾：**线上演示需要密钥，但 git 仓库不能有密钥**。
+解决办法是「部署时临时注入，部署完立刻还原」，由两个脚本完成。
+
+### 平时改代码
+
+直接改 `frontend/index.html`。仓库里的版本永远干净，随时可以提交。
+
+### 部署演示（密钥临时注入）
+
+```bash
+python3 tools/deploy_demo.py prepare    # 把 config.local.js 内联进 index.html
+# ... 执行部署 ...
+python3 tools/deploy_demo.py cleanup    # 部署完立刻还原成干净版
+python3 tools/deploy_demo.py status     # 随时查看当前是干净版还是注入版
+```
+
+- `prepare` 会先把干净版备份到 `/tmp/index.clean.html`，`cleanup` 从备份还原，**不依赖 git**，所以不会误伤你还没提交的改动。
+- 密钥在磁盘上的暴露窗口只有部署那几十秒。
+- 忘记 `cleanup` 也进不了 git，但**线上会留着密钥**，所以还是记得执行。
+
+### 每天下班前归档
+
+```bash
+./tools/daily_sync.sh                    # 默认提交信息「chore: YYYY-MM-DD 日常更新」
+./tools/daily_sync.sh "修复封面生成"       # 或自定义说明
+```
+
+脚本会**先检查 index.html 是否含密钥**，如果发现还处于注入版就直接拒绝提交，避免密钥误入 git。
+
+### 状态速查
+
+| 场景 | 命令 | index.html 含密钥？ | 能提交 git？ |
+|---|---|---|---|
+| 平时开发 | — | 否 | ✅ |
+| 部署中 | `prepare` 之后 | 是 | ❌ |
+| 部署后 | `cleanup` 之后 | 否 | ✅ |
+
+---
+
 ## 目录结构
 
 ```
