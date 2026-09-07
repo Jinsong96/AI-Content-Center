@@ -26,9 +26,9 @@ import sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 INDEX = os.path.join(ROOT, "frontend", "index.html")
 CONFIG = os.path.join(ROOT, "frontend", "config.local.js")
-# ⚠️ 备份不放 /tmp —— 系统清理会让 cleanup 找不到备份，只能从 git 救。
-#    放在家目录下的隐藏文件，并用「注入标记 + 大小」双重校验防止还原错版本。
-BACKUP_DIR = os.path.expanduser("~/.readpal")
+# ⚠️ 备份必须放在项目目录内。实测 /tmp 会被系统清理，~/. 下也出现过跨调用
+#    拿不到的情况，只有项目目录内的写入是稳定持久的。该目录已 gitignore。
+BACKUP_DIR = os.path.join(ROOT, ".deploy_backup")
 BACKUP = os.path.join(BACKUP_DIR, "index.clean.bak")
 MARKER = "/* __INJECTED_KEYS__ */"
 

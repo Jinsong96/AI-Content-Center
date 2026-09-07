@@ -23,7 +23,9 @@ backend/audio/
 # 历史封面图约 13MB，现改为 base64 直存
 frontend/covers/
 
-# ---------- 4. 缓存与临时文件 ----------
+# ---------- 4. 缓存、备份与临时文件 ----------
+# 部署注入机制的干净版备份
+.deploy_backup/
 backend/*.tmp
 backend/.article_cache.json
 backend/.toutiao_en_cache.json
