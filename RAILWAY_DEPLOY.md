@@ -293,6 +293,38 @@ curl -s https://你的域名/api/proxy-health
 
 ---
 
+### 10. 热点/TTS/内容库显示「后端桥接未连接」，但 `/api/proxy-health` 4 个都是 true
+
+**这是「代码版本过旧」的专属症状**——bridge 健康、密钥都对，但前端桥接失败。
+
+成因链：bridge 把 `window.WB_API_BASE=""` 注入到首页（表示"同源部署"），
+但前端 `readApiBase()` 用真值判断 `if(window.WB_API_BASE)` 把空串当 false，
+于是 `AGENT_REACH_API` 永远回落到 `127.0.0.1:8787`（本机）→ 桥接永远不可达。
+**这是 2026-09-09 的真实事故，已修复（提交 `12995709`）。**
+
+**30 秒自查**（在浏览器里 F12 打开 Console，粘贴）：
+
+```js
+JSON.stringify({
+  api: typeof AGENT_REACH_API !== 'undefined' ? AGENT_REACH_API : 'N/A',
+  wb_type: typeof window.WB_API_BASE,
+  bridgeOk: typeof state !== 'undefined' ? state.bridgeOk : 'N/A'
+})
+// 期望: {"api":"","wb_type":"string","bridgeOk":true}
+// 错:   {"api":"http://127.0.0.1:8787",...}   ← 还是老代码
+```
+
+或者直接看 `index.html` 是否包含修复：
+```bash
+curl -s $RAILWAY_URL/ | grep -c 'typeof window.WB_API_BASE === "string"'
+# 期望: 1
+```
+
+**修法**：去 GitHub 看最新代码是否已同步。修复提交：`12995709`。
+Railway 会自动重新部署。或者：把你的本地代码拉到最新，再推一次 GitHub。
+
+---
+
 ## 八、想撤销部署
 
 Railway 项目页 → **Settings → Danger → Delete Project**。密钥随项目一起销毁，无需手动去 SiliconFlow / Dify 控制台撤销（演示用的 key 建议事后在原平台轮换一次，参考部署历史.md 6）。
