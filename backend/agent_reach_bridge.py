@@ -546,24 +546,49 @@ def classify_among(text, allowed):
 # 但部分托管（如 workbuddy 单端口沙箱）没有配置环境变量的入口，此时把
 # frontend/config.local.js 一起上传即可 —— 它由服务端读取，HTTP 路由是
 # 白名单制（只暴露 / 与 /audio/），不会被当成静态文件下载。
-_CFG_LOCAL_PATH = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-    "frontend", "config.local.js")
+# 第三级兜底是随仓库分发的 backend/keys.fallback.json，用于云端部署时
+# 环境变量面板不可用的情况（详见 _load_cfg_cache 的三级说明）。
+_BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+_CFG_LOCAL_PATH = os.path.join(_BASE_DIR, "frontend", "config.local.js")
+_KEYS_FALLBACK_PATH = os.path.join(_BASE_DIR, "backend", "keys.fallback.json")
 _CFG_LOCAL_CACHE = None
 
 
+def _load_cfg_cache():
+    """按优先级收集密钥：先读随仓库分发的兜底文件，再用本地 config.local.js 覆盖。
+
+    三级来源（越靠前优先级越高）:
+      1. os.environ           —— Railway / Fly.io 等有变量面板的平台（密钥不落盘）
+      2. frontend/config.local.js  —— 本机 & 无变量面板的托管（被 .gitignore 排除）
+      3. backend/keys.fallback.json —— 随仓库分发，云端部署的最后兜底
+    """
+    cache = {}
+    # 3) 随仓库分发的兜底（JSON）
+    try:
+        with open(_KEYS_FALLBACK_PATH, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        if isinstance(data, dict):
+            for k, v in data.items():
+                if isinstance(v, str) and not k.startswith("_"):
+                    cache[k] = v
+    except Exception:
+        pass
+    # 2) 本地 config.local.js（JS 对象字面量），覆盖兜底值
+    try:
+        with open(_CFG_LOCAL_PATH, "r", encoding="utf-8") as f:
+            body = f.read()
+        for k, v in re.findall(r'(\w+)\s*:\s*"([^"]*)"', body):
+            cache[k] = v
+    except Exception:
+        pass
+    return cache
+
+
 def cfg_local_get(name):
-    """从 frontend/config.local.js 读取指定键；文件不存在或键缺失返回空串。"""
+    """读取非环境变量来源的密钥；找不到返回空串。"""
     global _CFG_LOCAL_CACHE
     if _CFG_LOCAL_CACHE is None:
-        _CFG_LOCAL_CACHE = {}
-        try:
-            with open(_CFG_LOCAL_PATH, "r", encoding="utf-8") as f:
-                body = f.read()
-            for k, v in re.findall(r'(\w+)\s*:\s*"([^"]*)"', body):
-                _CFG_LOCAL_CACHE[k] = v
-        except Exception:
-            pass    # 文件不存在属正常（纯环境变量部署），静默回落为空
+        _CFG_LOCAL_CACHE = _load_cfg_cache()
     return _CFG_LOCAL_CACHE.get(name, "")
 
 
