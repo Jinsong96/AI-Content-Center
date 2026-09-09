@@ -1381,7 +1381,7 @@ async function buildCoverPromptLLM(){
   /* 重试 2 次：第一次失败后用更激进的 system 再试一次，避免被质量不稳的输出打到 fallback */
   for(let attempt = 0; attempt < 2; attempt++){
     try {
-      const resp = await fetch(AGENT_REACH_API + "/api/sf/chat/completions", {
+        const resp = await fetch(SF_LLM.apiBase + "/chat/completions", {
         method: "POST",
         headers: { "Authorization": "Bearer " + SF_LLM.apiKey, "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1425,7 +1425,7 @@ async function genLiveCover(){
   try {
     const prompt = await buildCoverPromptLLM();
     state.live.coverPrompt = prompt;
-    const resp = await fetch(AGENT_REACH_API + "/api/sf/images/generations", {
+    const resp = await fetch(SILICONFLOW_IMG.apiBase + "/images/generations", {
       method: "POST",
       headers: { "Authorization": "Bearer " + SILICONFLOW_IMG.apiKey, "Content-Type": "application/json" },
       body: JSON.stringify({ model: SILICONFLOW_IMG.model, prompt: prompt, image_size: SILICONFLOW_IMG.size, batch_size: 1 })
@@ -2271,10 +2271,10 @@ async function startLiveRun(material, label, book){
   const st = $("#liveStat"); if(st) st.textContent = L("已提交 AI，正在抽取事实…（约 5–10 秒）", "Submitted to AI… extracting facts (~5–10s)");
   try {
     const wfInputs = { material: material.slice(0, 4800), level: state.lvl, style: state.style || "default" };
-    const resp = await fetch(AGENT_REACH_API + "/api/dify/workflows/run", {
+    const resp = await fetch(AIWF_FACT.apiBase + "/workflows/run", {
       method: "POST",
       headers: { "Authorization": "Bearer " + AIWF_FACT.appKey, "Content-Type": "application/json" },
-      body: JSON.stringify({ wf: "fact", inputs: wfInputs, response_mode: "blocking", user: AIWF_FACT.user }),
+      body: JSON.stringify({ inputs: wfInputs, response_mode: "blocking", user: AIWF_FACT.user }),
     });
     const data = await resp.json();
     const stt = data && data.data && data.data.status;
@@ -2318,10 +2318,10 @@ async function runGeneration(){
   render();
   try {
     const wfInputs = { summary: fc.summary, facts_text: fc.facts_text, angle: fc.angle, level: fc.level || state.lvl, style: state.style || "default", facts_raw: fc.facts_raw || "" };
-    const resp = await fetch(AGENT_REACH_API + "/api/dify/workflows/run", {
+    const resp = await fetch(AIWF_GEN.apiBase + "/workflows/run", {
       method: "POST",
       headers: { "Authorization": "Bearer " + AIWF_GEN.appKey, "Content-Type": "application/json" },
-      body: JSON.stringify({ wf: "gen", inputs: wfInputs, response_mode: "blocking", user: AIWF_GEN.user }),
+      body: JSON.stringify({ inputs: wfInputs, response_mode: "blocking", user: AIWF_GEN.user }),
     });
     const data = await resp.json();
     const stt = data && data.data && data.data.status;
