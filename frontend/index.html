@@ -1958,9 +1958,9 @@ function curTerms(){
  *
  * 优先级：localStorage 覆盖 > URL 参数 ?api= > window.WB_API_BASE > DEFAULT_API_BASE
  *
- *  默认值**不能**改成同源（""）：部署版前端在 CloudStudio，而桥接层跑在本机，
- *    两者不同源。改成同源后请求会打到静态站点上，全部 404，音频/热点/抓取同时失效。
- *    工程化时后端与前端同域部署，再把 DEFAULT_API_BASE 改成 ""（或注入 WB_API_BASE）即可。
+ *  注意：同源部署时服务端会注入 window.WB_API_BASE=""（空串=同源）。
+ *    空串是合法值，判断必须用 typeof === "string"，不能用 if(window.WB_API_BASE)
+ *    —— 否则空串被判为假，会错误回落到 DEFAULT_API_BASE，导致桥接永远不可达。
  */
 const DEFAULT_API_BASE = "http://127.0.0.1:8787";
 function readApiBase(){
@@ -1973,7 +1973,7 @@ function readApiBase(){
     const saved = localStorage.getItem("wb_api_base_v1");
     if(saved) return norm(saved);
   } catch(e){}
-  if(typeof window !== "undefined" && window.WB_API_BASE) return norm(window.WB_API_BASE);
+  if(typeof window !== "undefined" && typeof window.WB_API_BASE === "string") return norm(window.WB_API_BASE);
   return DEFAULT_API_BASE;
 }
 /* 运行时可切换（换机器/指向新后端时用）；传空串则恢复默认 */
@@ -3491,7 +3491,10 @@ async function refreshTrends(){
   state.bridgeOk = !!(health && health.ok);
   if(!state.bridgeOk){
     state.realHots = null;
-    toast(L("后端桥接未连接，无法真实抓取。请先在本机运行 backend/agent_reach_bridge.py","Backend bridge not connected — run backend/agent_reach_bridge.py locally first"));
+    const _local = /127\.0\.0\.1|localhost/i.test(AGENT_REACH_API);
+    toast(_local
+      ? L("后端桥接未连接（" + AGENT_REACH_API + "），无法真实抓取。请先在本机运行 backend/agent_reach_bridge.py","Backend bridge not connected (" + AGENT_REACH_API + ") — run backend/agent_reach_bridge.py locally first")
+      : L("后端桥接无响应（" + (AGENT_REACH_API || "同源") + "）。请确认服务已部署且 /api/health 可访问","Backend bridge unreachable (" + (AGENT_REACH_API || "same-origin") + "). Check the service is deployed and /api/health responds"));
     render();
     return;
   }
