@@ -1026,6 +1026,23 @@ def toutiao_article_text(art_id):
 _CHROME_OK = None   # None=尚未探测；True/False=探测结果（只探一次，避免每条目都白等 10 秒）
 
 
+def _chrome_path():
+    """返回可用的 headless Chrome 可执行文件路径；找不到返回 None。
+
+    跨平台：macOS 找 Applications 下的 Chrome，Linux 依次找 chromium / google-chrome。
+    也可用环境变量 CHROME_PATH 显式指定 —— 在 Railway 等容器里装了 Chromium 后，
+    把它配成 /usr/bin/chromium 就能启用 JS 渲染；不配则依赖渲染的抓取源静默降级。"""
+    env = (os.environ.get("CHROME_PATH") or "").strip()
+    if env:
+        return env
+    for c in ("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+              "/usr/bin/chromium", "/usr/bin/chromium-browser",
+              "/usr/bin/google-chrome", "/usr/bin/google-chrome-stable"):
+        if os.path.exists(c):
+            return c
+    return None
+
+
 def _chrome_available():
     """探测本机 Chrome headless 是否可用，结果缓存。
     在受限沙箱内 Chrome 会以 Abort trap 6 退出，此时必须快速判定不可用并整体回退，
@@ -1034,8 +1051,8 @@ def _chrome_available():
     if _CHROME_OK is not None:
         return _CHROME_OK
     import subprocess
-    chrome = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
-    if not os.path.exists(chrome):
+    chrome = _chrome_path()
+    if not chrome:
         _CHROME_OK = False
     else:
         try:
@@ -1122,7 +1139,7 @@ def render_dom_with_chrome(url, timeout=45):
     import subprocess, tempfile, shutil
     tmp = None
     if _chrome_available():
-        chrome = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+        chrome = _chrome_path()
         tmp = tempfile.mkdtemp(prefix="wb-hl-")
         try:
             p = subprocess.run([chrome, "--headless", "--disable-gpu", "--no-sandbox",

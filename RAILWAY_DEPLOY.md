@@ -75,6 +75,17 @@ git push -u origin main
 | `DIFY_WF_GEN` | ✅ | 同上文件里 `DIFY_WF_GEN:` 后面的字符串（app- 开头） |
 | `DIFY_WF_MAIN` | ⚪ 可选 | 同上文件里 `DIFY_WF_MAIN:` 后面的字符串（如暂未使用，可填任意字符串） |
 | `DEMO_PASS` | ⚪ 可选 | 演示账号登录密码。**不填** = 老师点登录直接进（方便）；填了 `123456` = 必须输密码才能进（防随便看）。变量名必须是 `DEMO_PASS`，不能加 `WB_` 前缀（老模板里叫 `WB_DEMO_PASS` 是错的，已修复）。 |
+| `CHROME_PATH` | ⚪ 可选 | **只有装了 Chromium 才需要填**（见下方「热点抓取与 Chrome」）。默认不填也能跑。 |
+
+### 热点抓取与 Chrome（可选增强）
+
+热点抓取里有一类源（如今日头条话题页）是 JS 渲染的，需要无头浏览器才能取到正文。
+
+- **不装 Chromium（默认）**：这些源会**静默降级**（取不到原文），其余源（RSS / 接口 / 纯 HTML）照常返回数据，功能不会报错或卡死。演示够用。
+- **想抓全**：在 Railway 容器里装 Chromium，然后把 `CHROME_PATH` 配成 `/usr/bin/chromium`。
+
+代码已支持跨平台路径（macOS 用 Applications 下的 Chrome，Linux 自动找
+`chromium` / `chromium-browser` / `google-chrome`），也可用 `CHROME_PATH` 显式指定。
 
 **最快复制方式**：在你本机终端跑：
 
