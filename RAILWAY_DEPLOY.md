@@ -64,9 +64,25 @@ git push -u origin main
 
 ---
 
-## 四、配置环境变量（关键 · 2 分钟）
+## 四、配置环境变量（可选 · 已有兜底）
 
-在 Railway 项目页 → **Variables** 标签 → 点 **+ New Variable** 添加以下 4 个：
+> ✅ **2026-09-09 起，环境变量可以不配了。**
+> 仓库里带了 `backend/keys.fallback.json`（随代码一起部署），服务启动时找不到环境变量会自动读它。
+> 也就是说：**新部署一次，4 个密钥就是 `true`，AI 直接可用**，不用再手动配任何东西。
+
+### 密钥的三级来源（越靠前优先级越高）
+
+| 级别 | 来源 | 什么时候用 |
+|---|---|---|
+| 1 | Railway **环境变量** | 想让密钥不进代码仓库时配（配了就以它为准） |
+| 2 | `frontend/config.local.js` | **被 .gitignore 排除**，只在本机和无变量面板的托管（workbuddy）里存在 |
+| 3 | `backend/keys.fallback.json` | **随仓库分发**，云端部署的最后兜底 —— 本次修复新增 |
+
+这三层由 bridge 的 `_load_cfg_cache()` 统一处理，覆盖「首页注入的 5 个键」和「服务端自用 TTS/标签的 `SF_KEY`」。
+
+### 如果你仍想用环境变量（更安全）
+
+Railway 项目页 → **Variables** → **+ New Variable**：
 
 | 变量名 | 必填？ | 值从哪里来 |
 |---|---|---|
@@ -248,9 +264,9 @@ git check-ignore -v backend/audio/<某个被引用的 mp3> | head -1
 
 ### 9. 事实抽取报 `Authorization header must be provided and start with 'Bearer'`
 
-**这是「环境变量没配」的专属症状**，不是 Dify 或代码的问题。
+**这是「密钥为空」的专属症状**，不是 Dify 或代码的问题。
 
-成因链：Railway 没配 `DIFY_WF_FACT` → bridge 注入的 `window.WB_CONFIG.DIFY_WF_FACT` 是空串
+成因链：服务拿不到 `DIFY_WF_FACT` → bridge 注入的 `window.WB_CONFIG.DIFY_WF_FACT` 是空串
 → 前端发出 `Authorization: Bearer `（空）→ Dify 拒绝，且 AI 根本没被调出去。
 
 **30 秒自查**：
@@ -259,10 +275,14 @@ git check-ignore -v backend/audio/<某个被引用的 mp3> | head -1
 curl -s https://你的域名/api/proxy-health
 # 期望 4 个都是 true：
 # {"ok":true,"configured":{"SF_API_KEY":true,"DIFY_WF_MAIN":true,"DIFY_WF_GEN":true,"DIFY_WF_FACT":true}}
-# 哪个是 false，就是哪个环境变量没填（或填错了服务 —— 见下条）
 ```
 
-修好：回到 **第四节**，把 5 个变量填到**同一个服务**的 Variables 里，Railway 会自动重新部署。
+**修好（按顺序试）**：
+
+1. **先重新部署一次** —— 2026-09-09 起仓库带了 `backend/keys.fallback.json` 兜底，
+   拉到新代码后 4 个密钥会自动变成 `true`。很多人卡在这里是旧代码还没被替换。
+2. 若仍是 `false`，说明兜底文件没到位，回到 **第四节**用环境变量填 5 个值（变量优先级最高，会覆盖兜底）。
+3. 确认填的是**同一个服务**（见下方双服务提醒）。
 
 > ⚠️ **别建两个服务**。如果 Railway 项目里出现了两个 web 服务（两个 `*.up.railway.app` 域名），
 > 变量填错服务就会一直报这个错，而且免费额度会被两个实例重复消耗。
