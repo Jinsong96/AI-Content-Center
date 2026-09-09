@@ -541,7 +541,33 @@ def classify_among(text, allowed):
 
 
 # 硅基流动：中文标题 → 英文标题 + 英文背景摘要（头条无正文，摘要作为素材兜底）
-SF_KEY = os.environ.get("SF_API_KEY", "")   # 密钥不入库：从环境变量读取，见 .env.example
+# ---------- 密钥来源：环境变量优先，回落到 config.local.js ----------
+# Railway 等平台有环境变量面板，优先用环境变量（密钥不落盘、不随源码分发）。
+# 但部分托管（如 workbuddy 单端口沙箱）没有配置环境变量的入口，此时把
+# frontend/config.local.js 一起上传即可 —— 它由服务端读取，HTTP 路由是
+# 白名单制（只暴露 / 与 /audio/），不会被当成静态文件下载。
+_CFG_LOCAL_PATH = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    "frontend", "config.local.js")
+_CFG_LOCAL_CACHE = None
+
+
+def cfg_local_get(name):
+    """从 frontend/config.local.js 读取指定键；文件不存在或键缺失返回空串。"""
+    global _CFG_LOCAL_CACHE
+    if _CFG_LOCAL_CACHE is None:
+        _CFG_LOCAL_CACHE = {}
+        try:
+            with open(_CFG_LOCAL_PATH, "r", encoding="utf-8") as f:
+                body = f.read()
+            for k, v in re.findall(r'(\w+)\s*:\s*"([^"]*)"', body):
+                _CFG_LOCAL_CACHE[k] = v
+        except Exception:
+            pass    # 文件不存在属正常（纯环境变量部署），静默回落为空
+    return _CFG_LOCAL_CACHE.get(name, "")
+
+
+SF_KEY = os.environ.get("SF_API_KEY") or cfg_local_get("SF_API_KEY")   # 密钥不入库：从环境变量读取，见 .env.example
 SF_URL = "https://api.siliconflow.cn/v1/chat/completions"
 SF_MODEL = "deepseek-ai/DeepSeek-V4-Flash"
 
@@ -1904,7 +1930,8 @@ class Handler(BaseHTTPRequestHandler):
     # ---------- 反向代理：Dify / SiliconFlow ----------
     # 密钥只存在于服务端环境变量，不下发到前端；统一 UA 避免被上游 WAF 当 bot 拦截。
     def _env_key(self, name):
-        return (os.environ.get(name) or "").strip()
+        # 环境变量优先；缺失时回落到 frontend/config.local.js（无环境变量面板的托管）
+        return (os.environ.get(name) or cfg_local_get(name) or "").strip()
 
     def _proxy_post(self, upstream, api_key, payload, timeout=180):
         """原样转发到上游并把响应原样回给前端，前端解析逻辑不必改动。"""
@@ -1942,7 +1969,8 @@ class Handler(BaseHTTPRequestHandler):
 
     def _serve_index(self):
         """托管前端单页。Railway 单服务部署时前后端同域，API 走相对路径即可。
-        密钥来自 Railway 环境变量（见下方 _envs），不加载 config.local.js。"""
+        密钥来自环境变量；环境变量缺失时回落到 frontend/config.local.js
+        （见 cfg_local_get），以兼容没有环境变量配置面板的托管平台。"""
         try:
             with open(FRONTEND_HTML, "r", encoding="utf-8") as f:
                 html = f.read()
@@ -1952,17 +1980,17 @@ class Handler(BaseHTTPRequestHandler):
         # `window.WB_CFG = (window.WB_CONFIG || {})`，会把我们的注入同步到 WB_CFG。
         # 若直接写 WB_CFG，会被这条语句覆盖成空对象（这是原代码的一个老 bug）。
         # json.dumps 保证引号/反斜杠安全，再把 < 转义成 \u003c 防止 </script> 提前闭合。
-        demo_pass = (os.environ.get("DEMO_PASS") or "").strip()
+        demo_pass = self._env_key("DEMO_PASS")
         # 前端核心链路（Dify 工作流 / SiliconFlow 封面图）已改直连公网 API，
         # 直连必须带真实密钥；Railway 上密钥只存在于环境变量，故在此注入 WB_CONFIG。
         # 代价：密钥会随 HTML 下发到浏览器（F12 可见）。演示环境可接受；
         # 若要彻底隐藏，需把前端这 4 处改回「走 bridge 代理」模式。
         _envs = {
             "DEMO_PASS": demo_pass,
-            "SF_API_KEY": (os.environ.get("SF_API_KEY") or "").strip(),
-            "DIFY_WF_MAIN": (os.environ.get("DIFY_WF_MAIN") or "").strip(),
-            "DIFY_WF_GEN": (os.environ.get("DIFY_WF_GEN") or "").strip(),
-            "DIFY_WF_FACT": (os.environ.get("DIFY_WF_FACT") or "").strip(),
+            "SF_API_KEY": self._env_key("SF_API_KEY"),
+            "DIFY_WF_MAIN": self._env_key("DIFY_WF_MAIN"),
+            "DIFY_WF_GEN": self._env_key("DIFY_WF_GEN"),
+            "DIFY_WF_FACT": self._env_key("DIFY_WF_FACT"),
         }
         _pairs = ",".join("%s:%s" % (k, json.dumps(v).replace("<", "\\u003c"))
                           for k, v in _envs.items())
