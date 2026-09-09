@@ -246,6 +246,33 @@ git check-ignore -v backend/audio/<某个被引用的 mp3> | head -1
 
 ---
 
+### 9. 事实抽取报 `Authorization header must be provided and start with 'Bearer'`
+
+**这是「环境变量没配」的专属症状**，不是 Dify 或代码的问题。
+
+成因链：Railway 没配 `DIFY_WF_FACT` → bridge 注入的 `window.WB_CONFIG.DIFY_WF_FACT` 是空串
+→ 前端发出 `Authorization: Bearer `（空）→ Dify 拒绝，且 AI 根本没被调出去。
+
+**30 秒自查**：
+
+```bash
+curl -s https://你的域名/api/proxy-health
+# 期望 4 个都是 true：
+# {"ok":true,"configured":{"SF_API_KEY":true,"DIFY_WF_MAIN":true,"DIFY_WF_GEN":true,"DIFY_WF_FACT":true}}
+# 哪个是 false，就是哪个环境变量没填（或填错了服务 —— 见下条）
+```
+
+修好：回到 **第四节**，把 5 个变量填到**同一个服务**的 Variables 里，Railway 会自动重新部署。
+
+> ⚠️ **别建两个服务**。如果 Railway 项目里出现了两个 web 服务（两个 `*.up.railway.app` 域名），
+> 变量填错服务就会一直报这个错，而且免费额度会被两个实例重复消耗。
+> 留一个，**另一个 Settings → Danger → Delete**。
+
+**关于 port 8080**：Railway 默认给容器分配的 `PORT` 就是 8080，bridge 读它并绑定。
+`/api/health` 里看到 `"port": 8080` 是正常值，**不是错误**。
+
+---
+
 ## 八、想撤销部署
 
 Railway 项目页 → **Settings → Danger → Delete Project**。密钥随项目一起销毁，无需手动去 SiliconFlow / Dify 控制台撤销（演示用的 key 建议事后在原平台轮换一次，参考部署历史.md 6）。
