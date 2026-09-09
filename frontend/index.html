@@ -4485,7 +4485,7 @@ function pushToPlatform(id){
 }
 function fmtDate(ts){ try { const d = new Date(ts); const p = n => String(n).padStart(2,"0"); return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate())+" "+p(d.getHours())+":"+p(d.getMinutes()); } catch(e){ return ""; } }
 /* ---------- 内容库 · 朗读音频 ---------- */
-/* 相对路径补全为可访问绝对地址（音频文件由桥接层 127.0.0.1:8787 托管） */
+/* 相对路径补全为可访问绝对地址（音频文件由 bridge 托管；同源部署时 AGENT_REACH_API="" 拼出相对路径） */
 function audioFullUrl(rel){
   if(!rel) return "";
   if(/^https?:\/\//i.test(rel)) return rel;
@@ -4545,7 +4545,10 @@ function bankPlayAudio(id, lvl, accent){
   const p = el.play();
   if(p && p.catch) p.catch(function(){
     bankResetPlayBtns(null);
-    toast(L("播放失败，请确认桥接层已启动（127.0.0.1:8787）","Playback failed — is the bridge running on 127.0.0.1:8787?"));
+      const _aLocal = /127\.0\.0\.1|localhost/i.test(AGENT_REACH_API);
+      toast(_aLocal
+        ? L("播放失败，请确认桥接层已启动（" + AGENT_REACH_API + "）","Playback failed — is the bridge running on " + AGENT_REACH_API + "?")
+        : L("播放失败：音频文件无法访问（" + (AGENT_REACH_API || "同源") + "/audio/）","Playback failed — audio URL unreachable at " + (AGENT_REACH_API || "same-origin") + "/audio/"));
   });
 }
 function bankCopyAudio(url){
