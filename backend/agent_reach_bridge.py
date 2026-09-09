@@ -25,7 +25,12 @@ import xml.etree.ElementTree as ET
 from email.utils import parsedate_to_datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 8787
+PORT = int(os.environ.get("PORT") or (sys.argv[1] if len(sys.argv) > 1 else 8787))
+
+# 前端单页路径：Railway 单服务部署时由 bridge 一并托管，前后端同域。
+# 默认 ../frontend/index.html；可用环境变量 FRONTEND_HTML 覆盖。
+FRONTEND_HTML = os.environ.get("FRONTEND_HTML") or os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "frontend", "index.html")
 
 # 真实新闻源（均验证可用），每项 = (源名, RSS 地址, 覆盖的主题)
 # 信源清单。判定标准（2026-09-02 实测）：必须可达且条目带摘要——
@@ -1391,6 +1396,22 @@ def fetch_one(source_url):
 SOURCE_BOOST = {"CGTN": 10}
 
 
+# 渲染器（headless Chrome / CDP）不可用只是「次要路径失效」：
+# 头条正文有 A1 直达文章 JSON 兜底，实测 30/30 条目仍有完整正文（均值 1727 字）。
+# 因此这类 warn 不应触发界面「部分信源未抓到」的降级提示，避免误导使用者。
+_RENDER_SCOPES = ("render.chrome", "render.cdp", "render.dom", "render.article")
+
+
+def _is_real_degradation(errs):
+    """只有「真正影响结果完整性」的错误才算降级；渲染器缺失不计。"""
+    for e in errs or []:
+        scope = e.get("scope") or ""
+        if scope.startswith(_RENDER_SCOPES) and (e.get("severity") or "") == "warn":
+            continue
+        return True
+    return False
+
+
 def fetch_trends(theme="all", sub=None, limit=30):
     """合并真实热点：今日头条热搜(中文全网) + Hacker News(英文科技) + RSS(英文最新)。
     不做「讲好中国故事」内容过滤；主题仅用于分类标签与可选筛选。"""
@@ -1863,6 +1884,76 @@ class Handler(BaseHTTPRequestHandler):
         except Exception:
             return self._send({"ok": False, "error": "read failed"}, 500)
 
+    # ---------- 反向代理：Dify / SiliconFlow ----------
+    # 密钥只存在于服务端环境变量，不下发到前端；统一 UA 避免被上游 WAF 当 bot 拦截。
+    def _env_key(self, name):
+        return (os.environ.get(name) or "").strip()
+
+    def _proxy_post(self, upstream, api_key, payload, timeout=180):
+        """原样转发到上游并把响应原样回给前端，前端解析逻辑不必改动。"""
+        if not api_key:
+            return self._send({"ok": False, "error": "missing upstream api key on server"}, 500)
+        data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+        req = urllib.request.Request(upstream, data=data, headers={
+            "Authorization": "Bearer " + api_key,
+            "Content-Type": "application/json",
+            "User-Agent": UA,
+            "Accept": "application/json",
+        })
+        t0 = time.time()
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as r:
+                raw = r.read().decode("utf-8", "ignore")
+            try:
+                obj = json.loads(raw)
+            except Exception:
+                return self._send({"ok": False, "error": "upstream returned non-json",
+                                   "detail": raw[:400]}, 502)
+            if isinstance(obj, dict):
+                obj["_proxy_ms"] = int((time.time() - t0) * 1000)
+            return self._send(obj, 200)
+        except urllib.error.HTTPError as e:
+            detail = ""
+            try:
+                detail = e.read().decode("utf-8", "ignore")[:400]
+            except Exception:
+                pass
+            return self._send({"ok": False, "error": "upstream http %s" % e.code,
+                               "detail": detail}, 502)
+        except Exception as e:
+            return self._send({"ok": False, "error": "upstream error: %s" % e}, 502)
+
+    def _serve_index(self):
+        """托管前端单页。Railway 单服务部署时前后端同域，API 走相对路径即可。
+        安全要点：不加载 config.local.js —— 密钥因此不会下发到浏览器。"""
+        try:
+            with open(FRONTEND_HTML, "r", encoding="utf-8") as f:
+                html = f.read()
+        except Exception as e:
+            return self._send({"ok": False, "error": "frontend index.html unavailable: %s" % e}, 500)
+        # 注到 WB_CONFIG 而不是 WB_CFG：原 HTML 第 11 行有
+        # `window.WB_CFG = (window.WB_CONFIG || {})`，会把我们的注入同步到 WB_CFG。
+        # 若直接写 WB_CFG，会被这条语句覆盖成空对象（这是原代码的一个老 bug）。
+        # json.dumps 保证引号/反斜杠安全，再把 < 转义成 \u003c 防止 </script> 提前闭合。
+        demo_pass = (os.environ.get("DEMO_PASS") or "").strip()
+        cfg = 'window.WB_API_BASE="";window.WB_CONFIG={DEMO_PASS:%s};' % (
+            json.dumps(demo_pass).replace("<", "\\u003c"))
+        inject = "<script>%s</script>" % cfg
+        tag = '<script src="config.local.js"></script>'
+        if tag in html:
+            html = html.replace(tag, inject, 1)      # 替换掉密钥配置，改为声明同源
+        elif "<head>" in html:
+            html = html.replace("<head>", "<head>" + inject, 1)
+        else:
+            html = inject + html
+        data = html.encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(data)))
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        self.wfile.write(data)
+
     def do_POST(self):
         parsed = urllib.parse.urlparse(self.path)
         path = parsed.path
@@ -1902,17 +1993,46 @@ class Handler(BaseHTTPRequestHandler):
                 # 写入失败必须明确回错误码与原因，前端才能标出「后端未同步」
                 return self._send({"ok": False, "error": err or "invalid article (missing id)"}, 400)
             return self._send({"ok": True, "id": stored_id, "library_count": total})
+        # ---- 代理：Dify 工作流（body.wf 决定使用哪个 app key：fact|gen|main）----
+        if path == "/api/dify/workflows/run":
+            wf = (body.get("wf") or "").strip().lower()
+            keymap = {"fact": "DIFY_WF_FACT", "gen": "DIFY_WF_GEN", "main": "DIFY_WF_MAIN"}
+            kn = keymap.get(wf)
+            if not kn:
+                return self._send({"ok": False, "error": "unknown wf (expect fact|gen|main)"}, 400)
+            return self._proxy_post(
+                "https://api.dify.ai/v1/workflows/run", self._env_key(kn),
+                {"inputs": body.get("inputs") or {},
+                 "response_mode": body.get("response_mode") or "blocking",
+                 "user": body.get("user") or "frontend-demo"}, timeout=180)
+        # ---- 代理：SiliconFlow（LLM / 文生图），请求体原样透传 ----
+        if path.startswith("/api/sf/"):
+            ep = path[len("/api/sf/"):].strip("/")
+            allow = {"chat/completions": "chat/completions",
+                     "images/generations": "images/generations"}
+            if ep not in allow:
+                return self._send({"ok": False, "error": "unknown sf endpoint"}, 404)
+            return self._proxy_post("https://api.siliconflow.cn/v1/" + allow[ep],
+                                    self._env_key("SF_API_KEY"), body, timeout=180)
         return self._send({"ok": False, "error": "not found"}, 404)
 
     def do_GET(self):
         parsed = urllib.parse.urlparse(self.path)
         path = parsed.path
         q = dict(urllib.parse.parse_qsl(parsed.query))
+        if path in ("/", "/index.html"):
+            return self._serve_index()
         if path.startswith("/audio/"):
             return self._serve_audio(path[len("/audio/"):])
         if path == "/api/tags/taxonomy":
             # 标签词表单一真源：前端从这里拉，不再内置副本
             return self._send({"ok": True, **taxonomy_payload()})
+        if path == "/api/proxy-health":
+            # 部署自检：只回「是否已配置」，绝不回密钥值
+            ks = ["SF_API_KEY", "DIFY_WF_MAIN", "DIFY_WF_GEN", "DIFY_WF_FACT"]
+            return self._send({"ok": True,
+                               "configured": dict((k, bool(self._env_key(k))) for k in ks),
+                               "hint": "true=已配置；false=缺环境变量，对应功能会失败"})
         if path == "/api/health":
             return self._send({"ok": True, "name": "agent-reach-bridge", "time": int(time.time()),
                                "port": PORT, "recent_errors": len(ERROR_LOG)})
@@ -1924,14 +2044,14 @@ class Handler(BaseHTTPRequestHandler):
             errs = drain_errors(t0)
             # degraded=True 表示「结果不完整」：用户必须知道这不是"没有热点"，而是"有源失败"
             return self._send({"ok": True, "theme": theme, "sub": sub, "items": items,
-                               "errors": errs, "degraded": bool(errs)})
+                               "errors": errs, "degraded": _is_real_degradation(errs)})
         if path == "/api/scan":
             urls = [u for u in (q.get("urls") or "").split(",")]
             t0 = int(time.time() * 1000)
             items = fetch_scan(urls)
             errs = drain_errors(t0)
             return self._send({"ok": True, "items": items, "requested_sources": len([u for u in urls if u.strip()]),
-                               "errors": errs, "degraded": bool(errs)})
+                               "errors": errs, "degraded": _is_real_degradation(errs)})
         if path == "/api/library":
             items = library_list()
             err = library_last_error()

@@ -1,0 +1,2 @@
+# ReadPal AI 内容生产平台后端 — 零第三方依赖
+# 桥接层只用 Python 标准库，无需 pip install。保留此文件是为了 Railway 能识别为 Python 项目。

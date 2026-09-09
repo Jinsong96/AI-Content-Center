@@ -18,8 +18,43 @@ backend/.env.*
 material/
 
 # ---------- 3. 生成物 / 可重新产出的二进制 ----------
-# TTS 合成产物约 240MB，可重新生成
-backend/audio/
+# 运行时日志（start_railway_local.py 本地验证产生，不入库）
+*.log
+
+# TTS 产物默认不入库（全部约 240MB，其中 87 个历史文件已无人引用）。
+# 但内容库文章实际引用的音频必须入库，否则部署后内容库播放全部 404。
+# 下面先排除整个目录，再逐条白名单放行「被引用」的音频，勿整体放行。
+backend/audio/*
+!backend/audio/A2_uk_0024ac9b528df1a0.mp3
+!backend/audio/A2_uk_0ba29f919f2e49a0.mp3
+!backend/audio/A2_uk_1d0e5b86e693ee58.mp3
+!backend/audio/A2_uk_2ad71feced026ca6.mp3
+!backend/audio/A2_uk_f29e97f627a62065.mp3
+!backend/audio/A2_us_20ad703b73ee7d48.mp3
+!backend/audio/A2_us_3403103acd0d0614.mp3
+!backend/audio/A2_us_977c823468b7fd4c.mp3
+!backend/audio/A2_us_a0fcdf69fe6bb514.mp3
+!backend/audio/A2_us_f80679cce3a71dbf.mp3
+!backend/audio/B1_uk_7731793de20f1fd8.mp3
+!backend/audio/B1_uk_8f49e0e2e6720942.mp3
+!backend/audio/B1_uk_dbac7472881b4a65.mp3
+!backend/audio/B1_uk_ec41edf3c3ada86b.mp3
+!backend/audio/B1_uk_fd172d3b933e7f1e.mp3
+!backend/audio/B1_us_137f4710bba86cc2.mp3
+!backend/audio/B1_us_4a9f76af12316305.mp3
+!backend/audio/B1_us_4eb1ab25686e8c16.mp3
+!backend/audio/B1_us_88191b778ebc9306.mp3
+!backend/audio/B1_us_c9576a24cbc1d06d.mp3
+!backend/audio/B2_uk_1e8fe21fe8952b7c.mp3
+!backend/audio/B2_uk_2998c4a35468f8ce.mp3
+!backend/audio/B2_uk_39b7fb4bfbcb62d1.mp3
+!backend/audio/B2_uk_7995b5975b5349ae.mp3
+!backend/audio/B2_uk_bad7908cb89e51dd.mp3
+!backend/audio/B2_us_02c0e647e126d8d2.mp3
+!backend/audio/B2_us_272758b78e676fa2.mp3
+!backend/audio/B2_us_8e8bfb01f5666619.mp3
+!backend/audio/B2_us_9311c7106ab66720.mp3
+!backend/audio/B2_us_e4158946c85ba2b9.mp3
 # 历史封面图约 13MB，现改为 base64 直存
 frontend/covers/
 

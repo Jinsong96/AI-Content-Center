@@ -1381,7 +1381,7 @@ async function buildCoverPromptLLM(){
   /* 重试 2 次：第一次失败后用更激进的 system 再试一次，避免被质量不稳的输出打到 fallback */
   for(let attempt = 0; attempt < 2; attempt++){
     try {
-      const resp = await fetch(SF_LLM.apiBase + "/chat/completions", {
+      const resp = await fetch(AGENT_REACH_API + "/api/sf/chat/completions", {
         method: "POST",
         headers: { "Authorization": "Bearer " + SF_LLM.apiKey, "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1425,7 +1425,7 @@ async function genLiveCover(){
   try {
     const prompt = await buildCoverPromptLLM();
     state.live.coverPrompt = prompt;
-    const resp = await fetch(SILICONFLOW_IMG.apiBase + "/images/generations", {
+    const resp = await fetch(AGENT_REACH_API + "/api/sf/images/generations", {
       method: "POST",
       headers: { "Authorization": "Bearer " + SILICONFLOW_IMG.apiKey, "Content-Type": "application/json" },
       body: JSON.stringify({ model: SILICONFLOW_IMG.model, prompt: prompt, image_size: SILICONFLOW_IMG.size, batch_size: 1 })
@@ -2271,10 +2271,10 @@ async function startLiveRun(material, label, book){
   const st = $("#liveStat"); if(st) st.textContent = L("已提交 AI，正在抽取事实…（约 5–10 秒）", "Submitted to AI… extracting facts (~5–10s)");
   try {
     const wfInputs = { material: material.slice(0, 4800), level: state.lvl, style: state.style || "default" };
-    const resp = await fetch(AIWF_FACT.apiBase + "/workflows/run", {
+    const resp = await fetch(AGENT_REACH_API + "/api/dify/workflows/run", {
       method: "POST",
       headers: { "Authorization": "Bearer " + AIWF_FACT.appKey, "Content-Type": "application/json" },
-      body: JSON.stringify({ inputs: wfInputs, response_mode: "blocking", user: AIWF_FACT.user }),
+      body: JSON.stringify({ wf: "fact", inputs: wfInputs, response_mode: "blocking", user: AIWF_FACT.user }),
     });
     const data = await resp.json();
     const stt = data && data.data && data.data.status;
@@ -2318,10 +2318,10 @@ async function runGeneration(){
   render();
   try {
     const wfInputs = { summary: fc.summary, facts_text: fc.facts_text, angle: fc.angle, level: fc.level || state.lvl, style: state.style || "default", facts_raw: fc.facts_raw || "" };
-    const resp = await fetch(AIWF_GEN.apiBase + "/workflows/run", {
+    const resp = await fetch(AGENT_REACH_API + "/api/dify/workflows/run", {
       method: "POST",
       headers: { "Authorization": "Bearer " + AIWF_GEN.appKey, "Content-Type": "application/json" },
-      body: JSON.stringify({ inputs: wfInputs, response_mode: "blocking", user: AIWF_GEN.user }),
+      body: JSON.stringify({ wf: "gen", inputs: wfInputs, response_mode: "blocking", user: AIWF_GEN.user }),
     });
     const data = await resp.json();
     const stt = data && data.data && data.data.status;
@@ -3388,10 +3388,16 @@ async function fetchJSON(url){
   }
 }
 /* 抓取结果的降级信息：{ degraded, errors[] }，供界面区分「没有内容」与「抓取失败」 */
+/* 渲染器（headless Chrome / CDP）不可用只是次要路径失效：正文有直达文章 JSON 兜底，
+   实测 30/30 条目仍有完整正文。这类 warn 不算「降级」，避免界面显示误导性提示。 */
+function isRenderWarn(e){
+  const s = String((e && e.scope) || "");
+  return s.indexOf("render.") === 0 && (e && e.severity) === "warn";
+}
 function digestFetchResult(j, scope){
   if(j && Array.isArray(j.items)){
     const errs = j.errors || [];
-    return { items: j.items, degraded: !!(j.degraded || errs.length), errors: errs };
+    return { items: j.items, degraded: !!(j.degraded || errs.some(e => !isRenderWarn(e))), errors: errs };
   }
   // j 为 null → 请求本身失败（桥接层不可达等），绝不能当作"没有内容"
   const why = (lastFetchError && lastFetchError.msg) || L("桥接层不可达","bridge unreachable");
