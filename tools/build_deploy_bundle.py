@@ -65,6 +65,9 @@ def build(dst):
     if not os.path.exists(os.path.join(ROOT, "frontend/config.local.js")):
         sys.exit("✗ 缺少 frontend/config.local.js —— 先从 config.local.js.example 复制并填真实密钥")
     cp("frontend/config.local.js")
+    # 3b) 随仓库分发的三级兜底（bridge 的 _load_cfg_cache 会读它）
+    if os.path.exists(os.path.join(ROOT, "backend/keys.fallback.json")):
+        cp("backend/keys.fallback.json")
 
     # 4) 只复制 library.json 实际引用到的音频（全量 audio 目录有 240MB，太大）
     with open(os.path.join(ROOT, "backend/library.json"), encoding="utf-8") as f:
