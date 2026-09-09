@@ -1,0 +1,8 @@
+{
+  "_comment": "云端部署的密钥兜底文件（随仓库分发）。优先级：环境变量 > frontend/config.local.js > 本文件。若已在部署平台配置环境变量，可删除本文件内容或整个文件。注意：本文件会被公开仓库看到，仅限演示用途的密钥。",
+  "SF_API_KEY": "sk-fsnxdacbilbtxldxkvyjdyxodahazwvmllhormmvhwdulqzu",
+  "DIFY_WF_FACT": "app-9wWWiNplYeRaGDFBHeWhwnxM",
+  "DIFY_WF_GEN": "app-SuBV84EAHkxd7N7UXKmWX42d",
+  "DIFY_WF_MAIN": "app-RVTU8kMkK3w4hg4mC8PChA4K",
+  "DEMO_PASS": "123456"
+}
