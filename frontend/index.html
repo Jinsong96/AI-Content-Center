@@ -2300,7 +2300,14 @@ async function startLiveRun(material, label, book){
     } else if(data && data.code){
       state.live.status = "error"; state.live.err = data.message || data.code;
     } else {
-      state.live.status = "error"; state.live.err = (data && data.data && data.data.error) || "工作流执行失败";
+      const rawErr = (data && data.data && data.data.error) || "工作流执行失败";
+      if(/Insufficient Balance|insufficient_quota/i.test(rawErr)){
+        state.live.status = "error";
+        state.live.err = L("演示账户余额不足，请联系管理员充值后重试（详细错误已记录到浏览器 Console）","Demo account out of credits — contact admin to top up (details in Console)");
+        console.warn("[ReadPal] Dify:", rawErr);
+      } else {
+        state.live.status = "error"; state.live.err = rawErr;
+      }
     }
   } catch(e){ state.live.status = "error"; state.live.err = "网络错误：" + e.message; }
   state.live.elapsed = ((Date.now() - state.live.t0) / 1000).toFixed(1);
@@ -2350,7 +2357,14 @@ async function runGeneration(){
     } else if(data && data.code){
       state.live.status = "error"; state.live.err = data.message || data.code;
     } else {
-      state.live.status = "error"; state.live.err = (data && data.data && data.data.error) || "生成失败";
+      const rawErr = (data && data.data && data.data.error) || "工作流执行失败";
+      if(/Insufficient Balance|insufficient_quota/i.test(rawErr)){
+        state.live.status = "error";
+        state.live.err = L("演示账户余额不足，请联系管理员充值后重试（详细错误已记录到浏览器 Console）","Demo account out of credits — contact admin to top up (details in Console)");
+        console.warn("[ReadPal] Dify:", rawErr);
+      } else {
+        state.live.status = "error"; state.live.err = rawErr;
+      }
     }
   } catch(e){ state.live.status = "error"; state.live.err = "网络错误：" + e.message; }
   state.live.elapsed = ((Date.now() - state.live.t0) / 1000).toFixed(1);
@@ -4471,7 +4485,7 @@ function pushToPlatform(id){
 }
 function fmtDate(ts){ try { const d = new Date(ts); const p = n => String(n).padStart(2,"0"); return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate())+" "+p(d.getHours())+":"+p(d.getMinutes()); } catch(e){ return ""; } }
 /* ---------- 内容库 · 朗读音频 ---------- */
-/* 相对路径补全为可访问绝对地址（音频文件由 bridge 托管；同源部署时 AGENT_REACH_API="" 拼出相对路径） */
+/* 相对路径补全为可访问绝对地址（音频文件由桥接层 127.0.0.1:8787 托管） */
 function audioFullUrl(rel){
   if(!rel) return "";
   if(/^https?:\/\//i.test(rel)) return rel;
@@ -4531,10 +4545,7 @@ function bankPlayAudio(id, lvl, accent){
   const p = el.play();
   if(p && p.catch) p.catch(function(){
     bankResetPlayBtns(null);
-    const _aLocal = /127\.0\.0\.1|localhost/i.test(AGENT_REACH_API);
-    toast(_aLocal
-      ? L("播放失败，请确认桥接层已启动（" + AGENT_REACH_API + "）","Playback failed — is the bridge running at " + AGENT_REACH_API + "?")
-      : L("播放失败：音频文件无法访问（" + (AGENT_REACH_API || "同源") + "/audio/）","Playback failed — audio URL unreachable at " + (AGENT_REACH_API || "same-origin") + "/audio/"));
+    toast(L("播放失败，请确认桥接层已启动（127.0.0.1:8787）","Playback failed — is the bridge running on 127.0.0.1:8787?"));
   });
 }
 function bankCopyAudio(url){
