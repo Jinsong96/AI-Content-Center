@@ -10,8 +10,18 @@
 老师浏览器  ──▶  Railway（同一个服务）
                   ├─ 后端：Python bridge + Dify/SiliconFlow 反向代理
                   └─ 前端：ReadPal 单页（HTML 内联热点数据，无外部依赖）
-                  密钥只存在服务环境变量里，浏览器永远拿不到
+                  密钥配置在环境变量里（见下方「密钥可见性」说明）
 ```
+
+**关于密钥可见性（2026-09-09 更新，重要）**
+
+前端核心链路（Dify 工作流、SiliconFlow 封面图）已改为**直连公网 API**，直连请求必须自带密钥，
+因此 bridge 会把环境变量里的密钥注入到页面的 `window.WB_CONFIG` 中 —— **按 F12 能看到**。
+
+- 演示场景（额度有限、内部老师使用）：可以接受，部署最简单。
+- 若要彻底隐藏：需把前端那 4 处改回「走 bridge 代理」模式，由服务端转发、浏览器不接触密钥。
+
+无论哪种，`config.local.js` 都不入库，密钥不会写进 GitHub。
 
 ---
 
@@ -75,7 +85,9 @@ grep -E '"(SF_API_KEY|DIFY_WF_FACT|DIFY_WF_GEN|DIFY_WF_MAIN)"' \
 
 会输出 4 行 `key = "sk-xxx"` 或 `key = "app-xxx"`，每行复制等号右侧的引号内容到 Railway。
 
-> ⚠️ **密钥只在 Railway 服务端环境变量里**，永远不会被下发到浏览器。前端 HTML 里的 `<script src="config.local.js"></script>` 已被 bridge 自动替换成 `window.WB_API_BASE=""`（同源声明），所以即使用户按 F12 也看不到任何密钥。
+> ⚠️ **密钥可见性**：见开头说明。当前直连模式下，bridge 会把环境变量里的密钥注入
+> `window.WB_CONFIG`（F12 可见）；前端 HTML 里的 `<script src="config.local.js"></script>`
+> 已被 bridge 替换成 `window.WB_API_BASE=""`（声明同源，让 bridge 那 4 项走相对路径）。
 
 添加完 4 个变量后，Railway 会自动重新部署。等 Deploy Logs 显示 `bridge listening on http://0.0.0.0:XXXXX` 就成功了。
 
@@ -112,9 +124,14 @@ curl -s $RAILWAY_URL/api/health
 curl -s $RAILWAY_URL/api/proxy-health
 # 期望: {"ok": true, "configured": {"SF_API_KEY": true, "DIFY_WF_FACT": true, "DIFY_WF_GEN": true, "DIFY_WF_MAIN": true}}
 
-# 3) 首页是否正常（HTML 应不含任何 sk- 或 app- 开头字符串）
-curl -s $RAILWAY_URL/ | grep -E 'sk-[A-Za-z0-9]{20}|app-[A-Za-z0-9]{20}'
-# 期望: 无输出（安全验证通过）
+# 3) 首页密钥注入是否生效（直连模式必需）
+curl -s $RAILWAY_URL/ | grep -o 'window.WB_CONFIG={[^}]*}'
+# 期望: WB_CONFIG={DEMO_PASS:"...",SF_API_KEY:"sk-...",DIFY_WF_MAIN:"app-...",...}
+# 若某项为空 → 对应环境变量没配好 → 文章生产 / 封面图会失败
+
+# 3b) 同源声明是否注入（bridge 那 4 项功能依赖它）
+curl -s $RAILWAY_URL/ | grep -o 'window.WB_API_BASE=""'
+# 期望: 有输出。没有的话热点/TTS/内容库/标签会去连访问者本机 8787 而失败
 
 # 4) 海外出口 IP 是否能抓到热点（Railway 出口在美国，国内站点可能慢/被地域限制）
 curl -s "$RAILWAY_URL/api/trends?theme=all&limit=10"

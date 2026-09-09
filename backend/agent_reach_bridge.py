@@ -1925,7 +1925,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def _serve_index(self):
         """托管前端单页。Railway 单服务部署时前后端同域，API 走相对路径即可。
-        安全要点：不加载 config.local.js —— 密钥因此不会下发到浏览器。"""
+        密钥来自 Railway 环境变量（见下方 _envs），不加载 config.local.js。"""
         try:
             with open(FRONTEND_HTML, "r", encoding="utf-8") as f:
                 html = f.read()
@@ -1936,8 +1936,20 @@ class Handler(BaseHTTPRequestHandler):
         # 若直接写 WB_CFG，会被这条语句覆盖成空对象（这是原代码的一个老 bug）。
         # json.dumps 保证引号/反斜杠安全，再把 < 转义成 \u003c 防止 </script> 提前闭合。
         demo_pass = (os.environ.get("DEMO_PASS") or "").strip()
-        cfg = 'window.WB_API_BASE="";window.WB_CONFIG={DEMO_PASS:%s};' % (
-            json.dumps(demo_pass).replace("<", "\\u003c"))
+        # 前端核心链路（Dify 工作流 / SiliconFlow 封面图）已改直连公网 API，
+        # 直连必须带真实密钥；Railway 上密钥只存在于环境变量，故在此注入 WB_CONFIG。
+        # 代价：密钥会随 HTML 下发到浏览器（F12 可见）。演示环境可接受；
+        # 若要彻底隐藏，需把前端这 4 处改回「走 bridge 代理」模式。
+        _envs = {
+            "DEMO_PASS": demo_pass,
+            "SF_API_KEY": (os.environ.get("SF_API_KEY") or "").strip(),
+            "DIFY_WF_MAIN": (os.environ.get("DIFY_WF_MAIN") or "").strip(),
+            "DIFY_WF_GEN": (os.environ.get("DIFY_WF_GEN") or "").strip(),
+            "DIFY_WF_FACT": (os.environ.get("DIFY_WF_FACT") or "").strip(),
+        }
+        _pairs = ",".join("%s:%s" % (k, json.dumps(v).replace("<", "\\u003c"))
+                          for k, v in _envs.items())
+        cfg = 'window.WB_API_BASE="";window.WB_CONFIG={%s};' % _pairs
         inject = "<script>%s</script>" % cfg
         tag = '<script src="config.local.js"></script>'
         if tag in html:
