@@ -262,3 +262,55 @@ python3 start_railway_local.py              # 默认 8793 端口
 # 访问 http://127.0.0.1:8793/ 即可（同部署后行为）
 python3 start_railway_local.py --stop       # 停止
 ```
+
+---
+
+## 十、备用方案 B：没有环境变量面板的托管（workbuddy 单端口沙箱）
+
+有些托管平台**没有配置环境变量的入口**（例如 workbuddy 的发布能力）。这时用方案 B：
+密钥随源码一起上传，由 bridge 回落读取 `frontend/config.local.js`。
+
+### 原理：密钥回落
+
+bridge 里所有取密钥的地方都遵循「**环境变量优先，缺失则回落**」：
+
+| 位置 | 用途 |
+|---|---|
+| `cfg_local_get(name)` | 解析 `frontend/config.local.js`（缓存，只读一次） |
+| `SF_KEY` | 服务端 SiliconFlow 调用（TTS、中文标题翻译等） |
+| `_env_key(name)` | Dify / SiliconFlow 反向代理 |
+| `_serve_index()` | 把密钥注入前端 `window.WB_CONFIG`（前端已改直连，必须带密钥） |
+
+所以在 Railway 上配了环境变量 → 用环境变量；在 workbuddy 上没得配 → 用 config.local.js。
+**同一份代码两种部署都能跑**，不需要为平台各维护一份分支。
+
+### 安全性（重要）
+
+- bridge 的 HTTP 路由是**白名单制**，只暴露 `/` 和 `/audio/`，
+  实测 `/config.local.js` 与 `/frontend/config.local.js` 均返回 **404**，文件不会被人下载。
+- 但密钥会被注入到 HTML 里下发给浏览器，**F12 可见**。
+  这与旧的静态部署版风险相同（演示用途、额度有限可接受）；要彻底隐藏请用方案 A（Railway）。
+- `config.local.js` 已被 `.gitignore` 排除，不会进 git。
+
+### 部署步骤
+
+```bash
+# 1) 构建瘦身部署包（只含 bridge 必需文件，约 74MB；全量 output/ 有 356MB）
+python3 tools/build_deploy_bundle.py
+#    产物：/Users/bryan/WorkBuddy/2026-08-25-09-50-09/deploy_bundle（在 output 外，不进 git）
+
+# 2) 本地验证（模拟无环境变量环境）
+cd deploy_bundle && PORT=8899 python3 backend/agent_reach_bridge.py
+curl localhost:8899/api/proxy-health      # 4 个密钥都应为 true
+
+# 3) 用发布能力部署 deploy_bundle 目录
+#    language=python, startCmd="python3 backend/agent_reach_bridge.py", port=3000, installCmd 留空
+```
+
+### B 方案的已知边界
+
+| 项 | 状态 |
+|---|---|
+| 文章生产 / 封面图 / TTS / 内容库 / 标签 / 音频 | ✅ 与 Railway 一致 |
+| 热点抓取 | ⚠️ 可用但**慢**（实测 8.5 分钟，Railway 约 1.5 分钟）。原因是被墙源（BBC 等）要逐个等到超时 |
+| 头条话题页原文 | ⚠️ 需 Chrome 渲染，容器里没有 Chromium → 抓不到，前端会提示「请手动粘贴素材」（优雅降级，不报错）。配置了 `CHROME_PATH` 且容器装了 Chromium 后可恢复 |
