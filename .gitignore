@@ -9,6 +9,8 @@ frontend/config.local.js
 backend/.env
 backend/.env.*
 !backend/.env.example
+# tools/ 下脚本的本地令牌（fetch_sources.py / push_via_api.py 读取）
+tools/.env.json
 *.pem
 *.key
 *.p12
