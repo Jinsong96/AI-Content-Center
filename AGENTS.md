@@ -14,11 +14,11 @@
 | 形态 | 单文件前端 + 零依赖 Python 后端（bridge），前后端同域 |
 | 代码仓库 | `https://github.com/Jinsong96/AI-Content-Center`（main 分支） |
 | 线上站点 | Railway，推 GitHub 后**自动部署**（约 90 秒） |
-| 前端真源 | `frontend/index.html`（约 68 万字符，所有页面/JS/CSS 全在里面） |
+| 前端真源 | `frontend/index.html`（约 63 万字符，所有页面/JS/CSS 全在里面） |
 | 后端真源 | `backend/agent_reach_bridge.py` |
 | 部署文档 | `RAILWAY_DEPLOY.md`（含 10 条故障排查） |
 | 设计文档 | `docs/01` ~ `docs/09` |
-| 自带工具 | `tools/`（源码镜像 / 原子替换 / JS 校验 / API 直传 / 端到端回归） |
+| 自带工具 | `tools/`（源码镜像 / 原子替换 / JS 校验 / API 直传 / 端到端回归 / 精确视口截图） |
 
 **禁止**：复制 `index.html` 到别处改（会分叉）。所有会话都改仓库里那一份。
 
@@ -40,6 +40,7 @@ tools/check_js.py                抽 <script> 逐个 node --check（治坑 6）
 tools/push_via_api.py            GitHub API 直传（治坑 8）
 tools/e2e_verify.mjs             端到端回归：登录 + 遍历 12 页 + 收集 JS 异常
 tools/theme_audit.mjs            配色合规审计：遍历 12 页揪出非「黑/灰/橙红」色相
+tools/cdp_shot.mjs               CDP 精确视口截图（多尺寸一次出图，治坑 12）
 docs/                            01-架构 02-API 03-Dify工作流 04-数据模型
                                  05-等级扩展 06-前端审计 07-工程化需求 08-风险清单 09-Git协作
 RAILWAY_DEPLOY.md               部署指南 + 故障排查
@@ -165,6 +166,28 @@ if (typeof window.WB_API_BASE === "string") return norm(window.WB_API_BASE);
 
 > **规则**：改 Dify 调用前先用 curl 真跑一次拿到真实报错，别猜字段名（见第 10 节末条）。
 
+### 坑 12：`chrome --window-size` 受最小窗口尺寸限制，做不了窄屏验证
+
+headless Chrome 的 `--window-size=420,820` **不会**得到 420px 视口 —— 受 Chrome 最小窗口
+宽度约束，实际视口约 500px，而截图仍按 420 裁切。表现是「移动端布局溢出、右侧被切」，
+极容易误判成前端写坏了（实测 420 尺寸下 `vw` 报 500、卡片撑出屏幕）。
+
+> **规则**：窄屏 / 移动端验证一律走 CDP `Emulation.setDeviceMetricsOverride`，用
+> `node tools/cdp_shot.mjs --sizes=1440x900,1024x768,420x820` 出图；该脚本同时回读
+> `vw` / `scrollWidth` / 容器矩形，可直接判断**是否水平溢出**与**是否垂直居中**。
+
+### 坑 13：`min-height:100%` 对 `position:fixed` 父元素无效
+
+覆盖层（如 `#loginOv`）用 `position:fixed;inset:0` 时高度来自 top/bottom 定位而**不是**
+`height` 属性，子元素写 `min-height:100%` 会 resolve 到 `auto` → 失效，表现为
+「内容死贴在顶部、垂直居中没生效」；若改用 grid `place-items:center`，内容超高时
+顶部又会被裁掉（负溢出）。
+
+> **规则**：覆盖层垂直居中用 **flex + `margin:auto`**：
+> 容器 `display:flex;flex-direction:column`，子容器 `margin:auto`。
+> `margin:auto` 会吸收剩余空间实现完美居中，内容溢出时自动退化为 0，**既不裁切也不溢出**。
+> ⚠️ 若 `display` 由 JS 内联赋值（`ov.style.display="grid"`），记得同步改成 `"flex"`。
+
 ---
 
 ## 4. 编号体系（改 step 相关逻辑必看）
@@ -178,7 +201,8 @@ if (typeof window.WB_API_BASE === "string") return norm(window.WB_API_BASE);
   `素材创建` idx=0 · `素材库` idx=4 · `文章生产` idx=5 · `文章库` idx=11
   > `0` / `5` 的显示名来自 `RAIL_OVERRIDE`（`STAGES` 里它们的名字是「素材选择」「事实抽取」）。
   > 侧边栏**不再有可展开分组**，`expandedSections` 现为空集；`buildRail` 的分组分支作为通用能力保留。
-  > `SECTIONS` 不是 JS 常量（只是标题文案 `板块 · SECTIONS`），**要改侧边栏就改 `RAIL`**。
+  > 侧边栏**顶部没有标题**（2026-09-10 已删除 `rail-h` 占位，第一项直接置顶）——
+  > **要改侧边栏就改 `RAIL`**；文档早期提到的 `SECTIONS` 是废弃旧名，不存在这个常量。
 - `STEP_OWNER`：0–4 source · 5–9 produce · 10–11 review
 - **2026-09-10 剪枝**：已删除「发布管理」四模块（12 库存 · 13 发布 · 14 运营看板 · 15 用户反馈）
   与「团队成员」占位。平台定位为**内容生产平台**（内容管理由另一平台承担），
@@ -309,7 +333,13 @@ python3 tools/push_via_api.py frontend/index.html frontend/index.html "commit me
 curl -s https://web-production-2a16e.up.railway.app/ | grep -c "特征串"
 
 # 7) 改了共享 CSS/JS 时：端到端回归（脚本自己拉起 Chrome，无需手动起进程）
-node tools/e2e_verify.mjs
+SITE=http://127.0.0.1:8899/index.html REQUIRE_BRIDGE=0 node tools/e2e_verify.mjs
+
+# 8) 改了布局/响应式时：多尺寸真实截图（窄屏必须走 CDP —— `--window-size` 做不了，见坑 12）
+node tools/cdp_shot.mjs --url=http://127.0.0.1:8899/index.html \
+     --sizes=1440x900,1920x1080,1024x768,420x820 --out=/tmp/shot
+# 需要登录后的页面，用 --eval 预置状态：
+#  --eval="(async()=>{openLogin('review');doLogin('review');await new Promise(r=>setTimeout(r,2500));go(4);return 'ok';})()"
 ```
 
 **令牌来源（按优先级）**：`--token=xxx` 参数 → 环境变量 `READPAL_GH_TOKEN` → `GITHUB_TOKEN` → `tools/.env.json`（**已 gitignore，勿提交**）。
@@ -332,6 +362,8 @@ python3 tools/build_deploy_bundle.py   # 产出 deploy_bundle/
      验收线 → **12 页遍历 0 条 JS 异常 + 0 条 console.error + `state.bridgeOk === true`**
      （本地静态服务没有桥接层，加 `REQUIRE_BRIDGE=0` 跳过 `bridgeOk` 校验，其余指标同样有效）
    - 改样式时补一条：关键元素的 computed background 与品牌徽标一致（脚本里已含 `btnMatchesLogoBg` 断言）
+   - **改布局/响应式时**：`node tools/cdp_shot.mjs` 出多尺寸图，逐张看图确认；
+     重点看 `scrollWidth === vw`（无水平溢出）与容器矩形是否居中（治坑 12 / 坑 13）
    - Dify FACT / GEN 真跑一次
 5. **特征字符串核查**：`127.0.0.1:8787` 在源码中应**只剩 1 处**（`DEFAULT_API_BASE` 默认常量）。
 
