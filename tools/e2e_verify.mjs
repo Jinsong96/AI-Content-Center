@@ -157,6 +157,71 @@ async function main() {
   }
   console.log(`【遍历 ${PAGES} 页】新增 JS 异常: ${errors.length - before} 条`);
 
+  // ---- 4b. 统一返回按钮断言（显示规则 + 落点 + 路线跳步感知）----
+  const bbRes = await evaluate(`(() => {
+    const btn = () => document.querySelector('.backbar .backbtn');
+    const out = [];
+    const T = (n, v) => out.push({ t: n, ok: !!v });
+    const click = () => { const b = btn(); if (b) b.click(); };
+
+    state.route = null; go(0);
+    T('素材创建首页 · 无返回按钮', btn() === null);
+
+    state.route = 'owned'; go(0);
+    out.push({ t: '素材创建已选入口 · 按钮文案', ok: true, v: btn() ? btn().textContent.trim() : '' });
+    click();
+    T('已选入口 · 返回后清空入口回到卡片', state.route === null && cur === 0);
+
+    state.route = 'trend'; go(1); click();
+    T('热点搜集 · 返回 → 01', cur === 0);
+
+    state.route = 'owned'; go(2); click();
+    T('敏感排除(owned) · 返回 → 01（跳过热点）', cur === 0);
+
+    state.route = 'trend'; go(2); click();
+    T('敏感排除(trend) · 返回 → 热点搜集', cur === 1);
+
+    state.route = 'trend'; go(3); click();
+    T('选题标签 · 返回 → 敏感排除', cur === 2);
+
+    go(4); T('素材库 · 无返回按钮（侧边栏顶层）', btn() === null);
+    go(5); T('文章生产首页 · 无返回按钮（侧边栏顶层）', btn() === null);
+
+    state.route = 'trend'; go(6); click();
+    T('分级标准(trend) · 返回 → 事实抽取', cur === 5);
+
+    state.route = 'owned'; go(6);
+    T('分级标准(owned) · 无返回（本路线首步）', btn() === null);
+
+    state.route = 'trend'; go(10); click();
+    T('逐段审核 · 返回 → 段落校对', cur === 9);
+
+    go(11); T('文章库 · 无返回按钮（侧边栏顶层）', btn() === null);
+
+    state.route = 'owned'; go(2); railGo(0);
+    T('侧边栏「素材创建」· 回模块首页并清空入口', state.route === null && cur === 0);
+
+    /* 只读态：review 角色可操作全部 0–11，不会进只读；临时切成 source（只可操作 0–4）再进 06 */
+    const savedRole = state.user.role;
+    state.user.role = 'source';
+    state.route = 'trend'; go(6);
+    const w = document.querySelector('.wrap'), b2 = btn();
+    T('只读态下返回按钮仍可点', !!w && w.classList.contains('ro')
+      && !!b2 && getComputedStyle(b2).pointerEvents === 'auto');
+    state.user.role = savedRole;
+    T('已删「重选素材」按钮', !document.body.innerHTML.includes('Re-pick route'));
+
+    go(0);
+    return out;
+  })()`);
+  console.log('【统一返回按钮】');
+  let bbFail = 0;
+  (bbRes || []).forEach(r => {
+    if (!r.ok) bbFail++;
+    console.log(`  ${r.ok ? '✓' : '✗'} ${r.t}${r.v ? ' → ' + r.v : ''}`);
+  });
+  if (!bbRes) { bbFail = 1; console.log('  ✗ 断言块未返回结果'); }
+
   // ---- 5. 截图 ----
   try {
     const shot = await send('Page.captureScreenshot', {});
@@ -169,7 +234,7 @@ async function main() {
   console.log('===== console.error =====');
   console.log(consoleErrs.length ? consoleErrs.join('\n') : '（无）');
 
-  const pass = errors.length === 0 && consoleErrs.length === 0
+  const pass = errors.length === 0 && consoleErrs.length === 0 && bbFail === 0
     && (!REQUIRE_BRIDGE || appInfo?.bridgeOk === true);
   console.log(`\n结论: ${pass ? '通过 ✅' : '未通过 ❌'}`
     + (REQUIRE_BRIDGE ? '' : '（已跳过 bridgeOk 校验：REQUIRE_BRIDGE=0）'));
