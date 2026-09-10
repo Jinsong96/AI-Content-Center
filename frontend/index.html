@@ -795,6 +795,11 @@ body{font-family:var(--font);color:var(--text);background:var(--bg);overflow:hid
 .wrap.ro .ro-banner{pointer-events:auto!important;opacity:1}
 .wrap.ro .wfstrip{pointer-events:auto!important;opacity:1}
 .wrap.ro .wfstrip *{pointer-events:auto!important;opacity:1}
+/* 统一返回条：全站每页左上角（只读态同样可用） */
+.backbar{margin:0 0 12px}
+.backbar .backbtn{display:inline-flex;align-items:center;gap:5px;font-size:12.5px;font-weight:600;color:var(--sub);background:#fff;border:1px solid var(--border);border-radius:8px;padding:6px 13px;cursor:pointer;font-family:var(--font);transition:all .12s}
+.backbar .backbtn:hover{color:var(--pri);border-color:var(--pri);background:#FFF9F5}
+.wrap.ro .backbar,.wrap.ro .backbar *{pointer-events:auto!important;opacity:1}
 
 /* toast */
 #toast{position:fixed;top:70px;left:50%;transform:translateX(-50%) translateY(-8px);background:#101828;color:#fff;font-size:12.5px;font-weight:600;padding:10px 18px;border-radius:10px;box-shadow:var(--shadow-lg);z-index:200;opacity:0;pointer-events:none;transition:opacity .25s,transform .25s;max-width:82vw;text-align:center}
@@ -2646,7 +2651,7 @@ function buildRail(){
       const lb = RAIL_OVERRIDE[sec.idx] || stepLabel(sec.idx);
       const h = document.createElement("div"); h.className = "rl1"; h.dataset.idx = sec.idx;
       h.innerHTML = `<span class="rt">${L(lb.zh, lb.en)}</span>`;
-      h.onclick = () => go(sec.idx);
+      h.onclick = () => railGo(sec.idx);
       rail.appendChild(h);
       return;
     }
@@ -2850,6 +2855,41 @@ function go(i){
   stage.scrollTop = 0; render();
 }
 
+/* ================= 统一返回按钮（全站每页左上角）=================
+   返回目标按「模块内层级」推算，而不是简单 cur-1：
+   - 顶层页（侧边栏直达项 0/4/5/11）没有上一级 → 不显示
+   - 素材创建已选入口（cur=0 且 route 非空）→ 清空入口回到三张入口卡
+   - owned/public 路线会跳过 idx 1 / 5，须按同一规则推算落点，
+     否则 go(cur-1) 会被 go() 改写成原地不动，表现为「点了没反应」
+   - 回退范围被限制在本模块内（素材创建 0–4 / 文章生产 5–11），绝不跨模块 */
+function goResolve(i){
+  if(state.route === "owned" || state.route === "public"){
+    if(i === 1) return 2;
+    if(i === 5) return 6;
+  }
+  return i;
+}
+function backTarget(){
+  if(!state.user) return null;
+  if(cur === 0 && state.route) return {zh:"返回素材选择", en:"Back to selection", act:"resetRoute()"};
+  if(cur === 0 || cur === 4 || cur === 5 || cur === 11) return null;
+  const start = cur >= 5 ? 5 : 0;
+  for(let i = cur - 1; i >= start; i--){
+    const landed = goResolve(i);
+    if(landed < cur) return {zh:"上一步", en:"Previous step", act:`go(${landed})`};
+  }
+  return null;
+}
+function backBarHTML(){
+  const t = backTarget();
+  return t ? `<div class="backbar"><button class="backbtn" onclick="${t.act}">← ${L(t.zh,t.en)}</button></div>` : "";
+}
+/* 侧边栏直达项 = 模块入口页：点「素材创建」清掉已选入口，回到三张入口卡 */
+function railGo(i){
+  if(i === 0 && state.route) state.route = null;
+  go(i);
+}
+
 function nextBtnPart(label, labelEn){
   const nxt = cur+1;
   const ok = canOperate(nxt);
@@ -2982,12 +3022,11 @@ function bankPanelHTML(){
 function intakeBackBar(){
   const r = ROUTES.find(x=>x.id===state.route);
   return `<div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap">
-    <button class="btn sec mini" onclick="resetRoute()">← ${L("重选素材","Re-pick route")}</button>
     <span class="tint" style="background:${r.color}1A;color:${r.color};font-weight:700">${r.ico} ${L(r.name,r.nameEn)}</span>
     ${r.id==="trend" ? `<span style="font-size:12px;color:var(--muted)">${L("点击下方「进入热点搜集」查看真实热点榜单","Hit \"To trend discovery\" below to see real hot topics")}</span>` : ""}
   </div>`;
 }
-function resetRoute(){ state.route = null; render(); }
+function resetRoute(){ state.route = null; stage.scrollTop = 0; render(); }
 
 function s0(){
   /* 第一步：尚未选择入口 → 只展示三大入口选择卡片 */
@@ -5093,9 +5132,9 @@ function sArticleSource(){
     + `<div class="svfoot"><button class="btn" onclick="closeArticleSource()">${L("返回文章库","Back to library")}</button></div>`;
 }
 /* ---------- 素材库状态常量 ---------- */
-const MAT_STATUS = ["pending_collect","collected","screening","tagged","blocked","discarded","in_production","published"];
-const MAT_STATUS_ZH = ["待采集","已采集","筛选中","已打标","已屏蔽","已废弃","生产中","已发布"];
-const MAT_STATUS_COLORS = {pending_collect:"#98A2B3", collected:"#E65425", screening:"#F79009", tagged:"#F79009", blocked:"#A32D2D", discarded:"#98A2B3", in_production:"#E65425", published:"#F79009"};
+const MAT_STATUS = ["pending_collect","collected","screening","tagged","blocked","discarded","in_production"];
+const MAT_STATUS_ZH = ["待采集","已采集","筛选中","已打标","已屏蔽","已废弃","生产中"];
+const MAT_STATUS_COLORS = {pending_collect:"#98A2B3", collected:"#E65425", screening:"#F79009", tagged:"#F79009", blocked:"#A32D2D", discarded:"#98A2B3", in_production:"#E65425"};
 const MAT_PAGE_SIZE = 15;
 
 /* ---------- 素材库筛选状态 ---------- */
@@ -5299,7 +5338,7 @@ function render(){
   const fns=[s0,s1,s2,s3,sMaterialBank,s4,s5,s6,s7,s9,s12,sArticleBank];
   const ro = state.user && !canOperate(cur);
   const roBanner = ro ? `<div class="ro-banner">${L("只读查看 · 本步骤由「"+ownerLabel(cur)+"」职能操作","Read-only · this step is operated by "+ownerLabel(cur))}</div>` : "";
-  stage.innerHTML=`<div class="wrap${ro?" ro":""}">${roBanner}${fns[cur]()}</div>`;
+  stage.innerHTML=`<div class="wrap${ro?" ro":""}">${backBarHTML()}${roBanner}${fns[cur]()}</div>`;
   renderPasteModal();   /* 无原文热点的「粘贴原文」弹窗（state.pendingHot 为空时自动移除） */
   if(cur===0) renderBank();
   if(cur===1) renderHots();
