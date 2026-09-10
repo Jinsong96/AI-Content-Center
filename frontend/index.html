@@ -17,9 +17,9 @@ window.WB_CFG = (window.WB_CONFIG || {});
   --bg:#FFFDF9; --card:#ffffff; --border:#EAECF0; --border2:#D0D5DD;
   --text:#101828; --sub:#475467; --muted:#98A2B3;
   --pri:#E65425; --pri-d:#D04418; --pri-t:#FFF0EB; --grad-pri:linear-gradient(135deg,#E65425,#F79009);
-  --ok:#079455; --ok-t:#ECFDF3; --warn:#DC8017; --warn-t:#FEF0C7;
-  --danger:#E31D1C; --danger-t:#FEF3F2; --purple:#6938EF; --purple-t:#F4F3FF;
-  --teal:#107569; --teal-t:#F0F9F7;
+  --ok:#F79009; --ok-t:#FFF9F5; --warn:#D04418; --warn-t:#FFEDE4;
+  --danger:#A32D2D; --danger-t:#FFEDE4; --purple:#E65425; --purple-t:#FFF0EB;
+  --teal:#D04418; --teal-t:#FFF9F5;
   --font:'Inter','Noto Sans SC',-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;
   --shadow:0 1px 2px rgba(16,24,40,.06),0 1px 3px rgba(16,24,40,.1);
   --shadow-lg:0 12px 16px -4px rgba(16,24,40,.08),0 4px 6px -2px rgba(16,24,40,.03);
@@ -81,7 +81,7 @@ body{font-family:var(--font);color:var(--text);background:var(--bg);overflow:hid
 @keyframes pop{from{opacity:0;transform:translateY(12px) scale(.98)}to{opacity:1;transform:none}}
 @keyframes fadeIn{from{opacity:0}to{opacity:1}}
 @keyframes blink{50%{opacity:0}}
-@keyframes pulse{0%,100%{box-shadow:0 0 0 0 #07945533}50%{box-shadow:0 0 0 7px #07945500}}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 0 #F7900933}50%{box-shadow:0 0 0 7px #F7900900}}
 
 .stagehead{display:flex;align-items:flex-start;gap:14px;margin-bottom:6px;animation:rise .4s both}
 .stagehead .num{width:34px;height:34px;border-radius:10px;background:var(--pri-t);color:var(--pri);font-weight:800;font-size:14px;display:grid;place-items:center;flex-shrink:0}
@@ -105,7 +105,7 @@ body{font-family:var(--font);color:var(--text);background:var(--bg);overflow:hid
 .btn:disabled{opacity:.4;cursor:not-allowed}
 /* 列表内的小按钮（此前 .tiny 无 CSS，实际仍是默认大号，导致操作列拥挤） */
 .btn.tiny{padding:4px 10px;font-size:11.5px;border-radius:7px;gap:4px;line-height:1.5;box-shadow:none;white-space:nowrap}
-.btn.sec.danger{color:var(--danger);border-color:#F4B6B5}
+.btn.sec.danger{color:var(--danger);border-color:#FFDFCF}
 .btn.sec.danger:hover{background:var(--danger-t);border-color:var(--danger)}
 /* 表格操作列按钮组：小按钮 + 统一间距，避免挤在一起 */
 .mat-actions{display:flex;align-items:center;gap:6px;white-space:nowrap}
@@ -118,8 +118,8 @@ body{font-family:var(--font);color:var(--text);background:var(--bg);overflow:hid
 .wfstrip-bar{display:flex;flex-wrap:wrap;gap:6px}
 .wfnode{display:flex;align-items:center;gap:5px;padding:4px 9px;border-radius:20px;border:1px solid var(--border2,var(--border));font-size:11px;color:var(--muted);background:#fff}
 .wfnode .wfn-no{font-weight:700;color:var(--muted);font-size:10px}
-.wfnode.done{background:#ECFDF3;border-color:#ABEFC6;color:#079455}
-.wfnode.done .wfn-no{color:#079455}
+.wfnode.done{background:#FFF9F5;border-color:#FFDFCF;color:#F79009}
+.wfnode.done .wfn-no{color:#F79009}
 .wfnode.cur{background:var(--pri-t);border-color:var(--pri);color:var(--pri);font-weight:700}
 .wfnode.cur .wfn-no{color:var(--pri)}
 .mbcard{border:1px solid var(--border2,var(--border));border-radius:12px;padding:14px 16px;margin-bottom:10px;background:#fff}
@@ -204,9 +204,9 @@ body{font-family:var(--font);color:var(--text);background:var(--bg);overflow:hid
 .pub-item:last-child{border-bottom:none}
 .pub-item b{flex:1;font-weight:600;font-size:13px}
 .pub-item-lvl{font-size:11px;font-weight:700;color:#fff;padding:2px 10px;border-radius:10px;display:inline-block}
-.pub-item-lvl.A2{background:#2969F9}
-.pub-item-lvl.B1{background:#12B76A}
-.pub-item-lvl.B2{background:#8B5CF6}
+.pub-item-lvl.A2{background:#E65425}
+.pub-item-lvl.B1{background:#E65425}
+.pub-item-lvl.B2{background:#E65425}
 .pub-item-date{font-size:11px;color:var(--muted)}
 .pub-item-btn{padding:5px 16px;font-size:12px;border-radius:8px;background:var(--pri);color:#fff;border:none;cursor:pointer;font-weight:600;transition:all .15s}
 .pub-item-btn:hover{opacity:.85;transform:scale(1.03)}
@@ -259,12 +259,12 @@ body{font-family:var(--font);color:var(--text);background:var(--bg);overflow:hid
 .fdb-rank-item{display:flex;align-items:center;gap:12px;padding:10px 14px;background:var(--bg);border-radius:10px;transition:all .15s}
 .fdb-rank-item:hover{background:#f0f2f5}
 .fdb-rank-item .fdb-rank-num{width:32px;height:32px;display:flex;align-items:center;justify-content:center;border-radius:50%;font-size:12px;font-weight:800;color:#fff;flex-shrink:0}
-.fdb-rank-item .fdb-rank-num.gold{background:linear-gradient(135deg,#F79009,#E67E22)}
+.fdb-rank-item .fdb-rank-num.gold{background:linear-gradient(135deg,#F79009,#E65425)}
 .fdb-rank-item .fdb-rank-num.silver{background:linear-gradient(135deg,#A0AEC0,#718096)}
-.fdb-rank-item .fdb-rank-num.bronze{background:linear-gradient(135deg,#CD7F32,#A0522D)}
+.fdb-rank-item .fdb-rank-num.bronze{background:linear-gradient(135deg,#D04418,#B03A14)}
 .fdb-rank-item .fdb-rank-num.normal{background:var(--muted)}
 .fdb-rank-item b{flex:1;font-weight:600;font-size:13px}
-.fdb-rank-item .fdb-rank-likes{font-size:12px;color:#E53E3E;font-weight:700}
+.fdb-rank-item .fdb-rank-likes{font-size:12px;color:#D04418;font-weight:700}
 .fdb-controls{display:flex;gap:8px;margin-bottom:18px}
 .fdb-reset-btn{padding:8px 18px;font-size:12px;border-radius:10px;background:var(--bg);border:1px solid var(--border2,var(--border));cursor:pointer;font-weight:600;color:var(--sub);transition:all .15s}
 .fdb-reset-btn:hover{background:var(--danger-t);border-color:var(--danger);color:var(--danger)}
@@ -273,7 +273,7 @@ body{font-family:var(--font);color:var(--text);background:var(--bg);overflow:hid
 .chip{display:inline-flex;align-items:center;font-size:12px;font-weight:600;border:1px solid var(--border2);padding:5px 12px;border-radius:8px;background:#fff;cursor:pointer;transition:all .12s;user-select:none;margin:3px}
 .chip:hover{border-color:var(--pri);color:var(--pri)}
 .chip.sel{background:var(--pri);border-color:var(--pri);color:#fff}
-.chip.rec{border-color:var(--teal);color:var(--teal);background:#F0FDF9}
+.chip.rec{border-color:var(--teal);color:var(--teal);background:#FFF9F5}
 .chip.rec::after{content:"★";font-size:9px;margin-left:5px;color:var(--teal)}
 .chip.sel::before{content:"✓ ";font-size:10px}
 .tint{display:inline-block;font-size:11px;font-weight:700;padding:2px 9px;border-radius:6px}
@@ -317,8 +317,8 @@ body{font-family:var(--font);color:var(--text);background:var(--bg);overflow:hid
 .srcrow .sinfo{flex:1;min-width:0}
 .srcrow .sinfo b{display:block;font-size:12.5px;font-weight:700}
 .srcrow .sinfo span{display:block;font-size:11px;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.srcrow .sdel{width:24px;height:24px;border:none;border-radius:7px;background:#FEE4E2;color:#D92D20;font-size:11px;cursor:pointer;flex-shrink:0;transition:all .12s}
-.srcrow .sdel:hover{background:#D92D20;color:#fff}
+.srcrow .sdel{width:24px;height:24px;border:none;border-radius:7px;background:#FFEDE4;color:#D04418;font-size:11px;cursor:pointer;flex-shrink:0;transition:all .12s}
+.srcrow .sdel:hover{background:#D04418;color:#fff}
 .interest{background:#fff;border:1px solid var(--border);border-radius:var(--r);padding:16px 18px;margin-bottom:18px;box-shadow:var(--shadow);animation:pop .4s both}
 .interest .int-badge{font-size:11px;font-weight:700;color:var(--pri);background:var(--pri-t);padding:3px 9px;border-radius:99px;white-space:nowrap}
 .intlist{display:flex;flex-direction:column;gap:8px}
@@ -332,14 +332,14 @@ body{font-family:var(--font);color:var(--text);background:var(--bg);overflow:hid
 .int-score{font-size:12px;font-weight:800;color:var(--pri);width:24px;text-align:right;flex-shrink:0}
 .int-reads{font-size:11px;color:var(--muted);width:76px;text-align:right;white-space:nowrap;flex-shrink:0}
 .int-trend{font-size:14px;font-weight:800;width:16px;text-align:center;flex-shrink:0}
-.int-trend.up{color:#E31D1C}
-.int-trend.down{color:#079455}
+.int-trend.up{color:#A32D2D}
+.int-trend.down{color:#F79009}
 .int-trend.flat{color:var(--muted)}
 .int-foot{font-size:11.5px;color:var(--sub);margin-top:11px;padding-top:11px;border-top:1px dashed var(--border2)}
 @media (max-width:720px){.introw{flex-wrap:wrap}.int-heat{width:100%;order:5}.int-reads{width:auto;margin-left:auto}}
-.hotcard.custom{border-style:dashed;border-color:#C4B5FD}
-.hotcard.custom .rank{color:#8B5CF6}
-.srctag{display:inline-flex;align-items:center;gap:5px;font-size:10px;font-weight:700;color:#8B5CF6;background:#F5F3FF;border:1px solid #EDE9FE;border-radius:99px;padding:2px 9px;margin-bottom:8px}
+.hotcard.custom{border-style:dashed;border-color:#FFDFCF}
+.hotcard.custom .rank{color:#E65425}
+.srctag{display:inline-flex;align-items:center;gap:5px;font-size:10px;font-weight:700;color:#E65425;background:#FFF0EB;border:1px solid #FFF0EB;border-radius:99px;padding:2px 9px;margin-bottom:8px}
 .srctag i{width:6px;height:6px;border-radius:50%}
 
 /* ============ S2 sensitivity ============ */
@@ -349,7 +349,7 @@ body{font-family:var(--font);color:var(--text);background:var(--bg);overflow:hid
 .frow .topic{font-size:13px;font-weight:700}
 .frow .topic small{display:block;font-size:11px;color:var(--muted);font-weight:500;margin-top:2px}
 .frow .freason{font-size:11.5px;color:var(--sub);line-height:1.55}
-.frow.blocked{opacity:.6;background:var(--danger-t);border-color:#F4B6B5}
+.frow.blocked{opacity:.6;background:var(--danger-t);border-color:#FFDFCF}
 .frow.blocked .topic{text-decoration:line-through;color:var(--sub)}
 
 /* live screening stage tracker */
@@ -384,7 +384,7 @@ body{font-family:var(--font);color:var(--text);background:var(--bg);overflow:hid
 .article h3{font-weight:800;font-size:19px;margin-bottom:2px}
 .article h3 .cn{font-weight:600;font-size:12.5px;color:var(--muted);display:block;margin-top:3px}
 .article .body{font-size:13.5px;line-height:1.85;color:#344054;margin-top:10px}
-.article .body .hl{background:linear-gradient(transparent 58%,#D6E4FF 58%);border-radius:2px}
+.article .body .hl{background:linear-gradient(transparent 58%,#FFF0EB 58%);border-radius:2px}
 .shownote{margin-top:12px;font-size:11.5px;color:var(--ok);font-weight:700}
 
 /* ============ 已选素材原文卡片（material card） ============ */
@@ -402,16 +402,16 @@ body{font-family:var(--font);color:var(--text);background:var(--bg);overflow:hid
 .materialcard .mccn{font-weight:600;font-size:12.5px;color:var(--muted);display:block;margin-top:2px}
 /* 原文状态徽章（后端如实上报，前端只搬运） */
 .fstat{display:inline-flex;align-items:center;gap:5px;font-size:10px;font-weight:700;border-radius:99px;padding:2px 9px;margin:2px 4px 8px 0;line-height:1.6}
-.fstat-ok{background:var(--ok-t);color:var(--ok);border:1px solid #D1FADF}
-.fstat-warn{background:#FFFAEB;color:#B54708;border:1px solid #FEDF89}
-.fstat-bad{background:#FEF3F2;color:#B42318;border:1px solid #FECDCA}
+.fstat-ok{background:var(--ok-t);color:var(--ok);border:1px solid #FFDFCF}
+.fstat-warn{background:#FFF9F5;color:#D04418;border:1px solid #F9BB8E}
+.fstat-bad{background:#FFEDE4;color:#9E3512;border:1px solid #FFDFCF}
 .hotcard .fstat{margin-bottom:6px}
 /* 无原文热点的「粘贴原文」弹窗 */
 .modal-mask{position:fixed;inset:0;background:rgba(16,24,40,.45);z-index:9999;display:flex;align-items:center;justify-content:center;padding:24px}
 .modal{background:#fff;border-radius:14px;max-width:560px;width:100%;padding:22px 22px 18px;box-shadow:0 12px 40px rgba(16,24,40,.18)}
 .modal h5{margin:0 0 8px;font-size:15px;font-weight:700}
 .modal .mdesc{margin:0 0 8px;font-size:12.5px;color:var(--sub);line-height:1.65}
-.modal .merr{margin:0 0 12px;font-size:11.5px;color:#B42318;background:#FEF3F2;border:1px solid #FECDCA;border-radius:7px;padding:7px 10px;line-height:1.55}
+.modal .merr{margin:0 0 12px;font-size:11.5px;color:#9E3512;background:#FFEDE4;border:1px solid #FFDFCF;border-radius:7px;padding:7px 10px;line-height:1.55}
 .modal textarea{width:100%;min-height:150px;border:1px solid var(--line);border-radius:9px;padding:10px 12px;font-size:12.5px;line-height:1.65;font-family:inherit;resize:vertical;outline:none;box-sizing:border-box}
 .modal textarea:focus{border-color:var(--pri);box-shadow:0 0 0 3px var(--pri-t)}
 .modal .mmeta{margin:6px 0 14px;font-size:11.5px;color:var(--muted);text-align:right}
@@ -457,7 +457,7 @@ body{font-family:var(--font);color:var(--text);background:var(--bg);overflow:hid
 .lvl b{font-size:17px;font-weight:800}
 .lvl span{display:block;font-size:10.5px;color:var(--muted);margin-top:2px}
 .lvl.sel{background:var(--pri);border-color:var(--pri);color:#fff;box-shadow:0 0 0 3px var(--pri-t)}
-.lvl.sel span{color:#D6E4FF}
+.lvl.sel span{color:#FFF0EB}
 .specgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
 .spec{background:#fff;border:1px solid var(--border);border-radius:10px;padding:14px 16px;box-shadow:var(--shadow);animation:pop .4s both}
 .spec h6{font-size:10.5px;letter-spacing:.12em;color:var(--pri);font-weight:800;margin-bottom:8px}
@@ -521,10 +521,10 @@ body{font-family:var(--font);color:var(--text);background:var(--bg);overflow:hid
 .qcard .qtext{font-size:12.5px;line-height:1.6;color:#1D2939;font-weight:600;margin-bottom:8px}
 .qcard .qopts{display:flex;flex-direction:column;gap:5px;margin-bottom:9px}
 .qcard .qopt{font-size:12px;line-height:1.5;color:#344054;padding:6px 10px;background:#F9FAFB;border:1px solid var(--border);border-radius:7px}
-.qcard .qopt.ans{background:#ECFDF3;border-color:#12B76A;color:#027A48;font-weight:700}
+.qcard .qopt.ans{background:#FFF9F5;border-color:#F79009;color:#D04418;font-weight:700}
 .qcard .qact{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .qcard .qans{font-size:11.5px;color:var(--sub);line-height:1.5}
-.qcard .qans b{color:#12B76A}
+.qcard .qans b{color:#F79009}
 /* 三档练习题对照（行=题号，列=A2/B1/B2，与段落对齐网格同构） */
 .quizalign{margin-top:16px}
 .quizalign .qalign-hbar{display:grid;grid-template-columns:44px 1fr 1fr 1fr;gap:10px;margin-bottom:4px;align-items:stretch}
@@ -583,7 +583,7 @@ body{font-family:var(--font);color:var(--text);background:var(--bg);overflow:hid
 .idnote{margin-top:11px;font-size:11px;color:var(--sub);line-height:1.65}
 /* two-column identity card */
 .idcols{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start}
-.idcol-h{font-size:11.5px;font-weight:800;color:var(--teal);margin-bottom:9px;padding-bottom:6px;border-bottom:1px solid #CBE5DF}
+.idcol-h{font-size:11.5px;font-weight:800;color:var(--teal);margin-bottom:9px;padding-bottom:6px;border-bottom:1px solid #FFDFCF}
 .tagrows{display:flex;flex-direction:column;gap:5px}
 .tagrow{display:flex;gap:10px;align-items:baseline;background:#fff;border:1px solid var(--border);border-radius:8px;padding:6px 10px}
 .tagrow .tk{font-size:10px;font-weight:800;color:var(--muted);min-width:96px;letter-spacing:.03em}
@@ -596,7 +596,7 @@ body{font-family:var(--font);color:var(--text);background:var(--bg);overflow:hid
 .revdraft p{margin-bottom:10px}
 .revdraft .fs{border-radius:3px;padding:1px 3px;cursor:pointer;transition:background .2s}
 .revdraft .fs.ok{background:var(--ok-t);box-shadow:inset 0 -2px 0 var(--ok)}
-.revdraft .fs.ok:hover{background:#C8EFDC}
+.revdraft .fs.ok:hover{background:#FFDFCF}
 .revdraft .fs.q{background:var(--warn-t);box-shadow:inset 0 -2px 0 var(--warn)}
 .revmap{display:flex;flex-direction:column;gap:9px}
 .mapcard{background:#fff;border:1px solid var(--border);border-radius:10px;padding:11px 13px;box-shadow:var(--shadow);animation:pop .4s both;opacity:.5;transition:all .2s}
@@ -607,7 +607,7 @@ body{font-family:var(--font);color:var(--text);background:var(--bg);overflow:hid
 .verdict{margin-top:14px;display:flex;gap:10px}
 
 /* ============ S10 bank handoff ============ */
-.approvebanner{display:flex;align-items:center;gap:16px;background:var(--ok-t);border:1.5px solid #ABEFC6;border-radius:var(--r);padding:20px 24px;margin-bottom:18px;animation:pop .45s both}
+.approvebanner{display:flex;align-items:center;gap:16px;background:var(--ok-t);border:1.5px solid #FFDFCF;border-radius:var(--r);padding:20px 24px;margin-bottom:18px;animation:pop .45s both}
 .approvebanner .okicon{width:46px;height:46px;border-radius:50%;background:var(--ok);color:#fff;display:grid;place-items:center;font-size:22px;font-weight:800;flex-shrink:0}
 .approvebanner .t{font-size:17px;font-weight:800}
 .approvebanner .d{font-size:12.5px;color:var(--sub);margin-top:4px;line-height:1.65}
@@ -659,36 +659,36 @@ body{font-family:var(--font);color:var(--text);background:var(--bg);overflow:hid
 .bc-audio .ab-dl{font-size:14px;text-decoration:none;color:var(--pri);font-weight:700;padding:2px 4px}
 .bc-aud-tip{font-size:10px;color:var(--muted);margin-top:2px;line-height:1.5}
 .bc-aud-badge{display:inline-flex;align-items:center;gap:3px;font-size:10.5px;font-weight:700;border-radius:5px;padding:1px 6px;white-space:nowrap}
-.bc-aud-badge.ok{color:#0F6E56;background:#E1F5EE}
-.bc-aud-badge.part{color:#854F0B;background:#FAEEDA}
-.bc-aud-badge.fail{color:#A32D2D;background:#FCEBEB}
-.bc-aud-badge.gen{color:#185FA5;background:#E6F1FB}
+.bc-aud-badge.ok{color:#D04418;background:#FFF9F5}
+.bc-aud-badge.part{color:#D04418;background:#FFEDE4}
+.bc-aud-badge.fail{color:#A32D2D;background:#FFEDE4}
+.bc-aud-badge.gen{color:#D04418;background:#FFF0EB}
 .bc-aud-badge.none{color:var(--muted);background:var(--bg);border:1px solid var(--border)}
 .bc-aud-meta{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:9px 11px;margin-bottom:8px;font-size:10.5px}
 .bc-aud-mrow{display:flex;gap:10px;line-height:1.7}
 .bc-aud-mrow span{color:var(--muted);min-width:78px}
 .bc-aud-mrow b{color:var(--text);font-weight:600;word-break:break-all}
-.bc-aud-meta.failed{border-color:#F09595;background:#FCEBEB}
+.bc-aud-meta.failed{border-color:#FFDFCF;background:#FFEDE4}
 .bc-aud-err{margin-top:6px;padding-top:6px;border-top:1px dashed var(--border);color:#A32D2D;line-height:1.6;word-break:break-word}
 .bkstat{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 16px;padding:10px 14px;border-radius:10px;border:1px solid var(--border);background:#fff;font-size:12px;box-shadow:var(--shadow)}
 .bkstat .bkdot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
-.bkstat.ok .bkdot{background:#1D9E75}
-.bkstat.down .bkdot{background:#E24B4A}
+.bkstat.ok .bkdot{background:#F79009}
+.bkstat.down .bkdot{background:#D04418}
 .bkstat.unknown .bkdot{background:#888780}
-.bkstat.ok{background:#F0F9F7;border-color:#9FE1CB}
-.bkstat.down{background:#FCEBEB;border-color:#F09595}
+.bkstat.ok{background:#FFF9F5;border-color:#FFDFCF}
+.bkstat.down{background:#FFEDE4;border-color:#FFDFCF}
 .bkstat.down b{color:#A32D2D}
 .bkstat .bkapi{color:var(--muted);font-size:10.5px;flex:1;min-width:180px}
-.degraded{margin:12px 0 4px;padding:11px 14px;border-radius:10px;border:1px solid #F09595;background:#FCEBEB}
+.degraded{margin:12px 0 4px;padding:11px 14px;border-radius:10px;border:1px solid #FFDFCF;background:#FFEDE4}
 .degraded .dgb-h{font-size:11.5px;font-weight:700;color:#A32D2D;margin-bottom:7px;line-height:1.6}
-.degraded .dgb-row{display:flex;gap:8px;flex-wrap:wrap;font-size:10.5px;line-height:1.7;color:#791F1F}
+.degraded .dgb-row{display:flex;gap:8px;flex-wrap:wrap;font-size:10.5px;line-height:1.7;color:#9E3512}
 .degraded .dgb-tag{font-weight:700;min-width:96px;color:#A32D2D}
 .degraded .dgb-msg{flex:1;min-width:160px;word-break:break-word}
-.degraded .dgb-url{font-size:10px;color:#993C1D;opacity:.85;word-break:break-all}
+.degraded .dgb-url{font-size:10px;color:#B03A14;opacity:.85;word-break:break-all}
 .degraded.degraded-mini{padding:7px 12px;font-size:11.5px;font-weight:600;color:#A32D2D;line-height:1.5}
-.bc-aud-badge.sync-ok{color:#0F6E56;background:#E1F5EE}
-.bc-aud-badge.sync-fail{color:#A32D2D;background:#FCEBEB}
-.bc-aud-badge.sync-gen{color:#185FA5;background:#E6F1FB}
+.bc-aud-badge.sync-ok{color:#D04418;background:#FFF9F5}
+.bc-aud-badge.sync-fail{color:#A32D2D;background:#FFEDE4}
+.bc-aud-badge.sync-gen{color:#D04418;background:#FFF0EB}
 .bc-aud-badge.sync-none{color:var(--muted);background:var(--bg);border:1px solid var(--border)}
 .tagsection{border:1px solid var(--border);border-radius:var(--r);background:#fff;padding:13px 15px;margin-bottom:12px;box-shadow:var(--shadow);animation:fadeIn .3s both}
 .tagsec-h{display:flex;align-items:center;gap:9px;flex-wrap:wrap;font-size:13px;font-weight:800;margin-bottom:11px}
@@ -711,13 +711,13 @@ body{font-family:var(--font);color:var(--text);background:var(--bg);overflow:hid
 .tagextract{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px}
 .tagextract .te-meta{font-size:10.5px;color:var(--muted)}
 .tagextract .te-reason{font-size:11px;color:var(--sub);flex:1;min-width:200px;line-height:1.5}
-.tagdropped{font-size:10.5px;color:#854F0B;background:#FAEEDA;border:1px solid #FAC775;border-radius:8px;padding:7px 11px;margin-bottom:12px;line-height:1.6}
+.tagdropped{font-size:10.5px;color:#D04418;background:#FFEDE4;border:1px solid #F9BB8E;border-radius:8px;padding:7px 11px;margin-bottom:12px;line-height:1.6}
 .tagselbar{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-top:4px;padding:11px 13px;background:var(--bg);border:1px solid var(--border);border-radius:10px}
 .tsb-label{font-size:11px;font-weight:800;color:var(--muted);letter-spacing:.05em}
 .tsb-chip{font-size:11px;padding:3px 10px;border-radius:99px;background:#fff;border:1px solid var(--border)}
-.tsb-chip.c{color:var(--pri);border-color:#B5D4F4;background:#E6F1FB}
-.tsb-chip.f{color:#0F6E56;border-color:#9FE1CB;background:#E1F5EE}
-.tsb-chip.g{color:#854F0B;border-color:#FAC775;background:#FAEEDA}
+.tsb-chip.c{color:var(--pri);border-color:#FFDFCF;background:#FFF0EB}
+.tsb-chip.f{color:#D04418;border-color:#FFDFCF;background:#FFF9F5}
+.tsb-chip.g{color:#D04418;border-color:#F9BB8E;background:#FFEDE4}
 .tsb-empty{font-size:11px;color:var(--muted)}
 .bkstat .btn{padding:4px 12px;font-size:11.5px;border-radius:7px}
 
@@ -907,9 +907,9 @@ body{font-family:var(--font);color:var(--text);background:var(--bg);overflow:hid
 /* module owner tag in stage head */
 .modtag{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:700;color:#fff;border-radius:99px;padding:4px 12px;margin-top:9px}
 .modtag .lk2{opacity:.85}
-.modtag.ro-tag{background:#FFF3E0!important;color:#9A5B00!important;border:1px dashed #F5B158}
+.modtag.ro-tag{background:#FFF9F5!important;color:#D04418!important;border:1px dashed #F5B158}
 /* read-only view: banner + whole-stage interaction lock (workflow strip stays navigable) */
-.ro-banner{margin:0 0 14px;padding:9px 14px;border:1px dashed #F5B158;border-radius:10px;background:#FFF8EC;color:#9A5B00;font-size:12.5px;font-weight:700;display:flex;align-items:center;gap:8px}
+.ro-banner{margin:0 0 14px;padding:9px 14px;border:1px dashed #F5B158;border-radius:10px;background:#FFF9F5;color:#D04418;font-size:12.5px;font-weight:700;display:flex;align-items:center;gap:8px}
 .wrap.ro *{pointer-events:none!important;opacity:.62}
 .wrap.ro .ro-banner{pointer-events:auto!important;opacity:1}
 .wrap.ro .wfstrip{pointer-events:auto!important;opacity:1}
@@ -938,7 +938,7 @@ body{font-family:var(--font);color:var(--text);background:var(--bg);overflow:hid
 .pcard .pword{margin-left:auto;font-size:10px;color:var(--muted);font-weight:600}
 .pcard .pbody{font-size:13px;line-height:1.9;color:#344054;padding:12px 14px;outline:none;white-space:pre-wrap;word-break:break-word;transition:background .15s,box-shadow .15s}
 .pcard .pbody[contenteditable="true"]{cursor:text}
-.pcard .pbody[contenteditable="true"]:hover{background:#FBFBFF}
+.pcard .pbody[contenteditable="true"]:hover{background:#FFF9F5}
 .pcard .pbody[contenteditable="true"]:focus{background:var(--pri-t);box-shadow:inset 0 0 0 2px var(--pri)}
 .aligngrid{display:flex;flex-direction:column;gap:12px}
 .alignrow{display:grid;grid-template-columns:44px 1fr 1fr 1fr;gap:10px;align-items:stretch}
@@ -1000,8 +1000,8 @@ body{font-family:var(--font);color:var(--text);background:var(--bg);overflow:hid
 .stylecard .smeta .sdesc{font-size:10px;color:var(--muted);margin-top:1px}
 .stylecard.sel{background:var(--pri);border-color:var(--pri);box-shadow:0 0 0 3px var(--pri-t)}
 .stylecard.sel .smeta .sname{color:#fff}
-.stylecard.sel .smeta .sname small{color:#D6E4FF}
-.stylecard.sel .smeta .sdesc{color:#D6E4FF}
+.stylecard.sel .smeta .sname small{color:#FFF0EB}
+.stylecard.sel .smeta .sdesc{color:#FFF0EB}
 
 /* ============ 素材库 ============ */
 .mat-stats{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin:14px 0}
@@ -1174,7 +1174,7 @@ function syncDIRS(){
   DIRS = o;
   return o;
 }
-const THEME_COLORS = { world:"#0891B2", science:"#10B981", culture:"#F59E0B", business:"#2969F9", growth:"#8B5CF6", story:"#EE46BC" };
+const THEME_COLORS = { world:"#E65425", science:"#F79009", culture:"#F79009", business:"#E65425", growth:"#E65425", story:"#E65425" };
 /* 用户感兴趣的主题（demo 数据，可接入真实阅读埋点：读者点击/阅读文章 → 统计兴趣信号）。
     标签必须是新内容标签体系（第一层 74 个）内的名字，展示时按词表渲染，保证全文表述一致；
    新体系没有"子主题"这一层，旧数据（音乐/AI/传统节日…）已按 74 标签词表迁移。 */
@@ -1312,12 +1312,12 @@ const THEME_COVER_ELEM = {
 
 /* 类别 → 封面视觉（新六大类配色 + emoji + 复用现有封面图） */
 const THEME_VISUAL = {
-  world:   { grad:["#0b3d5c","#0e7490","#0891b2"], emoji:"", img:"covers/travel.png" },
-  science: { grad:["#134e4a","#0f766e","#10b981"], emoji:"", img:"covers/tech.png" },
-  culture: { grad:["#7c2d12","#c2410c","#f59e0b"], emoji:"", img:"covers/culture.png" },
-  business:{ grad:["#0f2f6b","#1d4ed8","#7c3aed"], emoji:"", img:"covers/city.png" },
-  growth:  { grad:["#1e1b4b","#4f46e5","#06b6d4"], emoji:"", img:"covers/mind.png" },
-  story:   { grad:["#4a044e","#a21caf","#db2777"], emoji:"", img:"covers/pop.png" },
+  world:   { grad:["#9E3512","#D04418","#E65425"], emoji:"", img:"covers/travel.png" },
+  science: { grad:["#9E3512","#D04418","#F79009"], emoji:"", img:"covers/tech.png" },
+  culture: { grad:["#9E3512","#E65425","#F79009"], emoji:"", img:"covers/culture.png" },
+  business:{ grad:["#9E3512","#D04418","#E65425"], emoji:"", img:"covers/city.png" },
+  growth:  { grad:["#9E3512","#D04418","#E65425"], emoji:"", img:"covers/mind.png" },
+  story:   { grad:["#9E3512","#E65425","#E65425"], emoji:"", img:"covers/pop.png" },
 };
 /* 子主题 → 更贴切的 emoji（命中则覆盖主题默认 emoji） */
 const SUB_EMOJI = {
@@ -1720,7 +1720,7 @@ function toggleQuiz(lv, i){
 function quizCellHTML(lv, i){
   const list = state.quiz[lv] || [];
   const q = list[i];
-  const m = LVL_META[lv] || {zh:lv,en:lv,color:"#2969F9"};
+  const m = LVL_META[lv] || {zh:lv,en:lv,color:"#E65425"};
   if(!q){
     return `<div class="qcell empty"><div class="qcard qplaceholder"><div class="qtext" style="color:var(--muted);font-weight:500;text-align:center">— ${L("本节无题","no question")} —</div></div></div>`;
   }
@@ -2264,13 +2264,13 @@ function renderLiveChip(){
   const c = $("#livechip"); if(!c) return;
   const s = state.live;
   if(s.status === "idle"){ c.textContent = "AI 实时引擎 · 待运行"; c.style.background = "#F2F4F7"; c.style.color = "#98A2B3"; }
-  else if(s.status === "pending"){ c.textContent = "已选素材 · 待运行"; c.style.background = "#FEF7E6"; c.style.color = "#B54708"; }
+  else if(s.status === "pending"){ c.textContent = "已选素材 · 待运行"; c.style.background = "#FFF0EB"; c.style.color = "#D04418"; }
   else if(s.status === "running"){ c.textContent = "AI 运行中 " + s.elapsed + "s…"; c.style.background = "#FFF0EB"; c.style.color = "#D04418"; }
   else if(s.status === "done"){
     const o = liveOut();
-    if(o && isExcludedStatus(o.status)){ c.textContent = " 已排除 · " + (liveSensLevel() || ""); c.style.background = "#FEF3F2"; c.style.color = "#E31D1C"; }
-    else { c.textContent = "✓ AI 完成 " + s.elapsed + "s" + (o && o.validation_score ? " · " + o.validation_score : ""); c.style.background = "#ECFDF3"; c.style.color = "#079455"; }
-  } else { c.textContent = "✕ AI 运行失败"; c.style.background = "#FEF3F2"; c.style.color = "#E31D1C"; }
+    if(o && isExcludedStatus(o.status)){ c.textContent = " 已排除 · " + (liveSensLevel() || ""); c.style.background = "#FFEDE4"; c.style.color = "#A32D2D"; }
+    else { c.textContent = "✓ AI 完成 " + s.elapsed + "s" + (o && o.validation_score ? " · " + o.validation_score : ""); c.style.background = "#FFF9F5"; c.style.color = "#F79009"; }
+  } else { c.textContent = "✕ AI 运行失败"; c.style.background = "#FFEDE4"; c.style.color = "#A32D2D"; }
 }
 
 async function startLiveRun(material, label, book){
@@ -2597,7 +2597,7 @@ async function sePickBook(i){
   if(!seState.curBook || seState.curBook !== i){ seState.chapters = []; seState.pending = null; }
   seState.curBook = i;
   const el = $("#seChapters"); if(!el) return;
-  el.innerHTML = `<div style="font-weight:700;font-size:13.5px;margin:4px 0 8px;color:#6941C6">${esc(b.title)} — ${esc(b.author)}</div>
+  el.innerHTML = `<div style="font-weight:700;font-size:13.5px;margin:4px 0 8px;color:#D04418">${esc(b.title)} — ${esc(b.author)}</div>
     <div style="display:grid;grid-template-columns:1fr;gap:6px">${b.chapters.map((c,ci)=>`
       <div class="srccard" style="padding:10px 12px;cursor:pointer" onclick="sePickChapter(${i},${ci})">
         <div style="font-weight:600;font-size:12.5px">${esc(c.title)}</div>
@@ -2614,7 +2614,7 @@ function sePickChapter(bi, ci){
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
         <b style="font-size:13.5px">${esc(c.title)}</b>
         <span class="tint" style="background:#fff;color:var(--sub)">${c.text.length} chars</span>
-        <span class="tint" style="background:#E6F6F0;color:#107569">✓ ${L("已选中","Selected")}</span>
+        <span class="tint" style="background:#FFF9F5;color:#D04418">✓ ${L("已选中","Selected")}</span>
       </div>
       <div style="font-size:12px;color:var(--sub);max-height:110px;overflow:auto;background:#fff;border-radius:8px;padding:8px 10px;border:1px solid var(--border2);line-height:1.7">${esc(c.text.slice(0,600))}…</div>
     </div>`;
@@ -2688,13 +2688,13 @@ function s2LiveInner(){
    注：曾用 from/to 表示「连续权限区间」，但区间无法表达 produce 的 [0-9,11]，
    且全文件无任何代码读取它，属死字段，已删除，避免误导后续改动者。 */
 const ROLES = [
-  {id:"source", color:"#2969F9", name:"市场老师", nameEn:"Marketing",
+  {id:"source", color:"#E65425", name:"市场老师", nameEn:"Marketing",
    scope:L1("工作台 · 素材创建 01–04 + 素材库", "Workbench · Material creation 01–04 + Material library"), user:"market_zhang", pass:((window.WB_CFG && window.WB_CFG.DEMO_PASS)||""), entry:0},
-  {id:"produce", color:"#12B76A", name:"教研老师", nameEn:"Curriculum",
+  {id:"produce", color:"#E65425", name:"教研老师", nameEn:"Curriculum",
    scope:L1("工作台 · 素材创建 + 文章生产 + 内容库", "Workbench · Material creation + Article production + Content library"), user:"curriculum_li", pass:((window.WB_CFG && window.WB_CFG.DEMO_PASS)||""), entry:5},
-  {id:"review", color:"#F79009", name:"审核老师", nameEn:"Reviewer",
+  {id:"review", color:"#E65425", name:"审核老师", nameEn:"Reviewer",
    scope:L1("全部权限 · 全流程", "Full access · whole flow"), user:"review_wang", pass:((window.WB_CFG && window.WB_CFG.DEMO_PASS)||""), entry:11},
-  {id:"ops", color:"#8B5CF6", name:"运营老师", nameEn:"Operations",
+  {id:"ops", color:"#E65425", name:"运营老师", nameEn:"Operations",
    scope:L1("发布管理 · 库存管理 + 发布管理 + 运营看板 + 用户反馈", "Publish management · Inventory + Publish + Dashboard + Feedback"), user:"ops_zhao", pass:((window.WB_CFG && window.WB_CFG.DEMO_PASS)||""), entry:14},
 ];
 /* stage index -> 该步骤的「主要」职能（仅用于视觉标注 owner dot / label） */
@@ -2745,7 +2745,7 @@ const RAIL = [
   {type:"group", id:"workbench", name:"工作台", nameEn:"Workbench", color:"#E65425", steps:[0,5]},
   {type:"item", idx:4},
   {type:"item", idx:11},
-  {type:"group", id:"publish", name:"发布管理", nameEn:"Publish Management", color:"#8B5CF6", steps:[12,13,14,15]},
+  {type:"group", id:"publish", name:"发布管理", nameEn:"Publish Management", color:"#E65425", steps:[12,13,14,15]},
   {type:"ph", name:"团队成员", nameEn:"Team Members"},
 ];
 /* 侧边栏自定义显示名：「素材创建」= 素材采集环节入口(01–04)；「文章生产」= 文章生产环节入口(06–11) */
@@ -3067,13 +3067,13 @@ function artWorkflowBar(){
 
 /* ---------- Stage 0: material intake route ---------- */
 const ROUTES = [
-  {id:"trend", ico:"", color:"#2969F9", name:"热点搜集", nameEn:"Trend Discovery",
+  {id:"trend", ico:"", color:"#E65425", name:"热点搜集", nameEn:"Trend Discovery",
    desc:"Agent-Reach 扫描全网热点新闻与趋势，需要完整走「事实抽取」流程——从外部信息中抽取事实卡后再生成。", descEn:"Agent-Reach scans global trends; full flow with source selection & fact extraction before generation.",
    items:["热点新闻","社交趋势","搜索热点"], itemsEn:["Breaking news","Social buzz","Search trends"]},
-  {id:"owned", ico:"", color:"#107569", name:"自有 / 合作版权", nameEn:"Licensed / Owned",
+  {id:"owned", ico:"", color:"#E65425", name:"自有 / 合作版权", nameEn:"Licensed / Owned",
    desc:"《用英文讲好中国故事》、BBC Learning English、大愚出版社图书等已获授权的可信内容，无需事实抽取——直接作为生成素材。", descEn:"Telling China's Story, BBC Learning English, Dayu Press books. Trusted & licensed — used directly, no fact extraction.",
    items:["《用英文讲好中国故事》","BBC Learning English","大愚出版社图书"], itemsEn:["China's Story series","BBC Learning English","Dayu Press books"]},
-  {id:"public", ico:"", color:"#8B5CF6", name:"英文公版书", nameEn:"Public Domain Books",
+  {id:"public", ico:"", color:"#E65425", name:"英文公版书", nameEn:"Public Domain Books",
    desc:"内置 Standard Ebooks / Project Gutenberg 等公有领域英文书作为测试素材（章节正文离线内置）。版权已过期或不受限，无需授权与事实抽取，直接进入选题与生成。", descEn:"Public-domain English works (Standard Ebooks / Project Gutenberg) built in as test material, with chapter text embedded offline. No licensing or fact extraction needed — straight to generation.",
    items:["Standard Ebooks","Project Gutenberg","经典文学","版权过期作品"], itemsEn:["Standard Ebooks","Project Gutenberg","Classic literature","Expired copyright"]},
 ];
@@ -3083,7 +3083,7 @@ function sePanelHTML(){
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px">
       <span style="font-size:20px"></span>
       <b style="font-size:15px">${L("公版书素材源 · 内置测试书目","Public-domain source · built-in sample titles")}</b>
-      <span class="tint" style="background:#F4F3FF;color:#6941C6">${L("公有领域","Public domain")}</span>
+      <span class="tint" style="background:#FFF0EB;color:#D04418">${L("公有领域","Public domain")}</span>
     </div>
     <p style="color:var(--sub);margin:0 0 12px;font-size:13px">${L("已内置 <b>两本公有领域英文书</b>作为测试素材（章节正文离线内置，点开即选，稳定可用）：<b>点书 → 展开章节 → 点章节即选中</b>，底部点击「进入敏感排除并运行工作流」直接生成 A2/B1/B2 三档文章。",
       "Two public-domain English titles are built in as test materials (chapter text is embedded offline — click and it just works): <b>book → chapters → click a chapter to select</b>, then hit the button below to run the workflow and generate A2/B1/B2.")}</p>
@@ -3092,7 +3092,7 @@ function sePanelHTML(){
         <div style="font-weight:700;font-size:13.5px;line-height:1.4">${esc(b.title)}</div>
         <div style="font-size:11.5px;color:var(--sub);margin-top:3px">${esc(b.author)}</div>
         <div style="font-size:11px;color:var(--muted);margin-top:6px;line-height:1.5">${esc(b.head)}</div>
-        <div style="font-size:11px;color:#6941C6;margin-top:6px">${b.chapters.length} ${L("个章节"," chapters")} →</div>
+        <div style="font-size:11px;color:#D04418;margin-top:6px">${b.chapters.length} ${L("个章节"," chapters")} →</div>
       </div>`).join("")}
     </div>
     <div id="seChapters" style="margin-top:12px"></div>
@@ -3105,7 +3105,7 @@ function bankPanelHTML(){
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px">
       <span style="font-size:20px"></span>
       <b style="font-size:15px">${L("自有素材库 · 《用英文讲好中国故事》","Licensed bank · The \"Telling China\'s Story\" series")}</b>
-      <span class="tint" style="background:#E6F6F0;color:#107569">${L("已完成授权 · 无需事实抽取","Licensed · no fact extraction")}</span>
+      <span class="tint" style="background:#FFF9F5;color:#D04418">${L("已完成授权 · 无需事实抽取","Licensed · no fact extraction")}</span>
     </div>
     <p style="color:var(--sub);margin:0 0 12px;font-size:13px">${L("从已入库的原书素材中<b>直接点选一篇</b>：点击章节即选中，底部点击「进入敏感排除并运行工作流」一键生成 A2/B1/B2 三档文章。按辑归类，和素材库知识库一致。",
       "Click a chapter straight from the licensed bank to select it, then hit the button below to run the workflow and generate A2/B1/B2. Grouped by volume, matching the knowledge base.")}</p>
@@ -3199,11 +3199,11 @@ function renderBank(){
   STORIES.forEach(s => { (groups[s.book] = groups[s.book] || []).push(s); });
   const bookNames = Object.keys(groups);
   el.innerHTML = `<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px">${
-    bookNames.map((b,i)=>`<span class="tint" style="cursor:pointer;background:${i===0?"#E6F6F0":"var(--bg)"};color:${i===0?"#107569":"var(--sub)"}" onclick="bankScroll(${i})">${esc(b)} · ${groups[b].length}</span>`).join("")}</div>${
+    bookNames.map((b,i)=>`<span class="tint" style="cursor:pointer;background:${i===0?"#FFF9F5":"var(--bg)"};color:${i===0?"#D04418":"var(--sub)"}" onclick="bankScroll(${i})">${esc(b)} · ${groups[b].length}</span>`).join("")}</div>${
     bookNames.map((b,bi)=>{
       const cols = [[],[]];
       groups[b].forEach((s,i)=> cols[i%2].push(s));
-      return `<div id="bankGrp_${bi}" style="margin:14px 0"><div style="font-weight:700;font-size:13.5px;margin-bottom:8px;color:#107569">${esc(b)}</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">${
+      return `<div id="bankGrp_${bi}" style="margin:14px 0"><div style="font-weight:700;font-size:13.5px;margin-bottom:8px;color:#D04418">${esc(b)}</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">${
         cols[0].map((ch,ci)=>bankCell(ch)).join("") + cols[1].map((ch,ci)=>bankCell(ch)).join("")
       }</div></div>`;
     }).join("")}`;
@@ -3225,9 +3225,9 @@ function bankPick(id){
 
 /* ---------- Stage 1: 自定义信源（每个同事按关注领域配置） ---------- */
 const SRC_TYPES = {
-  url:     {ico:"", color:"#2969F9", zh:"网址",         en:"Website"},
-  youtube: {ico:"▶", color:"#FF0000", zh:"YouTube 博主", en:"YouTuber"},
-  other:   {ico:"", color:"#F79009", zh:"其他",         en:"Other"},
+  url:     {ico:"", color:"#E65425", zh:"网址",         en:"Website"},
+  youtube: {ico:"▶", color:"#E65425", zh:"YouTube 博主", en:"YouTuber"},
+  other:   {ico:"", color:"#E65425", zh:"其他",         en:"Other"},
 };
 /* 不同职能的默认关注领域（演示预置，可增删改） */
 const SOURCE_PRESETS = {
@@ -3313,7 +3313,7 @@ function interestPanelHTML(){
         /* 词表里查不到的标签直接不展示 —— 防止词表调整后这里又变成一份分叉的旧数据 */
         return d && d.subs && d.subs.indexOf(t.tag) >= 0;
       }).map((t, i) => {
-        const c = THEME_COLORS[t.theme] || "#2969F9";
+        const c = THEME_COLORS[t.theme] || "#E65425";
         const th = DIRS[t.theme] ? DIRS[t.theme].zh : t.theme;
         const te = tagEnOf(t.theme, t.tag) || t.tag;
         return `<div class="introw">
@@ -3646,7 +3646,7 @@ function renderHots(){
         d.innerHTML = `<div class="rank">#${i+1}</div>
           <h4>${esc(h.topic)}</h4>
           ${h.cn && h.cn !== h.topic ? `<div class="cn">${esc(h.cn)}</div>` : ""}
-          <div class="srctag"><i style="background:#107569"></i>${L("真实热点","Real")} · ${esc(h.source)} · ${esc(h.date||"")}${subLabel ? " · " + esc(subLabel) : ""}</div>
+          <div class="srctag"><i style="background:#D04418"></i>${L("真实热点","Real")} · ${esc(h.source)} · ${esc(h.date||"")}${subLabel ? " · " + esc(subLabel) : ""}</div>
           ${fulltextBadge(h)}
           <div class="heatbar"><i style="width:0" id="rb${i}"></i></div>
           <div class="meta"><span>${L("热度","Heat")} <b>${h.heat}</b></span><span>${L("信源","Sources")} <b>${h.srcs}</b></span></div>`;
@@ -3676,7 +3676,7 @@ function renderHots(){
         <div style="flex:1;min-width:0;cursor:pointer" onclick="state.hot=${idx};pickHot(${idx});render();">
           <div class="rank">#${h.rank}</div>
           <h4>${h.topic}</h4><div class="cn">${h.cn}</div>
-          ${h.source ? `<div class="srctag"><i style="background:#107569"></i>${L("真实热点","Real")} · ${h.source} · ${h.date||""}</div>` : ""}
+          ${h.source ? `<div class="srctag"><i style="background:#D04418"></i>${L("真实热点","Real")} · ${h.source} · ${h.date||""}</div>` : ""}
           <div class="heatbar"><i style="width:0" id="hb${idx}"></i></div>
           <div class="meta"><span>${L("热度","Heat")} <b>${h.heat}</b></span><span>${L("信源","Sources")} <b>${h.srcs}</b></span></div>
         </div>
@@ -4301,9 +4301,9 @@ function rejectDemo(){
 
 /* Stage 09: 段落对齐（切分 + 对齐合并展示）· 共享组件 */
 const LVL_META = {
-  A2:{zh:"入门 · 短句简词", en:"Beginner · short & simple", color:"#2969F9"},
-  B1:{zh:"中级 · 自然表达", en:"Intermediate · natural", color:"#12B76A"},
-  B2:{zh:"进阶 · 原味丰富", en:"Upper-int · richer", color:"#8B5CF6"},
+  A2:{zh:"入门 · 短句简词", en:"Beginner · short & simple", color:"#E65425"},
+  B1:{zh:"中级 · 自然表达", en:"Intermediate · natural", color:"#E65425"},
+  B2:{zh:"进阶 · 原味丰富", en:"Upper-int · richer", color:"#E65425"},
 };
 function paraText(k,i){
   const p = GEN[k] && GEN[k].paras ? GEN[k].paras[i] : null;
@@ -4320,7 +4320,7 @@ function paraEdit(el){
 }
 function paraCard(k,i,editable){
   const txt = paraText(k,i);
-  const m = LVL_META[k] || {zh:k,en:k,color:"#2969F9"};
+  const m = LVL_META[k] || {zh:k,en:k,color:"#E65425"};
   const wc = (txt.match(/[A-Za-z][A-Za-z''-]*/g)||[]).length;
   const edit = editable !== false;
   return '<div class="pcard" data-k="'+k+'" data-i="'+i+'">'+
@@ -4690,7 +4690,7 @@ function buildBankArticle(){
 const ART_STATUS = ["pending","approved","rejected","published"];
 const ART_STATUS_ZH = ["待审核","已通过","已驳回","已发布"];
 const ART_STATUS_EN = ["Pending","Approved","Rejected","Published"];
-const ART_STATUS_COLORS = {pending:"#F79009", approved:"#12B76A", rejected:"#E31D1C", published:"#2969F9"};
+const ART_STATUS_COLORS = {pending:"#F79009", approved:"#F79009", rejected:"#A32D2D", published:"#E65425"};
 const ART_PAGE_SIZE = 15;
 function artStatus(a){
   if(a.published) return "published";
@@ -4935,12 +4935,12 @@ function pickMaterialFromBank(uuid){
   if(state.user){ go(5); }
 }
 const TOPIC_CATS = [
-  {key:"world", zh:"世界", en:"World", color:"#2969F9"},
-  {key:"science", zh:"科学", en:"Science", color:"#12B76A"},
-  {key:"culture", zh:"文化", en:"Culture", color:"#8B5CF6"},
-  {key:"business", zh:"商业", en:"Business", color:"#F79009"},
-  {key:"growth", zh:"成长", en:"Growth", color:"#D85A30"},
-  {key:"story", zh:"故事", en:"Story", color:"#1D9E75"},
+  {key:"world", zh:"世界", en:"World", color:"#E65425"},
+  {key:"science", zh:"科学", en:"Science", color:"#E65425"},
+  {key:"culture", zh:"文化", en:"Culture", color:"#E65425"},
+  {key:"business", zh:"商业", en:"Business", color:"#E65425"},
+  {key:"growth", zh:"成长", en:"Growth", color:"#E65425"},
+  {key:"story", zh:"故事", en:"Story", color:"#E65425"},
 ];
 /* 从文章对象取「结构化三层标签」：兼容新格式(curTags 对象)与旧格式(identityRecord 展示行数组) */
 function artTags(a){
@@ -5025,12 +5025,12 @@ function sArticleBank(){
 
   /* 统计卡片行 */
   html += `<div class="mat-stats">
-    ${statCard(total, L("全部文章","All articles"), "", "#2969F9")}
+    ${statCard(total, L("全部文章","All articles"), "", "#E65425")}
     ${statCard(pendCount, L("待审核","Pending"), "pending", "#F79009")}
-    ${statCard(appCount, L("已通过","Approved"), "approved", "#12B76A")}
-    ${statCard(rejCount, L("已驳回","Rejected"), "rejected", "#E31D1C")}
-    ${statCard(pubCount, L("已发布","Published"), "published", "#079455")}
-    ${statCard(monthCount, L("本月新增","New this month"), "__month__", "#8B5CF6")}
+    ${statCard(appCount, L("已通过","Approved"), "approved", "#F79009")}
+    ${statCard(rejCount, L("已驳回","Rejected"), "rejected", "#A32D2D")}
+    ${statCard(pubCount, L("已发布","Published"), "published", "#F79009")}
+    ${statCard(monthCount, L("本月新增","New this month"), "__month__", "#E65425")}
   </div>`;
 
   /* 搜索 + 筛选栏 */
@@ -5252,7 +5252,7 @@ function sArticleSource(){
 /* ---------- 素材库状态常量 ---------- */
 const MAT_STATUS = ["pending_collect","collected","screening","tagged","blocked","discarded","in_production","published"];
 const MAT_STATUS_ZH = ["待采集","已采集","筛选中","已打标","已屏蔽","已废弃","生产中","已发布"];
-const MAT_STATUS_COLORS = {pending_collect:"#98A2B3", collected:"#2969F9", screening:"#F79009", tagged:"#12B76A", blocked:"#E31D1C", discarded:"#98A2B3", in_production:"#8B5CF6", published:"#079455"};
+const MAT_STATUS_COLORS = {pending_collect:"#98A2B3", collected:"#E65425", screening:"#F79009", tagged:"#F79009", blocked:"#A32D2D", discarded:"#98A2B3", in_production:"#E65425", published:"#F79009"};
 const MAT_PAGE_SIZE = 15;
 
 /* ---------- 素材库筛选状态 ---------- */
@@ -5306,11 +5306,11 @@ function sMaterialBank(){
 
   /* 统计卡片行 */
   html += `<div class="mat-stats c5">
-    ${statCard(total, L("全部素材","All materials"), "", "#2969F9")}
+    ${statCard(total, L("全部素材","All materials"), "", "#E65425")}
     ${statCard(pendingCount, L("待处理","Pending"), "__pending__", "#F79009")}
-    ${statCard(taggedCount, L("已打标","Tagged"), "tagged", "#12B76A")}
-    ${statCard(inProdCount, L("生产中","In prod."), "in_production", "#8B5CF6")}
-    ${statCard(pubCount, L("已发布","Published"), "published", "#079455")}
+    ${statCard(taggedCount, L("已打标","Tagged"), "tagged", "#F79009")}
+    ${statCard(inProdCount, L("生产中","In prod."), "in_production", "#E65425")}
+    ${statCard(pubCount, L("已发布","Published"), "published", "#F79009")}
   </div>`;
 
   /* 搜索 + 筛选栏 */
@@ -5592,7 +5592,7 @@ function sOps(){
   const levels = bankLevelStats();
   const trend = bankRecentTrend();
   const maxTrend = Math.max(...trend.map(([,v])=>v),1);
-  const colorLvl = {A2:"#2969F9",B1:"#12B76A",B2:"#8B5CF6"};
+  const colorLvl = {A2:"#E65425",B1:"#F79009",B2:"#E65425"};
 
   let html = head("", L("运营看板","Ops Dashboard"), "Key metrics · content stats");
   html += `<p class="lede">${L("运营看板展示已审核文章的关键指标与多维统计：文章产出趋势、档位分布、主题覆盖情况。所有数据均来自内容库中已审核的文章，真实反映内容运营状态。","The ops dashboard shows key metrics and multi-dimensional stats for reviewed articles: production trends, level distribution, and topic coverage. All data comes from reviewed articles in the content library.")}</p>`;
@@ -5615,7 +5615,7 @@ function sOps(){
     const h = Math.max(10, Math.round(arr.length / maxInv * 150));
     const x = startX + i*(barW+gap);
     const y = 190 - h;
-    const col = arr.length >= 10 ? "#12B76A" : (arr.length >= 3 ? "#F79009" : "#F04438");
+    const col = arr.length >= 10 ? "#F79009" : (arr.length >= 3 ? "#F79009" : "#D04418");
     html += `<rect x="${x}" y="${y}" width="${barW}" height="${h}" rx="4" fill="${col}" opacity="0.85"/>
       <text x="${x+barW/2}" y="${y-6}" text-anchor="middle" font-size="11" fill="#666">${arr.length}</text>
       <text x="${x+barW/2}" y="208" text-anchor="middle" font-size="11" fill="#888">${L(c.zh.slice(0,2),c.en.split(" ")[0])}</text>`;
