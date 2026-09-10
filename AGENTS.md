@@ -29,7 +29,7 @@
 ```
 frontend/index.html              单文件前端（页面 + JS + CSS 全在里面）
 backend/agent_reach_bridge.py    零依赖 Python（标准库），同时托管前端 + 提供 API
-backend/library.json             内容库数据
+backend/library.json             文章库数据
 backend/audio/*.mp3              TTS 音频（部分入库，见 .gitignore 白名单）
 backend/start_railway_local.py   本地复现 Railway 行为（端口 8793）
 tools/build_deploy_bundle.py     打备用部署包
@@ -38,8 +38,8 @@ tools/fetch_sources.py           只拉源码镜像（跳过 90MB 音频，别�
 tools/atomic_replace.py          原子替换 + 命中断言（治坑 1）
 tools/check_js.py                抽 <script> 逐个 node --check（治坑 6）
 tools/push_via_api.py            GitHub API 直传（治坑 8）
-tools/e2e_verify.mjs             端到端回归：登录 + 遍历 16 页 + 收集 JS 异常
-tools/theme_audit.mjs            配色合规审计：遍历 16 页揪出非「黑/灰/橙红」色相
+tools/e2e_verify.mjs             端到端回归：登录 + 遍历 12 页 + 收集 JS 异常
+tools/theme_audit.mjs            配色合规审计：遍历 12 页揪出非「黑/灰/橙红」色相
 docs/                            01-架构 02-API 03-Dify工作流 04-数据模型
                                  05-等级扩展 06-前端审计 07-工程化需求 08-风险清单 09-Git协作
 RAILWAY_DEPLOY.md               部署指南 + 故障排查
@@ -66,7 +66,7 @@ HANDOFF.md                       换设备交接清单（给人读）
   不要再写渐变色字面量；新增品牌色元素也必须引用它。
 - **全站色相只有三系：黑 / 灰 / 品牌橙红**（2026-09-10 Bryan 定，已全量落地）。
   蓝、绿、紫、青**一律不许出现** —— 状态色、CEFR 等级色、选题大类色、图表色都算在内。
-  - **分类色统一 `#E65425`**：6 个选题大类 / CEFR 的 A2·B1·B2 / 4 个角色 /
+  - **分类色统一 `#E65425`**：6 个选题大类 / CEFR 的 A2·B1·B2 / 3 个角色 /
     素材类型 / 侧边栏分区 / 路径（对应 JS 色板 `ROLES` `RAIL` `ROUTES` `SRC_TYPES`
     `LVL_META` `TOPIC_CATS`）。色块不再承担区分功能，靠文字标签区分。
   - **状态色走品牌橙的深浅梯度**：成功/完成 `#F79009`、警告/部分 `#D04418`、
@@ -75,7 +75,7 @@ HANDOFF.md                       换设备交接清单（给人读）
   - 冷调中性灰（`#101828` `#475467` `#98A2B3` `#EAECF0` `#D0D5DD` `#344054`）
     **属于「灰」，保留** —— 它们色相偏蓝但饱和低、视觉上就是灰。
   - 加新颜色前先想清楚挂哪一档；改完跑 `node tools/theme_audit.mjs`，
-    **必须 16 页全 ✓** 才算过。
+    **必须 12 页全 ✓** 才算过。
 - **不要给卡片设固定 `min-height` 撑高度** —— 删文案后中间会留下一大片空白。
   等高交给 grid stretch，卡片高度贴合内容。
 - 删文案要**连带清理配套 CSS**，不留死规则（如删了元素却留下 `.xxx{...}`）。
@@ -95,10 +95,11 @@ HANDOFF.md                       换设备交接清单（给人读）
 
 ### 坑 2：`s12` 不是「库存管理」
 
-函数名 `s12` 实为**「逐段审核」**（旧 step 9 保留的名字没跟着重排改名），而 **step 12 是「库存管理」(`sInventory`)**。功能正确，但**名字会骗人**。
+函数名 `s12` 实为**「逐段审核」**（旧 step 9 保留的名字没跟着重排改名），而它落在 `fns` 下标 10。功能正确，但**名字会骗人**。
 
 同理 `s9` = 段落校对、`s4` = 事实抽取。
 > **别按函数名推断它对应哪个 step，一律以 `fns` 数组下标为准。**
+> （曾经的 `sInventory` = 库存管理，2026-09-10 随发布管理一起删除。）
 
 ### 坑 3：localStorage 种子数据改了「看不见」
 
@@ -170,19 +171,22 @@ if (typeof window.WB_API_BASE === "string") return norm(window.WB_API_BASE);
 
 当前体系（2026-09-04 全局重排后，已验证自洽）：
 
-- `STAGES` 12 项占 idx **0–11**；`stepLabel` 的 `i<12` 走 STAGES，12–15 走内容管理四模块
-- router `fns` 16 项：
-  `[s0,s1,s2,s3,sMaterialBank,s4,s5,s6,s7,s9,s12,sArticleBank,sInventory,sPublish,sOps,sFeedback]`
-- `RAIL`：侧边栏结构（5 项）
-  `工作台` group steps=`[0,5]` · `素材库` item idx=4 · `内容库` item idx=11 · `发布管理` group steps=`[12,13,14,15]` · `团队成员` ph 占位
-  > 📌 本文早期写的 `SECTIONS`（mat/art/ops 分组）**代码里并不存在**（2026-09-10 核实：
-  > `SECTIONS` 仅在侧边栏标题文案 `板块 · SECTIONS` 里出现，不是 JS 常量）。
-  > 语义分区约定保留为：mat=`[0,4]` · art=`[5,11]` · ops=`[12,13,14,15]`，但**要改就改 `RAIL`**。
-- `STEP_OWNER`：0–4 source · 5–9 produce · 10–11 review · 12–13 review · 14–15 ops
-- 内容管理四模块：12 库存 · 13 发布 · 14 运营看板 · 15 用户反馈
+- `STAGES` 12 项占 idx **0–11**；`stepLabel` 的 `i<12` 走 `STAGES`，越界返回空标签
+- router `fns` 12 项（与 `STAGES` 一一对齐）：
+  `[s0,s1,s2,s3,sMaterialBank,s4,s5,s6,s7,s9,s12,sArticleBank]`
+- `RAIL`：侧边栏结构（**4 项，全部同级直达**）
+  `素材创建` idx=0 · `素材库` idx=4 · `文章生产` idx=5 · `文章库` idx=11
+  > `0` / `5` 的显示名来自 `RAIL_OVERRIDE`（`STAGES` 里它们的名字是「素材选择」「事实抽取」）。
+  > 侧边栏**不再有可展开分组**，`expandedSections` 现为空集；`buildRail` 的分组分支作为通用能力保留。
+  > `SECTIONS` 不是 JS 常量（只是标题文案 `板块 · SECTIONS`），**要改侧边栏就改 `RAIL`**。
+- `STEP_OWNER`：0–4 source · 5–9 produce · 10–11 review
+- **2026-09-10 剪枝**：已删除「发布管理」四模块（12 库存 · 13 发布 · 14 运营看板 · 15 用户反馈）
+  与「团队成员」占位。平台定位为**内容生产平台**（内容管理由另一平台承担），
+  **新增功能不要往发布/分发方向加**。
 
 > ⚠️ 改动任何 step 相关逻辑时，
 > **`STAGES` / `stepLabel` / `fns` / `RAIL` / `STEP_OWNER` / `ROLE_OPS` 六处必须同步**，否则错位白屏。
+> ✅ 好消息：新增/删除**尾部**步骤只需同步 `fns` + 对应函数，前面各步编号不受影响。
 
 **权限判断只看 `ROLE_OPS`**：
 - `canOperate(i)` → `ROLE_OPS[role].indexOf(i) >= 0`
@@ -325,7 +329,8 @@ python3 tools/build_deploy_bundle.py   # 产出 deploy_bundle/
 3. **桥接健康**：`GET /api/proxy-health` → 4 个 key 全 `true`
 4. **浏览器实测**（curl 只能证明代码在，证明不了运行时行为）：
    - 一条命令跑完：`node tools/e2e_verify.mjs`
-     验收线 → **16 页遍历 0 条 JS 异常 + 0 条 console.error + `state.bridgeOk === true`**
+     验收线 → **12 页遍历 0 条 JS 异常 + 0 条 console.error + `state.bridgeOk === true`**
+     （本地静态服务没有桥接层，加 `REQUIRE_BRIDGE=0` 跳过 `bridgeOk` 校验，其余指标同样有效）
    - 改样式时补一条：关键元素的 computed background 与品牌徽标一致（脚本里已含 `btnMatchesLogoBg` 断言）
    - Dify FACT / GEN 真跑一次
 5. **特征字符串核查**：`127.0.0.1:8787` 在源码中应**只剩 1 处**（`DEFAULT_API_BASE` 默认常量）。
