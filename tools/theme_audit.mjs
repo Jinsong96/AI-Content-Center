@@ -7,7 +7,7 @@ import path from 'node:path';
 
 const SITE = process.env.SITE || 'http://127.0.0.1:8899/index.html';
 const ROLE = process.env.ROLE || 'review';
-const PAGES = Number(process.env.PAGES || 16);
+const PAGES = Number(process.env.PAGES || 12);
 const PORT = Number(process.env.CDP_PORT || 9222);
 const CDP = `http://127.0.0.1:${PORT}`;
 const PROFILE = path.join(os.tmpdir(), `readpal_audit_${PORT}`);
