@@ -77,18 +77,28 @@ def main() -> int:
     data = local_path.read_bytes()
     print(f'>> 推送 {remote_path}  ({len(data)} bytes, base64≈{len(data) * 4 // 3} bytes)')
 
-    try:
-        req = urllib.request.Request(API + remote_path + f'?ref={BRANCH}', headers=head)
-        meta = json.load(urllib.request.urlopen(req, timeout=60))
-        sha = meta['sha']
-        print(f'   远端当前 sha: {sha[:12]}  size={meta["size"]}')
-    except urllib.error.HTTPError as e:
-        if e.code == 404:
-            print(f'   ⚠ 远端尚无 {remote_path}，将作为新文件创建')
-            sha = None
-        else:
+    # GET 元信息同样要重试：大文件的响应体（base64 后 ≈1.33×原文件）常触发
+    # http.client.IncompleteRead，只重试 PUT 会让推送在大文件上直接失败。
+    sha = None
+    for attempt in range(1, 5):
+        try:
+            req = urllib.request.Request(API + remote_path + f'?ref={BRANCH}', headers=head)
+            meta = json.load(urllib.request.urlopen(req, timeout=120))
+            sha = meta['sha']
+            print(f'   远端当前 sha: {sha[:12]}  size={meta["size"]}')
+            break
+        except urllib.error.HTTPError as e:
+            if e.code == 404:
+                print(f'   ⚠ 远端尚无 {remote_path}，将作为新文件创建')
+                break
             print(f'✗ 读取远端失败: {e}')
             return 1
+        except Exception as e:  # noqa: BLE001
+            print(f'   ✗ 读取远端第 {attempt} 次失败: {type(e).__name__}')
+            if attempt == 4:
+                print('   放弃')
+                return 1
+            time.sleep(3)
 
     payload = {'message': message,
                'content': base64.b64encode(data).decode('ascii'),
