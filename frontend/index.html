@@ -16,7 +16,7 @@ window.WB_CFG = (window.WB_CONFIG || {});
 :root{
   --bg:#FFFDF9; --card:#ffffff; --border:#EAECF0; --border2:#D0D5DD;
   --text:#101828; --sub:#475467; --muted:#98A2B3;
-  --pri:#E65425; --pri-d:#D04418; --pri-t:#FFF0EB;
+  --pri:#E65425; --pri-d:#D04418; --pri-t:#FFF0EB; --grad-pri:linear-gradient(135deg,#E65425,#F79009);
   --ok:#079455; --ok-t:#ECFDF3; --warn:#DC8017; --warn-t:#FEF0C7;
   --danger:#E31D1C; --danger-t:#FEF3F2; --purple:#6938EF; --purple-t:#F4F3FF;
   --teal:#107569; --teal-t:#F0F9F7;
@@ -32,7 +32,7 @@ body{font-family:var(--font);color:var(--text);background:var(--bg);overflow:hid
 
 /* ============ TOPBAR ============ */
 #topbar{background:#fff;border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 20px;gap:12px;z-index:10}
-#topbar .logo{height:26px;padding:0 10px;border-radius:8px;background:linear-gradient(135deg,#E65425,#F79009);display:grid;place-items:center;color:#fff;font-weight:800;font-size:12px;letter-spacing:.2px;white-space:nowrap}
+#topbar .logo{height:26px;padding:0 10px;border-radius:8px;background:var(--grad-pri);display:grid;place-items:center;color:#fff;font-weight:800;font-size:12px;letter-spacing:.2px;white-space:nowrap}
 #topbar .title{font-size:14.5px;font-weight:700}
 #topbar .badge{font-size:11px;color:var(--muted);background:var(--bg);border:1px solid var(--border);padding:2px 8px;border-radius:99px;font-weight:600}
 #topbar .spacer{flex:1}
@@ -856,22 +856,22 @@ body{font-family:var(--font);color:var(--text);background:var(--bg);overflow:hid
 #loginOv{position:fixed;inset:0;background:var(--bg);z-index:100;display:grid;place-items:center;overflow-y:auto}
 #loginOv .lwrap{width:min(980px,94vw);padding:36px 10px 52px}
 #loginOv .lhead{text-align:center;margin-bottom:26px}
-#loginOv .lhead .lgo{height:52px;padding:0 22px;border-radius:14px;background:linear-gradient(135deg,#E65425,#F79009);display:inline-grid;place-items:center;color:#fff;font-weight:800;font-size:19px;letter-spacing:.3px;margin-bottom:14px;box-shadow:var(--shadow-lg);white-space:nowrap}
+#loginOv .lhead .lgo{height:52px;padding:0 22px;border-radius:14px;background:var(--grad-pri);display:inline-grid;place-items:center;color:#fff;font-weight:800;font-size:19px;letter-spacing:.3px;margin-bottom:14px;box-shadow:var(--shadow-lg);white-space:nowrap}
 #loginOv .lhead h1{font-size:23px;font-weight:800;letter-spacing:-.01em}
-#loginOv .lhead p{color:var(--muted);font-size:13px;margin-top:7px}
+
 #loginOv .lhead .langmini{margin-top:14px}
 .lroles{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
 @media(max-width:880px){.lroles{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:480px){.lroles{grid-template-columns:1fr}}
-.lrole{background:#fff;border:1px solid var(--border);border-radius:14px;padding:16px 18px;cursor:pointer;transition:all .15s;box-shadow:var(--shadow);position:relative;width:100%;animation:rise .45s both;display:flex;flex-direction:column;min-height:272px}
+.lrole{background:#fff;border:1px solid var(--border);border-radius:14px;padding:16px 18px;cursor:pointer;transition:all .15s;box-shadow:var(--shadow);position:relative;width:100%;animation:rise .45s both;display:flex;flex-direction:column}
 .lrole:hover{transform:translateY(-3px);box-shadow:var(--shadow-lg);border-color:var(--border2)}
 .lrole h4{font-size:15px;font-weight:800;margin-bottom:6px}
-.lrole .rscope{font-size:11px;color:var(--muted);margin:5px 0 11px;line-height:1.6;min-height:36px}
+
 .lrole .rmods{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:14px;min-height:48px;align-content:flex-start}
 .lrole .rmods span{font-size:10px;font-weight:700;color:var(--sub);background:var(--bg);border:1px solid var(--border);padding:2px 8px;border-radius:99px}
-.lrole .rbtn{display:block;width:100%;text-align:center;padding:9px;border-radius:9px;font-size:12.5px;font-weight:700;color:#fff;border:none;cursor:pointer;transition:opacity .12s;margin-top:auto}
+.lrole .rbtn{display:block;width:100%;text-align:center;padding:9px;border-radius:9px;font-size:12.5px;font-weight:700;color:#fff;border:none;cursor:pointer;transition:opacity .12s;margin-top:auto;background:var(--grad-pri)}
 .lrole .rbtn:hover{opacity:.88}
-.lrole .racc{font-size:10px;color:var(--muted);text-align:center;margin-top:9px}
+
 /* inline login form */
 .lform{position:absolute;inset:0;background:#fff;border-radius:14px;padding:22px 20px;display:none;flex-direction:column;justify-content:center;z-index:2;animation:fadeIn .18s both}
 .lrole.open .lform{display:flex}
@@ -882,10 +882,9 @@ body{font-family:var(--font);color:var(--text);background:var(--bg);overflow:hid
 .lform input:focus{border-color:var(--pri);box-shadow:0 0 0 3px var(--pri-t)}
 .lform .row{display:flex;gap:8px;margin-top:3px}
 .lform .row button{flex:1;padding:9px;border-radius:9px;font-size:12.5px;font-weight:700;cursor:pointer;border:none;font-family:var(--font)}
-.lform .ok{background:var(--pri);color:#fff}
-.lform .ok:hover{background:var(--pri-d)}
+.lform .ok{background:var(--grad-pri);color:#fff}
+.lform .ok:hover{opacity:.88}
 .lform .cancel{background:var(--bg);color:var(--sub)}
-.lfoot{text-align:center;margin-top:22px;font-size:11px;color:var(--muted)}
 /* topbar user chip */
 .userchip{display:flex;align-items:center;gap:9px;background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:4px 6px 4px 5px}
 .userchip .uico{width:28px;height:28px;border-radius:8px;display:grid;place-items:center;color:#fff;font-size:13px;font-weight:800}
@@ -2831,8 +2830,7 @@ function renderLogin(){
   ov.innerHTML = `<div class="lwrap">
     <div class="lhead">
       <div class="lgo">ReadPal</div>
-      <h1>${L("ReadPal 内容生产平台 · 分角色登录","ReadPal Content Platform · Role-based Login")}</h1>
-      <p>${L("按分工：市场老师管「素材创建 + 素材库」，教研/审核老师管「文章生产 + 内容库」，运营老师管「发布管理（库存 / 发布 / 看板 / 反馈）」——登录后直达各自职责。","By role: Marketing handles Material creation + library; Curriculum/Review handles Article production + Content library; Ops handles Publish management (Inventory / Publish / Dashboard / Feedback) — each lands on their area.")}</p>
+      <h1>${L("ReadPal 内容生产平台","ReadPal Content Platform")}</h1>
       <div class="langctl" style="display:inline-flex;margin-top:14px">
         <button id="btnZh2" class="${LANG==="zh"?"on":""}" onclick="setLang('zh')">中文</button>
         <button id="btnEn2" class="${LANG==="en"?"on":""}" onclick="setLang('en')">EN</button>
@@ -2841,10 +2839,8 @@ function renderLogin(){
     <div class="lroles">
       ${ROLES.map((r,idx)=>`<div class="lrole" id="lr-${r.id}" style="animation-delay:${idx*.07}s" onclick="openLogin('${r.id}')">
         <h4>${L(r.name,r.nameEn)}</h4>
-        <div class="rscope">${L(r.scope.zh,r.scope.en)}</div>
         <div class="rmods">${roleSteps(r).map(s=>`<span>${L(s.zh,s.en)}</span>`).join("")}</div>
-        <button class="rbtn" style="background:${r.color}">${L("登录","Log in")}</button>
-        <div class="racc">${L("演示账号","Demo")}：${r.user} / ${r.pass}</div>
+        <button class="rbtn">${L("登录","Log in")}</button>
         <div class="lform" onclick="event.stopPropagation()">
           <h4>${L(r.name,r.nameEn)} · ${L("登录","Log in")}</h4>
           <div class="lsub">${L("使用演示账号直接登录","Use the demo account below")}</div>
@@ -2859,7 +2855,6 @@ function renderLogin(){
         </div>
       </div>`).join("")}
     </div>
-    <div class="lfoot">${L("演示环境 · 密码均为 123456 · 四大角色：市场（素材创建）· 教研/审核（文章生产）· 运营（发布管理）","Demo · all passwords 123456 · Four roles: Marketing (creation) · Curriculum/Review (production) · Ops (publish)")}</div>
   </div>`;
   ov.style.display = "grid";
 }
