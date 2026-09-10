@@ -150,125 +150,6 @@ body{font-family:var(--font);color:var(--text);background:var(--bg);overflow:hid
 .banksec h4{font-size:14px;margin:0 0 10px;font-weight:600;color:var(--sub)}
 .banksec h4 b{color:var(--pri);margin-left:4px}
 
-/* ============ 发布管理四大模块 CSS ============ */
-
-/* --- 通用 --- */
-.ops-section{margin-top:22px}
-.ops-section h4{font-size:15px;font-weight:700;margin-bottom:12px}
-
-/* --- 库存格子 --- */
-.inv-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px;margin-bottom:20px}
-.inv-card{background:#fff;border:1px solid var(--border2,var(--border));border-radius:12px;padding:16px;animation:pop .4s both;cursor:pointer;transition:all .15s}
-.inv-card:hover{box-shadow:var(--shadow-lg);transform:translateY(-2px)}
-.inv-card .inv-head{display:flex;align-items:center;gap:8px;margin-bottom:10px}
-.inv-card .inv-head .inv-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
-.inv-card .inv-head b{font-size:14px;font-weight:700}
-.inv-card .inv-head .inv-badge{font-size:10px;font-weight:700;padding:2px 8px;border-radius:99px;margin-left:auto}
-.inv-card .inv-head .inv-badge.ok{background:var(--ok-t);color:var(--ok)}
-.inv-card .inv-head .inv-badge.warn{background:var(--warn-t);color:var(--warn)}
-.inv-card .inv-head .inv-badge.danger{background:var(--danger-t);color:var(--danger)}
-.inv-card .inv-stats{display:flex;gap:10px;font-size:11.5px;color:var(--sub);margin-bottom:8px}
-.inv-card .inv-stats span{background:var(--bg);padding:2px 8px;border-radius:6px;font-weight:600}
-.inv-card .inv-foot{font-size:11px;color:var(--muted)}
-.inv-detail{margin-top:14px;display:none}
-.inv-detail.open{display:block}
-.inv-detail .inv-item{display:flex;align-items:center;gap:10px;padding:8px 10px;border-bottom:1px solid var(--border2,var(--border));font-size:12.5px}
-.inv-detail .inv-item b{flex:1;font-weight:600}
-.inv-detail .inv-item .inv-lvl{font-size:11px;color:var(--muted)}
-.inv-detail .inv-item .inv-date{font-size:11px;color:var(--muted)}
-.inv-detail .inv-item .inv-empty{color:var(--muted);padding:16px;text-align:center}
-
-/* --- 警示区 --- */
-.alert-bar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:18px;animation:pop .4s both}
-.alert-item{display:flex;align-items:center;gap:8px;padding:8px 14px;border-radius:10px;font-size:12.5px;font-weight:600}
-.alert-item.danger{background:var(--danger-t);color:var(--danger)}
-.alert-item.warn{background:var(--warn-t);color:var(--warn)}
-.alert-item .alert-btn{padding:4px 10px;font-size:11px;border-radius:6px;margin-left:auto}
-
-/* --- 发布管理 --- */
-.pub-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px}
-.pub-stat-card{background:linear-gradient(145deg,#fff,#f8f9fa);border:1px solid var(--border2,var(--border));border-radius:14px;padding:16px 12px;text-align:center;box-shadow:0 2px 6px rgba(0,0,0,.04);transition:transform .2s,box-shadow .2s}
-.pub-stat-card:hover{transform:translateY(-2px);box-shadow:0 4px 14px rgba(0,0,0,.08)}
-.pub-stat-card .pub-stat-ico{font-size:22px;margin-bottom:4px}
-.pub-stat-card .pub-stat-num{font-size:26px;font-weight:800;color:var(--pri)}
-.pub-stat-card .pub-stat-lbl{font-size:11px;color:var(--muted);margin-top:2px}
-.pub-layout{display:grid;grid-template-columns:1fr 1fr;gap:18px}
-@media(max-width:800px){.pub-layout{grid-template-columns:1fr}}
-.pub-panel{background:#fff;border:1px solid var(--border2,var(--border));border-radius:14px;padding:18px 20px;box-shadow:0 2px 8px rgba(0,0,0,.04)}
-.pub-panel h4{font-size:14px;font-weight:700;margin-bottom:14px;display:flex;align-items:center;gap:8px}
-.pub-topic{display:flex;align-items:center;gap:8px;padding:10px 12px;margin-bottom:8px;background:var(--bg);border-radius:10px;font-size:13px}
-.pub-topic-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
-.pub-topic b{flex:1;font-weight:700}
-.pub-topic-count{font-size:11px;font-weight:700;color:var(--muted);background:#fff;padding:2px 10px;border-radius:10px;border:1px solid var(--border2,var(--border))}
-.pub-item{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border2,var(--border));animation:pop .3s both}
-.pub-item:last-child{border-bottom:none}
-.pub-item b{flex:1;font-weight:600;font-size:13px}
-.pub-item-lvl{font-size:11px;font-weight:700;color:#fff;padding:2px 10px;border-radius:10px;display:inline-block}
-.pub-item-lvl.A2{background:#E65425}
-.pub-item-lvl.B1{background:#E65425}
-.pub-item-lvl.B2{background:#E65425}
-.pub-item-date{font-size:11px;color:var(--muted)}
-.pub-item-btn{padding:5px 16px;font-size:12px;border-radius:8px;background:var(--pri);color:#fff;border:none;cursor:pointer;font-weight:600;transition:all .15s}
-.pub-item-btn:hover{opacity:.85;transform:scale(1.03)}
-.pub-history{display:flex;flex-direction:column;gap:6px}
-.pub-entry{display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--bg);border-radius:10px;transition:all .15s}
-.pub-entry:hover{background:#f0f2f5}
-.pub-entry .pub-status{width:8px;height:8px;border-radius:50%;flex-shrink:0}
-.pub-entry .pub-status.done{background:var(--ok)}
-.pub-entry b{flex:1;font-weight:600;font-size:13px}
-.pub-entry .pub-meta{font-size:11px;color:var(--muted)}
-.pub-entry .pub-time{font-size:11px;color:var(--muted);font-weight:600}
-
-/* --- 运营看板 --- */
-.dash-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin-bottom:20px}
-.dash-card{background:#fff;border:1px solid var(--border2,var(--border));border-radius:12px;padding:16px 18px;animation:pop .4s both}
-.dash-card .dash-num{font-size:30px;font-weight:800;color:var(--pri)}
-.dash-card .dash-lbl{font-size:12px;color:var(--muted);margin-top:2px}
-.dash-card .dash-sub{font-size:11px;color:var(--muted);margin-top:6px}
-.chart-container{background:#fff;border:1px solid var(--border2,var(--border));border-radius:12px;padding:16px 18px;margin-bottom:16px}
-.chart-container h4{font-size:14px;font-weight:700;margin-bottom:12px}
-.chart-row{display:flex;align-items:center;gap:10px;margin-bottom:8px}
-.chart-row .chart-lbl{min-width:70px;font-size:12.5px;font-weight:600;color:var(--sub)}
-.chart-row .chart-bar{flex:1;height:20px;background:var(--bg);border-radius:6px;overflow:hidden}
-.chart-row .chart-bar i{display:block;height:100%;border-radius:6px;transition:width .6s ease}
-.chart-row .chart-val{min-width:36px;text-align:right;font-size:12px;font-weight:700;color:var(--muted)}
-.charts-two-col{display:grid;grid-template-columns:1fr 1fr;gap:16px}
-@media(max-width:800px){.charts-two-col{grid-template-columns:1fr}}
-.svg-chart{width:100%;height:auto}
-
-/* --- 用户反馈 --- */
-.fdb-section{margin-top:22px}
-.fdb-section h4{font-size:15px;font-weight:700;margin-bottom:14px}
-.fdb-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px}
-@media(max-width:800px){.fdb-grid{grid-template-columns:repeat(2,1fr)}}
-.fdb-card{background:linear-gradient(145deg,#fff,#f8f9fa);border:1px solid var(--border2,var(--border));border-radius:14px;padding:16px;text-align:center;box-shadow:0 2px 6px rgba(0,0,0,.04);transition:transform .2s,box-shadow .2s}
-.fdb-card:hover{transform:translateY(-2px);box-shadow:0 4px 14px rgba(0,0,0,.08)}
-.fdb-card .fdb-ico{font-size:24px;margin-bottom:4px}
-.fdb-card .fdb-num{font-size:28px;font-weight:800;color:var(--pri)}
-.fdb-card .fdb-lbl{font-size:11px;color:var(--muted);margin-top:2px}
-.fdb-card .fdb-sub{font-size:10px;color:var(--muted);margin-top:4px}
-.fdb-chart{display:flex;flex-direction:column;gap:10px}
-.fdb-chart-row{display:flex;align-items:center;gap:10px}
-.fdb-chart-row .fdb-chart-lbl{min-width:70px;font-size:12px;font-weight:600;color:var(--sub)}
-.fdb-chart-row .fdb-chart-track{flex:1;height:22px;background:var(--bg);border-radius:8px;overflow:hidden}
-.fdb-chart-row .fdb-chart-fill{display:flex;align-items:center;height:100%;border-radius:8px;padding-left:8px;font-size:10px;font-weight:700;color:#fff;transition:width .6s cubic-bezier(.2,.8,.2,1)}
-.fdb-chart-row .fdb-chart-val{min-width:50px;text-align:right;font-size:12px;font-weight:700;color:var(--muted)}
-.fdb-chart-container{background:#fff;border:1px solid var(--border2,var(--border));border-radius:14px;padding:18px 20px;margin-bottom:16px;box-shadow:0 2px 8px rgba(0,0,0,.04)}
-.fdb-chart-container h4{font-size:14px;font-weight:700;margin-bottom:14px}
-.fdb-rank-list{display:flex;flex-direction:column;gap:8px}
-.fdb-rank-item{display:flex;align-items:center;gap:12px;padding:10px 14px;background:var(--bg);border-radius:10px;transition:all .15s}
-.fdb-rank-item:hover{background:#f0f2f5}
-.fdb-rank-item .fdb-rank-num{width:32px;height:32px;display:flex;align-items:center;justify-content:center;border-radius:50%;font-size:12px;font-weight:800;color:#fff;flex-shrink:0}
-.fdb-rank-item .fdb-rank-num.gold{background:linear-gradient(135deg,#F79009,#E65425)}
-.fdb-rank-item .fdb-rank-num.silver{background:linear-gradient(135deg,#A0AEC0,#718096)}
-.fdb-rank-item .fdb-rank-num.bronze{background:linear-gradient(135deg,#D04418,#B03A14)}
-.fdb-rank-item .fdb-rank-num.normal{background:var(--muted)}
-.fdb-rank-item b{flex:1;font-weight:600;font-size:13px}
-.fdb-rank-item .fdb-rank-likes{font-size:12px;color:#D04418;font-weight:700}
-.fdb-controls{display:flex;gap:8px;margin-bottom:18px}
-.fdb-reset-btn{padding:8px 18px;font-size:12px;border-radius:10px;background:var(--bg);border:1px solid var(--border2,var(--border));cursor:pointer;font-weight:600;color:var(--sub);transition:all .15s}
-.fdb-reset-btn:hover{background:var(--danger-t);border-color:var(--danger);color:var(--danger)}
-
 /* chips & tags */
 .chip{display:inline-flex;align-items:center;font-size:12px;font-weight:600;border:1px solid var(--border2);padding:5px 12px;border-radius:8px;background:#fff;cursor:pointer;transition:all .12s;user-select:none;margin:3px}
 .chip:hover{border-color:var(--pri);color:var(--pri)}
@@ -753,7 +634,7 @@ body{font-family:var(--font);color:var(--text);background:var(--bg);overflow:hid
 .mfs.cur .mfs-t{color:var(--pri)}
 .mfs-arrow{color:var(--border2);font-size:16px;font-weight:700}
 
-/* ============ S11 content bank (imported) ============ */
+/* ============ S11 article bank (imported) ============ */
 .banktabs{display:flex;gap:8px;margin:0 0 20px;flex-wrap:wrap}
 .btab{border:1px solid var(--border);background:#fff;padding:7px 16px;cursor:pointer;font-weight:600;font-size:12.5px;border-radius:8px;transition:all .12s;box-shadow:var(--shadow);color:var(--sub)}
 .btab:hover{border-color:var(--pri);color:var(--pri)}
@@ -785,7 +666,7 @@ body{font-family:var(--font);color:var(--text);background:var(--bg);overflow:hid
 .nextslot .info{flex:1}
 .nextslot .info .ti{font-size:12.5px;font-weight:700}
 .nextslot .info .id{font-size:10.5px;color:var(--muted);margin-top:2px}
-/* content library table */
+/* article library table */
 .arttable{width:100%;border-collapse:collapse;background:#fff;border:1px solid var(--border);border-radius:10px;overflow:hidden;box-shadow:var(--shadow);font-size:11.5px;animation:pop .45s both}
 .arttable th{background:#F9FAFB;padding:10px 10px;text-align:left;font-size:10.5px;font-weight:800;color:var(--muted);letter-spacing:.04em;border-bottom:1px solid var(--border);white-space:nowrap}
 .arttable td{padding:10px 10px;border-bottom:1px solid var(--border);vertical-align:top;color:#344054}
@@ -860,7 +741,7 @@ body{font-family:var(--font);color:var(--text);background:var(--bg);overflow:hid
 #loginOv .lhead h1{font-size:23px;font-weight:800;letter-spacing:-.01em}
 
 #loginOv .lhead .langmini{margin-top:14px}
-.lroles{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+.lroles{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
 @media(max-width:880px){.lroles{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:480px){.lroles{grid-template-columns:1fr}}
 .lrole{background:#fff;border:1px solid var(--border);border-radius:14px;padding:16px 18px;cursor:pointer;transition:all .15s;box-shadow:var(--shadow);position:relative;width:100%;animation:rise .45s both;display:flex;flex-direction:column}
@@ -948,7 +829,7 @@ body{font-family:var(--font);color:var(--text);background:var(--bg);overflow:hid
 .pedit-hint{font-size:11.5px;color:var(--sub);display:flex;align-items:center;gap:7px;margin:0 0 16px;background:var(--pri-t);border:1px dashed #FFD1BF;border-radius:9px;padding:9px 13px}
 @media (max-width:900px){.pcols,.alignrow{grid-template-columns:1fr}}
 .reviewparas{margin-top:20px;padding-top:18px;border-top:1px solid var(--border)}
-/* 内容库 · 查看原文页（三档对照独立页，不占 step 编号） */
+/* 文章库 · 查看原文页（三档对照独立页，不占 step 编号） */
 .svbar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 16px;margin:0 0 14px;background:#FFF7ED;border:1px solid #FDD9A8;border-radius:12px;flex-wrap:wrap}
 .svbar-l{display:flex;flex-direction:column;gap:5px;min-width:0}
 .svbar-t{font-size:15px;font-weight:800;color:var(--text);line-height:1.35}
@@ -1034,7 +915,7 @@ body{font-family:var(--font);color:var(--text);background:var(--bg);overflow:hid
 .mat-pagination{display:flex;align-items:center;justify-content:center;gap:8px;margin:12px 0;font-size:12px;color:var(--sub)}
 .empty-state{padding:44px;text-align:center;color:var(--muted);font-size:13px}
 
-/* 内容库 · 人工审核上下文条（从内容库进入三档审核时显示在页顶） */
+/* 文章库 · 人工审核上下文条（从文章库进入三档审核时显示在页顶） */
 .rvbar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 14px;margin:0 0 12px;background:#FFF7ED;border:1px solid #FDD9A8;border-radius:10px}
 .rvbar-l{display:flex;align-items:center;gap:12px;flex-wrap:wrap;min-width:0}
 .rvbar-tag{flex:0 0 auto;font-size:10.5px;font-weight:700;padding:3px 9px;border-radius:99px;background:#F79009;color:#fff}
@@ -1115,8 +996,8 @@ const STAGES = [
   {no:"10", phase:2, t:"段落校对",     tEn:"Paragraph Proofread", s:"Auto-split + human proofread"},
   // ===== PHASE 3: 审核（审核老师）=====
   {no:"11", phase:3, t:"逐段审核",     tEn:"Segment Review",      s:"Per-segment check"},
-  // ===== 内容库 =====
-  {no:"12", phase:2, t:"内容库",       tEn:"Content Library",     s:"Browse · publish"},
+  // ===== 文章库 =====
+  {no:"12", phase:2, t:"文章库",       tEn:"Article Library",     s:"Browse · archive"},
 ];
 /* steps skipped when the licensed/copyright route is chosen (no fact extraction needed) */
 const SKIP_LICENSED = [];
@@ -1127,7 +1008,7 @@ const SKIP_LICENSED = [];
   {t:"段落对齐", tEn:"Align"}, {t:"人工校对", tEn:"Proofread"},
   {t:"逐段审核", tEn:"Segment review"},
   {t:"素材库", tEn:"Material library"},
-  {t:"内容库", tEn:"Content library"},
+  {t:"文章库", tEn:"Article library"},
 ];
 const EXT_STEPS = [];
 const STAGE_WF = {0:[0],1:[1],2:[2],3:[3],4:[4],5:[5],6:[6],7:[7],8:[8],9:[9],10:[10],11:[11],12:[12]};
@@ -1506,7 +1387,7 @@ function saveCover(){
     toast(L("封面图已保存","Cover saved"));
   }).catch(() => { window.open(url, "_blank"); });
 }
-/* 下载内容库中某篇已入库文章的封面 */
+/* 下载文章库中某篇已入库文章的封面 */
 function saveBankCover(id){
   const a = loadBank().find(x => x.id === id);
   if(!a || !a.coverDataUrl){ toast(L("该文章暂无封面","No cover for this article")); return; }
@@ -1528,7 +1409,7 @@ function audioBarHTML(){
   const a = state.audio[state.lvl] || {};
   const hasUs = !!a.us, hasUk = !!a.uk, hasAny = hasUs || hasUk;
   const fileRow = hasAny
-    ? `<div class="ab-accent"><span class="ab-label">${L("音频文件（可存内容库）","Audio files (storable)")}</span>
+    ? `<div class="ab-accent"><span class="ab-label">${L("音频文件（可存文章库）","Audio files (storable)")}</span>
         <button class="ab-btn ${state.audioAccent==='us'&&hasUs?'on':''}" onclick="playAudio('us')" ${hasUs?'':'disabled'}>▶ ${L("美音","American")} </button>
         <button class="ab-btn ${state.audioAccent==='uk'&&hasUk?'on':''}" onclick="playAudio('uk')" ${hasUk?'':'disabled'}>▶ ${L("英音","British")} </button>
       </div>`
@@ -1586,7 +1467,7 @@ async function genArticleAudio(){
         toast(L("音频生成失败：" + why, "Audio generation failed: " + why));
       }
     } catch(e) {
-      const why = L("桥接层未启动（" + AGENT_REACH_API + "）。启动后可在内容库点「重新生成音频」补生成",
+      const why = L("桥接层未启动（" + AGENT_REACH_API + "）。启动后可在文章库点「重新生成音频」补生成",
                     "bridge not running (" + AGENT_REACH_API + "). Start it, then use \"Regen audio\" in the library");
       state.audioMeta = audioMetaFrom(null, {}, why);
       toast(L("音频生成失败：" + why, "Audio generation failed: " + why));
@@ -1600,7 +1481,7 @@ async function genArticleAudio(){
   return state.audioPromise;
 }
 /* 音频元信息：全部来自后端上报，前端只做搬运与展示，不自行推断，
-   这样内容库能如实说明「生成了几个、用的什么模型、耗时多久、为什么失败」。 */
+   这样文章库能如实说明「生成了几个、用的什么模型、耗时多久、为什么失败」。 */
 function audioMetaFrom(meta, audio, err){
   const m = meta || {};
   const n = bankAudioCount({ audio: audio || {} });
@@ -1629,7 +1510,7 @@ function audioMetaFrom(meta, audio, err){
     error: err || (errs.length ? String(errs[0].error || "") : "")
   };
 }
-/* 内容库徽章文案：区分「未生成 / 生成中 / 已生成 / 部分 / 失败」，不再笼统显示"无音频" */
+/* 文章库徽章文案：区分「未生成 / 生成中 / 已生成 / 部分 / 失败」，不再笼统显示"无音频" */
 function audioStatusInfo(a, id){
   if(bankAudioBusy === id) return { cls:"gen", text:" " + L("生成中…","Generating…"), tip:L("正在调用 TTS 合成","Calling TTS") };
   const mt = a && a.audioMeta;
@@ -1775,7 +1656,7 @@ function identityRecord(){
     {zh: "事实卡 ×"+facts.length, en: facts.length+" fact cards"},
     {zh: "生成稿 "+state.lvl, en: "Draft "+state.lvl},
     {zh: "审核 · 教研", en: "Reviewer: teaching staff"},
-    {zh: "内容库", en: "Content bank"},
+    {zh: "文章库", en: "Article bank"},
   ];
   const cells = [
     ["Model / Prompt","qwen-max · GEN-v1.4"],
@@ -2689,13 +2570,11 @@ function s2LiveInner(){
    且全文件无任何代码读取它，属死字段，已删除，避免误导后续改动者。 */
 const ROLES = [
   {id:"source", color:"#E65425", name:"市场老师", nameEn:"Marketing",
-   scope:L1("工作台 · 素材创建 01–04 + 素材库", "Workbench · Material creation 01–04 + Material library"), user:"market_zhang", pass:((window.WB_CFG && window.WB_CFG.DEMO_PASS)||""), entry:0},
+   scope:L1("素材创建 01–04 + 素材库", "Material creation 01–04 + Material library"), user:"market_zhang", pass:((window.WB_CFG && window.WB_CFG.DEMO_PASS)||""), entry:0},
   {id:"produce", color:"#E65425", name:"教研老师", nameEn:"Curriculum",
-   scope:L1("工作台 · 素材创建 + 文章生产 + 内容库", "Workbench · Material creation + Article production + Content library"), user:"curriculum_li", pass:((window.WB_CFG && window.WB_CFG.DEMO_PASS)||""), entry:5},
+   scope:L1("素材创建 + 文章生产 + 文章库", "Material creation + Article production + Article library"), user:"curriculum_li", pass:((window.WB_CFG && window.WB_CFG.DEMO_PASS)||""), entry:5},
   {id:"review", color:"#E65425", name:"审核老师", nameEn:"Reviewer",
    scope:L1("全部权限 · 全流程", "Full access · whole flow"), user:"review_wang", pass:((window.WB_CFG && window.WB_CFG.DEMO_PASS)||""), entry:11},
-  {id:"ops", color:"#E65425", name:"运营老师", nameEn:"Operations",
-   scope:L1("发布管理 · 库存管理 + 发布管理 + 运营看板 + 用户反馈", "Publish management · Inventory + Publish + Dashboard + Feedback"), user:"ops_zhao", pass:((window.WB_CFG && window.WB_CFG.DEMO_PASS)||""), entry:14},
 ];
 /* stage index -> 该步骤的「主要」职能（仅用于视觉标注 owner dot / label） */
 const STEP_OWNER = {
@@ -2703,14 +2582,13 @@ const STEP_OWNER = {
   4:"source",
   5:"produce",6:"produce",7:"produce",8:"produce",9:"produce",
   10:"review",
-  11:"review", 12:"review",13:"review",14:"ops",15:"ops",
+  11:"review",
 };
-/* 各角色可操作的步骤集合：审核老师全部 0-15；运营老师可操作发布管理全部 */
+/* 各角色可操作的步骤集合：审核老师全部 0-11；教研老师故意跳过 10（逐段审核） */
 const ROLE_OPS = {
   source: [0,1,2,3,4],
-  produce: [0,1,2,3,4,5,6,7,8,9,11],   /* 素材管理平台(0-4) + 文章生产(5-9) + 内容库(11) */
-  review: [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15],
-  ops: [12,13,14,15],  /* 运营可操作库存/发布/看板/反馈 */
+  produce: [0,1,2,3,4,5,6,7,8,9,11],   /* 素材创建(0-4) + 文章生产(5-9) + 文章库(11) */
+  review: [0,1,2,3,4,5,6,7,8,9,10,11],
 };
 function L1(zh,en){return {zh,en};}
 function roleSteps(r){
@@ -2740,26 +2618,21 @@ const $$ = (s, el=document) => [...el.querySelectorAll(s)];
 let cur = 0;
 
 const rail = $("#railsteps");
-/* 侧边栏结构：工作台(素材创建+文章生产) · 素材库 · 内容库 · 发布管理(四模块) · 团队成员(占位) */
+/* 侧边栏结构：素材创建 · 素材库 · 文章生产 · 文章库（均为同级直达项） */
 const RAIL = [
-  {type:"group", id:"workbench", name:"工作台", nameEn:"Workbench", color:"#E65425", steps:[0,5]},
+  {type:"item", idx:0},
   {type:"item", idx:4},
+  {type:"item", idx:5},
   {type:"item", idx:11},
-  {type:"group", id:"publish", name:"发布管理", nameEn:"Publish Management", color:"#E65425", steps:[12,13,14,15]},
-  {type:"ph", name:"团队成员", nameEn:"Team Members"},
 ];
 /* 侧边栏自定义显示名：「素材创建」= 素材采集环节入口(01–04)；「文章生产」= 文章生产环节入口(06–11) */
 const RAIL_OVERRIDE = {
   0: {no:"", zh:"素材创建", en:"Material Creation"},
   5: {no:"", zh:"文章生产", en:"Article Production"},
 };
-let expandedSections = new Set(["workbench","publish"]);
+let expandedSections = new Set();
 function stepLabel(i){
   if(i>=0 && i<12) return {no:STAGES[i].no, zh:STAGES[i].t, en:STAGES[i].tEn};
-  if(i===12) return {no:"", zh:"库存管理", en:"Inventory"};
-  if(i===13) return {no:"", zh:"发布管理", en:"Publish"};
-  if(i===14) return {no:"", zh:"运营看板", en:"Ops Dashboard"};
-  if(i===15) return {no:"", zh:"用户反馈", en:"Feedback"};
   return {no:"", zh:"", en:""};
 }
 function railStepHTML(i){
@@ -2769,24 +2642,16 @@ function railStepHTML(i){
 function buildRail(){
   rail.innerHTML = "";
   RAIL.forEach(sec => {
-    /* 占位一级标题（团队成员） */
-    if(sec.type === "ph"){
-      const h = document.createElement("div"); h.className = "rl1 ph";
-      h.innerHTML = `<span class="rt">${L(sec.name, sec.nameEn)}</span>`;
-      h.onclick = () => toast(L("模块开发中…","Under development"));
-      rail.appendChild(h);
-      return;
-    }
-    /* 直达一级标题（素材库 / 内容库） */
+    /* 直达一级标题（素材创建 / 素材库 / 文章生产 / 文章库） */
     if(sec.type === "item"){
-      const lb = stepLabel(sec.idx);
+      const lb = RAIL_OVERRIDE[sec.idx] || stepLabel(sec.idx);
       const h = document.createElement("div"); h.className = "rl1"; h.dataset.idx = sec.idx;
       h.innerHTML = `<span class="rt">${L(lb.zh, lb.en)}</span>`;
       h.onclick = () => go(sec.idx);
       rail.appendChild(h);
       return;
     }
-    /* 可展开一级标题（工作台 / 发布管理） */
+    /* 可展开一级标题（通用分组渲染；当前侧边栏未使用分组） */
     const exp = expandedSections.has(sec.id);
     const h = document.createElement("div"); h.className = "rl1";
     h.innerHTML = `<span class="rt">${L(sec.name, sec.nameEn)}</span><span class="caret">${exp?"▼":"▶"}</span>`;
@@ -2815,11 +2680,15 @@ function refreshRail(){
     r.classList.toggle("active", j===cur || inMatCreate || inArtProd);
     r.classList.toggle("skipped", isSkipped(j));
   });
-  /* 直达一级标题（素材库 / 内容库）的激活态与只读态 */
+  /* 一级菜单（素材创建 / 素材库 / 文章生产 / 文章库）的激活态与只读态 */
   $$(".rl1[data-idx]").forEach(r=>{
     const j = +r.dataset.idx;
-    r.classList.toggle("active", j===cur);
+    /* 「素材创建」在其子流程 0-3 内保持高亮；「文章生产」在其子流程 5-10 内保持高亮 */
+    const inMatCreate = j===0 && cur>=0 && cur<=3;
+    const inArtProd   = j===5 && cur>=5 && cur<=10;
+    r.classList.toggle("active", j===cur || inMatCreate || inArtProd);
     r.classList.toggle("locked", !canOperate(j));
+    r.classList.toggle("skipped", isSkipped(j));
   });
 }
 const stage = $("#stage");
@@ -3037,7 +2906,7 @@ function matWorkflowBar(){
     <div class="matflow-steps">${nodes}</div>
   </div>`;
 }
-/* ---------- 文章生产 · 顶部工作流步骤条（6 步生产 + 1 步存入内容库） ---------- */
+/* ---------- 文章生产 · 顶部工作流步骤条（6 步生产 + 1 步存入文章库） ---------- */
 function artFlowSteps(){
   /* 自有版权 / 公版书入口无需事实抽取：顶部工作流隐藏该步。
      热点搜集入口 → 7 步（含事实抽取）；自有/公版入口 → 6 步（跳过事实抽取） */
@@ -3049,7 +2918,7 @@ function artFlowSteps(){
   steps.push({ idx:8, t:"AI 校验", tEn:"AI Validate" });
   steps.push({ idx:9, t:"段落校对", tEn:"Proofread" });
   steps.push({ idx:10, t:"逐段审核", tEn:"Segment Review" });
-  steps.push({ idx:11, t:"存入内容库", tEn:"Save to Content Library" });
+  steps.push({ idx:11, t:"存入文章库", tEn:"Save to Article Library" });
   return steps.map((s,i)=>({ idx:s.idx, no:String(i+1), t:s.t, tEn:s.tEn }));
 }
 function artWorkflowBar(){
@@ -4213,9 +4082,9 @@ function showIdentity(){
         <div class="idnote">${L("标识依据《生成式人工智能服务管理暂行办法》等内容标识要求：客户端展示 AI 生成标识；溯源链支持事后审计与错误回滚（事实卡证伪 → usage_log 反查 → 48h 修订）。","Per AI-content labeling regulations: the client displays an AI-generated badge; the provenance chain supports post-hoc audit and rollback (falsified fact → usage_log lookup → 48h fix).")}</div>
       </div>
       <div class="idcol">
-        <div class="idcol-h">${L("② 编辑标签（Content ID · 供内容库消费）","② Editorial tags (Content ID · for the content bank)")}</div>
+        <div class="idcol-h">${L("② 编辑标签（Content ID · 供文章库消费）","② Editorial tags (Content ID · for the article bank)")}</div>
         <div class="tagrows">${ID.tags.map(t=>`<div class="tagrow"><span class="tk">${L(t.k.zh,t.k.en)}</span><span class="tv">${L(t.v.zh,t.v.en)}</span></div>`).join("")}</div>
-        <div class="idnote">${L("这组标签随文章一并入库，内容库据此完成库存图归类、冷却比对与槽位匹配——入库即打标，不依赖人工记忆。","These tags travel with the article into the bank, feeding the bank map, cooldown checks and slot matching — tagged on intake, never from memory.")}</div>
+        <div class="idnote">${L("这组标签随文章一并入库，文章库据此完成库存图归类、冷却比对与槽位匹配——入库即打标，不依赖人工记忆。","These tags travel with the article into the bank, feeding the bank map, cooldown checks and slot matching — tagged on intake, never from memory.")}</div>
       </div>
     </div>
   </div>`;
@@ -4247,20 +4116,20 @@ async function approve(){
   if(hasArt && !Object.keys(state.audio || {}).length && !state.audioPromise){
     genArticleAudio();
   }
-  /* 从内容库进入的审核：直接标记已审核（避免重建导致 contentId 不一致） */
+  /* 从文章库进入的审核：直接标记已审核（避免重建导致 contentId 不一致） */
   if(state.reviewingId){
     const list = loadBank();
     const a = list.find(x=>x.id===state.reviewingId);
     if(a){ a.reviewedBy = "审核老师"; saveBank(list); syncArticleToLibrary(a); }
     state.reviewingId = null;
-    toast(L("审核通过 · 已同步推送到发布管理 · 返回内容库","Approved — synced to publish management · back to content library"));
+    toast(L("审核通过 · 已归档到文章库","Approved — archived to the article library"));
     go(11);
     return;
   }
   const art = buildBankArticle();
   const saved = art ? addToBank(art) : false;
   if(!saved){
-    // 没存进去就不能说"已存入内容库"
+    // 没存进去就不能说"已存入文章库"
     toast(L("入库失败：文章未能写入本地存储，请检查浏览器存储设置后重试",
             "Failed to bank: the article could not be written to local storage — check browser storage settings"));
     render();
@@ -4269,30 +4138,28 @@ async function approve(){
   const na = bankAudioCount(art);
   const inflight = !!(state.audioPromise);   /* 音频仍在后台生成 → 会由 backfill 自动补齐 */
   toast((na === 6
-    ? L("审核通过 · 已存入内容库（含 6 个音频）","Approved — saved with 6 audio files")
+    ? L("审核通过 · 已存入文章库（含 6 个音频）","Approved — saved with 6 audio files")
     : na > 0
-      ? L("审核通过 · 已存入内容库（仅 " + na + "/6 个音频）","Approved — saved with only " + na + "/6 audio files")
+      ? L("审核通过 · 已存入文章库（仅 " + na + "/6 个音频）","Approved — saved with only " + na + "/6 audio files")
       : inflight
-        ? L("审核通过 · 已存入内容库（音频生成中，完成后将自动补齐）","Approved — saved; audio backfills automatically")
-        : L("审核通过 · 已存入内容库（无音频，可补生成）","Approved — saved without audio")) +
-    L("· 已同步推送到发布管理"," · synced to publish management"));
+        ? L("审核通过 · 已存入文章库（音频生成中，完成后将自动补齐）","Approved — saved; audio backfills automatically")
+        : L("审核通过 · 已存入文章库（无音频，可补生成）","Approved — saved without audio")));
   go(11);
 }
 function rejectDemo(){
   state.reviewed = false;
-  /* 从内容库进入的人工审核：驳回要落状态并回内容库，不能只弹一句 toast */
+  /* 从文章库进入的人工审核：驳回要落状态并回文章库，不能只弹一句 toast */
   if(state.reviewingId){
     const list = loadBank();
     const a = list.find(x=>x.id===state.reviewingId);
     if(a){
       a.reviewResult = "rejected";
-      a.reviewedBy = "";          /* 仍是未通过状态，不进发布管理 */
+      a.reviewedBy = "";          /* 仍是未通过状态，不计入已通过 */
       a.reviewedAt = Date.now();
-      a.status = L("已驳回","Rejected");
       saveBank(list);
     }
     state.reviewingId = null;
-    toast(L("已驳回 · 已标记驳回原因归档 · 返回内容库","Rejected — marked and archived · back to content library"));
+    toast(L("已驳回 · 已标记驳回原因归档 · 返回文章库","Rejected — marked and archived · back to article library"));
     go(11);
     return;
   }
@@ -4374,7 +4241,7 @@ function s10(){
 }
 
 
-/* ==================== 内容库（审核通过后归档） ==================== */
+/* ==================== 文章库（审核通过后归档） ==================== */
 const BANK_KEY = "wb_content_bank_v1";
 function loadBank(){
   try {
@@ -4382,7 +4249,7 @@ function loadBank(){
     return Array.isArray(v) ? v : [];
   } catch(e){
     // 解析失败不能静默当空库——否则用户会以为文章丢了，或反过来以为没存过
-    toast(L("内容库读取失败：本地存储数据已损坏，请检查备份","Failed to read the library: local storage data is corrupted"));
+    toast(L("文章库读取失败：本地存储数据已损坏，请检查备份","Failed to read the library: local storage data is corrupted"));
     return [];
   }
 }
@@ -4401,7 +4268,7 @@ function saveBank(list){
 function syncInfo(a){
   const s = a && a.sync;
   if(!s) return { cls:"none", text:L("未同步","Not synced"), tip:L("尚未尝试同步到后端","Not yet synced to backend") };
-  if(s.status === "ok") return { cls:"ok", text:L("已同步","Synced"), tip:L("已写入后端内容库","Written to the backend library") };
+  if(s.status === "ok") return { cls:"ok", text:L("已同步","Synced"), tip:L("已写入后端文章库","Written to the backend library") };
   if(s.status === "pending") return { cls:"gen", text:L("同步中…","Syncing…"), tip:L("正在写入后端","Writing to backend") };
   return { cls:"fail", text:L("同步失败","Sync failed"), tip:(s.error || L("未知原因","Unknown")) };
 }
@@ -4411,7 +4278,7 @@ function markSync(id, st){
   if(!a) return;
   a.sync = st;
   saveBank(list);
-  if(cur === 11) renderKeepOpen();   // 在内容库页时刷新，让用户看到状态变化
+  if(cur === 11) renderKeepOpen();   // 在文章库页时刷新，让用户看到状态变化
 }
 async function retrySync(id){
   const a = loadBank().find(x => x.id === id);
@@ -4419,7 +4286,7 @@ async function retrySync(id){
   await syncArticleToLibrary(a);
   toast(L("已重新尝试同步","Retrying sync"));
 }
-/* 打通：文章入库时同步到桥接层 /api/library（→ 飞书内容库）。
+/* 打通：文章入库时同步到桥接层 /api/library（→ 飞书文章库）。
    失败必须写回文章对象并在界面上标出「同步失败 + 原因 + 重试」，不能只在控制台打日志。 */
 async function syncArticleToLibrary(art){
   markSync(art.id, { status:"pending", error:"", at: Date.now() });
@@ -4456,7 +4323,7 @@ function addToBank(art){
   syncArticleToLibrary(art);
   return true;
 }
-/* 重绘内容库但保留已展开的卡片（否则刷新会把用户正在看的文章收起来） */
+/* 重绘文章库但保留已展开的卡片（否则刷新会把用户正在看的文章收起来） */
 function openBankIds(){
   const ids = [];
   document.querySelectorAll("[id^='bc-']").forEach(el => { if(el.style.display === "block") ids.push(el.id.slice(3)); });
@@ -4472,14 +4339,8 @@ function renderKeepOpen(){
   });
 }
 function removeFromBank(id){ saveBank(loadBank().filter(a => a.id !== id)); render(); }
-function pushToPlatform(id){
-  const list = loadBank();
-  const a = list.find(x => x.id === id);
-  if(a){ a.status = "已推送"; a.pushedAt = Date.now(); saveBank(list); toast(L("已推送至发布管理（演示模拟）","Pushed to platform (simulated)")); }
-  render();
-}
 function fmtDate(ts){ try { const d = new Date(ts); const p = n => String(n).padStart(2,"0"); return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate())+" "+p(d.getHours())+":"+p(d.getMinutes()); } catch(e){ return ""; } }
-/* ---------- 内容库 · 朗读音频 ---------- */
+/* ---------- 文章库 · 朗读音频 ---------- */
 /* 相对路径补全为可访问绝对地址（音频文件由 bridge 托管；同源部署时 AGENT_REACH_API="" 拼出相对路径） */
 function audioFullUrl(rel){
   if(!rel) return "";
@@ -4503,7 +4364,7 @@ function audioRegenLabel(a){
   if(a && a.audioMeta && a.audioMeta.status === "failed") return L("重试生成","Retry");
   return L("重新生成音频","Regen audio");
 }
-/* 内容库共用的隐藏播放器（不随 render 重建，避免折叠展开态丢失） */
+/* 文章库共用的隐藏播放器（不随 render 重建，避免折叠展开态丢失） */
 function bankAudioEl(){
   let el = document.getElementById("bankAudioEl");
   if(!el){
@@ -4605,7 +4466,7 @@ function backfillBankAudio(){
   return 1;
 }
 let bankAudioBusy = null;
-/* 内容库内补生成音频：直接用入库时存的正文打 TTS，不用重跑整条流水线 */
+/* 文章库内补生成音频：直接用入库时存的正文打 TTS，不用重跑整条流水线 */
 async function bankRegenAudio(id){
   if(bankAudioBusy) return;
   const list = loadBank();
@@ -4629,7 +4490,7 @@ async function bankRegenAudio(id){
       saveBank(list);
       syncArticleToLibrary(a);
       ok = true;
-      toast(L("已生成 " + a.audioMeta.count + "/6 个音频并写入内容库 · " + (a.audioMeta.model || "") + " · " + (a.audioMeta.elapsedMs/1000).toFixed(1) + "s",
+      toast(L("已生成 " + a.audioMeta.count + "/6 个音频并写入文章库 · " + (a.audioMeta.model || "") + " · " + (a.audioMeta.elapsedMs/1000).toFixed(1) + "s",
               "Generated " + a.audioMeta.count + "/6 audio files · " + (a.audioMeta.model || "") + " · " + (a.audioMeta.elapsedMs/1000).toFixed(1) + "s"));
     } else {
       const why = (j && (j.error || j.message)) || L("桥接层未返回音频（" + AGENT_REACH_API + "）","bridge returned no audio (" + AGENT_REACH_API + ")");
@@ -4681,19 +4542,17 @@ function buildBankArticle(){
     createdAt: Date.now(),
     createdByRole: (state.user && state.user.role) || "",   /* 生成老师（角色 id）——老库无此字段时列表显示「—」 */
     reviewedBy: "审核老师",
-    status: "待推送",
   };
 }
-/* ---------- 内容库 · 状态模型（唯一真源） ----------
-   驳回看 reviewResult，发布看 published，其余看 reviewedBy。
+/* ---------- 文章库 · 状态模型（唯一真源） ----------
+   驳回看 reviewResult，其余看 reviewedBy。
    老库没有 reviewResult 字段 —— 兼容成「待审核 / 已通过」，不会误判成已驳回。 */
-const ART_STATUS = ["pending","approved","rejected","published"];
-const ART_STATUS_ZH = ["待审核","已通过","已驳回","已发布"];
-const ART_STATUS_EN = ["Pending","Approved","Rejected","Published"];
-const ART_STATUS_COLORS = {pending:"#F79009", approved:"#F79009", rejected:"#A32D2D", published:"#E65425"};
+const ART_STATUS = ["pending","approved","rejected"];
+const ART_STATUS_ZH = ["待审核","已通过","已驳回"];
+const ART_STATUS_EN = ["Pending","Approved","Rejected"];
+const ART_STATUS_COLORS = {pending:"#F79009", approved:"#F79009", rejected:"#A32D2D"};
 const ART_PAGE_SIZE = 15;
 function artStatus(a){
-  if(a.published) return "published";
   if(a.reviewResult === "rejected") return "rejected";
   return a.reviewedBy ? "approved" : "pending";
 }
@@ -4704,7 +4563,7 @@ function roleNameOf(rid){
   const r = ROLES.find(x => x.id === rid);
   return r ? L(r.name, r.nameEn) : L("—","—");
 }
-/* ---------- 内容库筛选状态 ---------- */
+/* ---------- 文章库筛选状态 ---------- */
 let artFilter = { keyword:"", status:"", creator:"" };
 let artPage = 0;
 
@@ -4787,7 +4646,7 @@ function audioMetaHTML(a){
 function bankArtDetailHTML(a){
   const na = bankAudioCount(a);
   const tip = na
-    ? `<div class="bc-aud-tip">${L("音频文件当前由桥接层托管（" + AGENT_REACH_API + "），链接需在该地址可达时才可用；正式推送至发布管理前，请先迁移到对象存储。","Audio files are served by the bridge (" + AGENT_REACH_API + "); links work only where that address is reachable. Migrate them to object storage before pushing to the publish management.")}</div>`
+    ? `<div class="bc-aud-tip">${L("音频文件当前由桥接层托管（" + AGENT_REACH_API + "），链接需在该地址可达时才可用；正式对外使用前，请先迁移到对象存储。","Audio files are served by the bridge (" + AGENT_REACH_API + "); links work only where that address is reachable. Migrate them to object storage before going live.")}</div>`
     : "";
   return tip + audioMetaHTML(a) + ["A2","B1","B2"].map(k => {
     const txt = (a.articles && a.articles[k]) || "";
@@ -4813,18 +4672,6 @@ function backendStatusHTML(){
     <span class="bkapi">${esc(hint + "：" + (AGENT_REACH_API || L("同源","same-origin")))}</span>
     <button class="btn sec" onclick="checkBridge()">${L("重新检测","Recheck")}</button>
   </div>`;
-}
-function s14(){
-  const bank = loadBank();
-  const pendingArr = bank.filter(a => a.status !== "已推送");
-  const publishedArr = bank.filter(a => a.status === "已推送");
-  const sec = (title, arr, emptyTxt) => `<div class="banksec"><h4>${title} <b>${arr.length}</b></h4><div class="banklist">${arr.map(bankCardHTML).join("") || `<div class="note" style="padding:28px;text-align:center">${emptyTxt}</div>`}</div></div>`;
-  return head("12", L("内容库","Content Library"), "Approved articles · push to platform") +
-  backendStatusHTML() +
-  `<p class="lede">${L("审核通过的文章统一存于此库，按状态分栏：待推送（已审核未发布）与已发布。可查看、删除、推送，音频缺失时点「重新生成音频」即可补生成。","Approved articles are stored here, split by status: pending push (reviewed) vs published. View, remove or push; regenerate missing audio in place.")}</p>
-  <div class="bankbar">${L("共","Total")} <b>${bank.length}</b> ${L("篇 · 待推送","· pending")} <b>${pendingArr.length}</b> ${L("· 已发布","· published")} <b>${publishedArr.length}</b></div>
-  ${sec(L("待推送","Pending push"), pendingArr, L("暂无待推送文章。审核通过后会自动出现在这里。","No pending articles yet. Approved ones will appear here."))}
-  ${sec(L("已发布","Published"), publishedArr, L("暂无已发布文章。","No published articles yet."))}` + wfStrip();
 }
 
 /* ==================== 素材归档库（板块一：市场老师） ==================== */
@@ -4872,15 +4719,15 @@ function saveMaterialBankBar(){
   return `<div class="nextbar"><div class="ctx">AI-assisted · Human-verified · ${STAGES[3].s}</div><button class="btn" onclick="saveCurrentMaterialToBank()">${L("存入素材库","Save to material bank")} →</button></div>`;
 }
 function saveArticleBankBar(){
-  return `<div class="nextbar"><div class="ctx">AI-assisted · Human-verified · ${STAGES[8].s}</div><button class="btn" onclick="saveCurrentArticleToBank()">${L("存入内容库","Save to content bank")} →</button></div>`;
+  return `<div class="nextbar"><div class="ctx">AI-assisted · Human-verified · ${STAGES[8].s}</div><button class="btn" onclick="saveCurrentArticleToBank()">${L("存入文章库","Save to article bank")} →</button></div>`;
 }
 function saveCurrentArticleToBank(){
   const art = buildBankArticle();
-  if(!art){ toast(L("尚未生成文章，无法存入内容库","No article to save yet")); return; }
+  if(!art){ toast(L("尚未生成文章，无法存入文章库","No article to save yet")); return; }
   art.reviewedBy = "";
   art.createdByRole = (state.user && state.user.role) || "";
   if(addToBank(art)){
-    toast(L("已存入内容库 · 审核老师可审核","Saved to content bank — reviewer can approve"));
+    toast(L("已存入文章库 · 审核老师可审核","Saved to article bank — reviewer can approve"));
     go(11);
   } else toast(L("存入失败：本地存储不可用","Failed to save: local storage unavailable"));
 }
@@ -4975,7 +4822,7 @@ function topicLabelOf(a){
   const c = TOPIC_CATS.find(x=>x.key===articlePrimaryCat(a));
   return c ? L(c.zh, c.en) : L("未分类","Other");
 }
-/* ---------- 11 · 内容库（统计 + 列表 + 人工审核入口） ---------- */
+/* ---------- 11 · 文章库（统计 + 列表 + 人工审核入口） ---------- */
 function sArticleBank(){
   const bank = loadBank();
   const creators = [...new Set(bank.map(a=>a.createdByRole||"").filter(Boolean))];
@@ -5007,7 +4854,6 @@ function sArticleBank(){
   const pendCount = bank.filter(a=>artStatus(a)==="pending").length;
   const appCount  = bank.filter(a=>artStatus(a)==="approved").length;
   const rejCount  = bank.filter(a=>artStatus(a)==="rejected").length;
-  const pubCount  = bank.filter(a=>artStatus(a)==="published").length;
   const mKey = new Date().toISOString().slice(0,7);
   const monthCount = bank.filter(a => a.createdAt && new Date(a.createdAt).toISOString().slice(0,7) === mKey).length;
 
@@ -5019,9 +4865,9 @@ function sArticleBank(){
       + `<div class="mat-stat-lbl"${active?` style="color:${color}"`:""}>${lbl}</div></div>`;
   }
 
-  let html = head("", L("内容库","Content Library"), "All articles · review & track");
+  let html = head("", L("文章库","Article Library"), "All articles · review & track");
 
-  html += `<p class="lede">${L("内容库汇总全部生成文章：顶部为整体概况，下方列表逐条呈现来源、审核状态、文章 ID、生成老师、主题与生成时间。审核老师在列表右侧点「人工审核」进入三档对照审核，通过或驳回后自动返回本页。","The content library lists every generated article: an overview on top, then one row per article with source, review status, article ID, creating teacher, topic and creation time. Reviewers click Manual Review on the right for the A2/B1/B2 alignment check; approve or reject returns to this page.")}</p>`;
+  html += `<p class="lede">${L("文章库汇总全部生成文章：顶部为整体概况，下方列表逐条呈现来源、审核状态、文章 ID、生成老师、主题与生成时间。审核老师在列表右侧点「人工审核」进入三档对照审核，通过或驳回后自动返回本页。","The article library lists every generated article: an overview on top, then one row per article with source, review status, article ID, creating teacher, topic and creation time. Reviewers click Manual Review on the right for the A2/B1/B2 alignment check; approve or reject returns to this page.")}</p>`;
 
   /* 统计卡片行 */
   html += `<div class="mat-stats">
@@ -5029,7 +4875,6 @@ function sArticleBank(){
     ${statCard(pendCount, L("待审核","Pending"), "pending", "#F79009")}
     ${statCard(appCount, L("已通过","Approved"), "approved", "#F79009")}
     ${statCard(rejCount, L("已驳回","Rejected"), "rejected", "#A32D2D")}
-    ${statCard(pubCount, L("已发布","Published"), "published", "#F79009")}
     ${statCard(monthCount, L("本月新增","New this month"), "__month__", "#E65425")}
   </div>`;
 
@@ -5093,7 +4938,7 @@ function sArticleBank(){
   html += wfStrip();
   return html;
 }
-/* ---------- 内容库 · 筛选 / 分页 ---------- */
+/* ---------- 文章库 · 筛选 / 分页 ---------- */
 function filterArt(key, value){
   if(key === "keyword") artFilter.keyword = value;
   else if(key === "status") artFilter.status = value;
@@ -5102,7 +4947,7 @@ function filterArt(key, value){
   render();
 }
 function pageArt(p){ artPage = p; render(); }
-/* ---------- 内容库 · 文章详情抽屉 ---------- */
+/* ---------- 文章库 · 文章详情抽屉 ---------- */
 function showArticleDetail(id){
   const a = loadBank().find(x => x.id === id);
   if(!a){ toast(L("未找到该文章","Article not found")); return; }
@@ -5151,11 +4996,11 @@ function reviewContextHTML(){
         <span>${L("生成老师","Created by")} · ${esc(roleNameOf(a.createdByRole))}</span>
       </div>
     </div>
-    <button class="btn sec tiny" onclick="exitReview()">${L("退出审核 · 返回内容库","Exit · back to library")}</button>
+    <button class="btn sec tiny" onclick="exitReview()">${L("退出审核 · 返回文章库","Exit · back to library")}</button>
   </div>`;
 }
 function exitReview(){ state.reviewingId = null; go(11); }
-/* ---------- 内容库 · 查看原文（三档对照独立页） ----------
+/* ---------- 文章库 · 查看原文（三档对照独立页） ----------
    从文章详情抽屉点「查看原文」进入：顶部元信息 + 中文素材溯源卡 + A2/B1/B2 三档逐段对照。
    不占 step 编号，state.view 控制渲染；返回/切换步骤时清掉。 */
 function artParasOf(a, k){
@@ -5211,7 +5056,7 @@ function sArticleSource(){
   const a = loadBank().find(x => x.id === state.viewingSourceId);
   if(!a){
     return `<div class="empty-state">${L("未找到该文章","Article not found")}</div>`
-         + `<div class="svfoot"><button class="btn" onclick="closeArticleSource()">${L("返回内容库","Back to library")}</button></div>`;
+         + `<div class="svfoot"><button class="btn" onclick="closeArticleSource()">${L("返回文章库","Back to library")}</button></div>`;
   }
   const st = artStatus(a);
   const sc = ART_STATUS_COLORS[st] || "#98A2B3";
@@ -5220,7 +5065,7 @@ function sArticleSource(){
   const srcUrl  = (a.material && a.material.url) || "";
   const aligned = bankAlignedHTML(a);
   return head("", L("查看原文 · 三档对照","View source · 3 levels"),
-              L("内容库 → 文章详情 → 原文三档对照","Library → detail → 3-level source text"))
+              L("文章库 → 文章详情 → 原文三档对照","Library → detail → 3-level source text"))
     + `<div class="svbar">
         <div class="svbar-l">
           <div class="svbar-t">${esc(a.title||"Untitled")}</div>
@@ -5233,7 +5078,7 @@ function sArticleSource(){
         </div>
         <div class="svbar-r">
           <span class="mat-status-badge" style="background:${sc}15;color:${sc};border-color:${sc}40">${L(artStatusZh(a),artStatusEn(a))}</span>
-          <button class="btn sec tiny" onclick="closeArticleSource()">${L("返回内容库","Back to library")}</button>
+          <button class="btn sec tiny" onclick="closeArticleSource()">${L("返回文章库","Back to library")}</button>
         </div>
       </div>`
     + `<div class="srcmat">
@@ -5247,7 +5092,7 @@ function sArticleSource(){
     + (aligned
         ? `<div class="reviewparas"><div class="pane-h">${L("三档正文 · 逐段对照","Article body · 3 levels aligned")}</div>${aligned}</div>`
         : `<div class="empty-state">${L("该文章暂无正文内容","No article body available")}</div>`)
-    + `<div class="svfoot"><button class="btn" onclick="closeArticleSource()">${L("返回内容库","Back to library")}</button></div>`;
+    + `<div class="svfoot"><button class="btn" onclick="closeArticleSource()">${L("返回文章库","Back to library")}</button></div>`;
 }
 /* ---------- 素材库状态常量 ---------- */
 const MAT_STATUS = ["pending_collect","collected","screening","tagged","blocked","discarded","in_production","published"];
@@ -5446,423 +5291,6 @@ function pageMat(p){
   render();
 }
 
-
-
-/* ==================== 发布管理扩展模块（库存+发布） ==================== */
-
-/* ---------- 辅助函数 ---------- */
-/* 按一级主题统计已审核文章 */
-function bankByTopic(){
-  const bank = loadBank().filter(a => !!a.reviewedBy);
-  const groups = {};
-  TOPIC_CATS.forEach(c=>groups[c.key]=[]);
-  groups.other = [];
-  bank.forEach(a=>{ const cat = articlePrimaryCat(a); (groups[cat] || groups.other).push(a); });
-  return { bank, groups };
-}
-function bankTagCount(){
-  const bank = loadBank().filter(a => !!a.reviewedBy);
-  const tagc = {};
-  bank.forEach(a=>{
-    const t = artTags(a);
-    (t.content||[]).forEach(c=>{ const tag=c&&c.tag; if(tag) tagc[tag]=(tagc[tag]||0)+1; });
-    (t.free||[]).forEach(f=>{ if(f) tagc[f]=(tagc[f]||0)+1; });
-  });
-  return Object.entries(tagc).sort((a,b)=>b[1]-a[1]);
-}
-function bankLevelStats(){
-  const bank = loadBank().filter(a => !!a.reviewedBy);
-  const lv = {};
-  bank.forEach(a=>{ const l = a.level || "—"; lv[l]=(lv[l]||0)+1; });
-  return Object.entries(lv).sort((a,b)=>b[1]-a[1]);
-}
-function bankRecentTrend(){
-  const bank = loadBank().filter(a => !!a.reviewedBy);
-  const days = {};
-  const now = Date.now();
-  for(let i=6;i>=0;i--){
-    const d = new Date(now - i*864e5);
-    days[d.toISOString().slice(0,10)] = 0;
-  }
-  bank.forEach(a=>{
-    if(a.createdAt){
-      const k = String(a.createdAt).slice(0,10);
-      if(days[k]!==undefined) days[k]++;
-    }
-  });
-  return Object.entries(days);
-}
-/* 库存格子水位状态 */
-function invLevel(arr){ return arr.length >= 10 ? "ok" : (arr.length >= 3 ? "warn" : "danger"); }
-function invLabel(arr){
-  if(arr.length >= 10) return L("充足","Sufficient");
-  if(arr.length >= 3) return L("偏低","Low");
-  return L("告急","Critical");
-}
-
-/* ---------- 12 · 库存管理 ---------- */
-let invOpenCat = null;
-function toggleInvCat(key){
-  invOpenCat = invOpenCat === key ? null : key;
-  render();
-}
-function sInventory(){
-  const { bank, groups } = bankByTopic();
-  const allItems = TOPIC_CATS.map(c => ({ cat:c, arr:(groups[c.key]||[]), key:c.key }));
-  const danger = allItems.filter(x => invLevel(x.arr)==="danger");
-  const warn = allItems.filter(x => invLevel(x.arr)==="warn");
-  let html = head("", L("库存管理","Inventory"), "Topic stock · level distribution · status");
-  html += `<p class="lede">${L("每个主题一个库存格子，显示库存量、等级分布和状态。 充足（≥10篇）/  偏低（3-9篇）/  告急（<3篇）。点击格子展开该主题下的文章列表。","Each topic is a stock cell showing quantity, level distribution and status.  Sufficient (≥10) /  Low (3-9) /  Critical (<3). Click to expand article list.")}</p>`;
-
-  /* 警示区 */
-  if(danger.length || warn.length){
-    html += `<div class="alert-bar">`;
-    danger.forEach(x => {
-      html += `<div class="alert-item danger"> ${L(x.cat.zh,x.cat.en)} ${L("库存告急","Critical stock")}<button class="btn sec alert-btn" onclick="go(5)">${L("去生产","Go produce")}</button></div>`;
-    });
-    warn.forEach(x => {
-      html += `<div class="alert-item warn"> ${L(x.cat.zh,x.cat.en)} ${L("库存偏低","Low stock")}</div>`;
-    });
-    html += `</div>`;
-  }
-
-  /* 库存格子 */
-  html += `<div class="inv-grid">`;
-  allItems.forEach(({cat, arr, key}) => {
-    const lvls = {};
-    arr.forEach(a => { const l = a.level||"—"; lvls[l]=(lvls[l]||0)+1; });
-    const lvlStr = Object.entries(lvls).map(([l,c]) => `${l}:${c}`).join(" · ");
-    const lastDate = arr.length ? fmtDate(arr[arr.length-1].createdAt) : "—";
-    html += `<div class="inv-card" onclick="toggleInvCat('${key}')">
-      <div class="inv-head"><span class="inv-dot" style="background:${cat.color}"></span><b>${L(cat.zh,cat.en)}</b><span class="inv-badge ${invLevel(arr)}">${invLabel(arr)}</span></div>
-      <div class="inv-stats"><span>${L("库存","Stock")}: ${arr.length}</span><span>${lvlStr}</span></div>
-      <div class="inv-foot">${L("最后入库","Last added")}: ${lastDate}</div>
-      <div class="inv-detail${invOpenCat===key?" open":""}">
-        ${!arr.length ? `<div class="inv-item"><span class="inv-empty">${L("暂无文章","No articles")}</span></div>` :
-          arr.map(a => `<div class="inv-item"><b>${esc(a.title)}</b><span class="inv-lvl">${a.level||"—"}</span><span class="inv-date">${fmtDate(a.createdAt)}</span></div>`).join("")}
-      </div>
-    </div>`;
-  });
-  html += `</div>`;
-
-  html += wfStrip();
-  return html;
-}
-/* 标签使用统计（content+free） */
-function bankTagCount(){
-  const bank = loadBank().filter(a => !!a.reviewedBy);
-  const tagc = {};
-  bank.forEach(a=>{
-    const t = artTags(a);
-    (t.content||[]).forEach(c=>{ const tag=c&&c.tag; if(tag) tagc[tag]=(tagc[tag]||0)+1; });
-    (t.free||[]).forEach(f=>{ if(f) tagc[f]=(tagc[f]||0)+1; });
-  });
-  return Object.entries(tagc).sort((a,b)=>b[1]-a[1]);
-}
-/* 档位分布统计 */
-function bankLevelStats(){
-  const bank = loadBank().filter(a => !!a.reviewedBy);
-  const lv = {};
-  bank.forEach(a=>{ const l = a.level || "—"; lv[l]=(lv[l]||0)+1; });
-  return Object.entries(lv).sort((a,b)=>b[1]-a[1]);
-}
-/* 发布日期统计（最近 7 天） */
-function bankRecentTrend(){
-  const bank = loadBank().filter(a => !!a.reviewedBy);
-  const days = {};
-  const now = Date.now();
-  for(let i=6;i>=0;i--){
-    const d = new Date(now - i*864e5);
-    const k = d.toISOString().slice(0,10);
-    days[k] = 0;
-  }
-  bank.forEach(a=>{
-    if(a.createdAt){
-      const k = String(a.createdAt).slice(0,10);
-      if(days[k]!==undefined) days[k]++;
-    }
-  });
-  return Object.entries(days);
-}
-
-/* ---------- 12 · 运营看板 ---------- */
-function sOps(){
-  const { bank, groups } = bankByTopic();
-  const covered = TOPIC_CATS.filter(c => (groups[c.key]||[]).length).length + ((groups.other||[]).length?1:0);
-  const levels = bankLevelStats();
-  const trend = bankRecentTrend();
-  const maxTrend = Math.max(...trend.map(([,v])=>v),1);
-  const colorLvl = {A2:"#E65425",B1:"#F79009",B2:"#E65425"};
-
-  let html = head("", L("运营看板","Ops Dashboard"), "Key metrics · content stats");
-  html += `<p class="lede">${L("运营看板展示已审核文章的关键指标与多维统计：文章产出趋势、档位分布、主题覆盖情况。所有数据均来自内容库中已审核的文章，真实反映内容运营状态。","The ops dashboard shows key metrics and multi-dimensional stats for reviewed articles: production trends, level distribution, and topic coverage. All data comes from reviewed articles in the content library.")}</p>`;
-
-  /* KPI 卡片 */
-  const pendingPub = bank.filter(a => !a.published).length;
-  html += `<div class="dash-grid">
-    <div class="dash-card"><div class="dash-num">${bank.length}</div><div class="dash-lbl">${L("已审核文章总量","Reviewed articles")}</div><div class="dash-sub">${L("全部已通过审核","All approved")}</div></div>
-    <div class="dash-card"><div class="dash-num">${bank.length-pendingPub}</div><div class="dash-lbl">${L("已发布数量","Published")}</div><div class="dash-sub">${L("含多渠道","All channels")}</div></div>
-    <div class="dash-card"><div class="dash-num">${pendingPub}</div><div class="dash-lbl">${L("待发布","Pending publish")}</div><div class="dash-sub">${L("已审核未发布","Reviewed, unpublished")}</div></div>
-    <div class="dash-card"><div class="dash-num">${covered}</div><div class="dash-lbl">${L("覆盖主题数","Topics covered")}</div><div class="dash-sub">${L("共 6 个一级主题","Out of 6 primary topics")}</div></div>
-  </div>`;
-
-  /* 库存水位 SVG 条形图 */
-  html += `<div class="dash-section"><h4> ${L("库存水位","Stock water level")}</h4><svg viewBox="0 0 600 220" style="width:100%;max-width:600px;height:auto">`;
-  const barW = 60, gap = 24, startX = 30;
-  const maxInv = Math.max(...TOPIC_CATS.map(c => (groups[c.key]||[]).length), 1);
-  TOPIC_CATS.forEach((c,i) => {
-    const arr = groups[c.key] || [];
-    const h = Math.max(10, Math.round(arr.length / maxInv * 150));
-    const x = startX + i*(barW+gap);
-    const y = 190 - h;
-    const col = arr.length >= 10 ? "#F79009" : (arr.length >= 3 ? "#F79009" : "#D04418");
-    html += `<rect x="${x}" y="${y}" width="${barW}" height="${h}" rx="4" fill="${col}" opacity="0.85"/>
-      <text x="${x+barW/2}" y="${y-6}" text-anchor="middle" font-size="11" fill="#666">${arr.length}</text>
-      <text x="${x+barW/2}" y="208" text-anchor="middle" font-size="11" fill="#888">${L(c.zh.slice(0,2),c.en.split(" ")[0])}</text>`;
-  });
-  html += `</svg></div>`;
-
-  /* 档位分布 SVG 饼图 */
-  html += `<div class="dash-section"><h4> ${L("档位分布","Level distribution")}</h4><svg viewBox="0 0 280 200" style="width:100%;max-width:280px;height:auto">`;
-  const total = levels.reduce((s,[,c])=>s+c, 0) || 1;
-  let angle = 0;
-  const cx=140, cy=100, r=70;
-  levels.forEach(([l,c]) => {
-    const pct = c/total;
-    const a = pct * 360;
-    if(a < 1) return;
-    const sr = (angle-90)*Math.PI/180;
-    const er = (angle+a-90)*Math.PI/180;
-    const x1 = cx + r*Math.cos(sr), y1 = cy + r*Math.sin(sr);
-    const x2 = cx + r*Math.cos(er), y2 = cy + r*Math.sin(er);
-    const la = a > 180 ? 1 : 0;
-    html += `<path d="M${cx} ${cy} L${x1.toFixed(1)} ${y1.toFixed(1)} A${r} ${r} 0 ${la} 1 ${x2.toFixed(1)} ${y2.toFixed(1)} Z" fill="${colorLvl[l]||'#999'}" opacity="0.85"/>`;
-    const ma = (angle + a/2 - 90)*Math.PI/180;
-    const lx = cx + (r+20)*Math.cos(ma), ly = cy + (r+20)*Math.sin(ma);
-    html += `<text x="${lx}" y="${ly}" text-anchor="middle" font-size="11" fill="#666">${l} ${c}${L("篇","")}</text>`;
-    angle += a;
-  });
-  html += `</svg></div>`;
-
-  /* 产出趋势 SVG 折线图 */
-  html += `<div class="dash-section"><h4> ${L("产出趋势（近 7 天）","Production trend (last 7 days)")}</h4><svg viewBox="0 0 600 200" style="width:100%;max-width:600px;height:auto">`;
-  const pts = trend.map(([d,c],i) => {
-    const x = 40 + i * 75;
-    const y = 170 - Math.round(c/maxTrend*140);
-    return {x,y,label:d.slice(5),val:c};
-  });
-  if(pts.length > 1){
-    let d = `M${pts[0].x} ${pts[0].y}`;
-    for(let i=1;i<pts.length;i++) d += ` L${pts[i].x} ${pts[i].y}`;
-    html += `<path d="${d}" fill="none" stroke="#E65425" stroke-width="2.5"/>`;
-    pts.forEach(p => {
-      html += `<circle cx="${p.x}" cy="${p.y}" r="4" fill="#E65425"/>
-        <text x="${p.x}" y="${p.y-10}" text-anchor="middle" font-size="10" fill="#666">${p.val}</text>
-        <text x="${p.x}" y="192" text-anchor="middle" font-size="10" fill="#888">${p.label}</text>`;
-    });
-  } else {
-    html += `<text x="300" y="100" text-anchor="middle" font-size="13" fill="#999">${L("暂无趋势数据","No trend data yet")}</text>`;
-  }
-  html += `</svg></div>`;
-
-  html += wfStrip();
-  return html;
-}
-
-/* ---------- 13 · 发布管理 ---------- */
-const PUB_KEY = "wb_publish_history_v1";
-function loadPublishHistory(){
-  try { return JSON.parse(localStorage.getItem(PUB_KEY) || "[]"); }
-  catch(e){ return []; }
-}
-function savePublishHistory(list){
-  try { localStorage.setItem(PUB_KEY, JSON.stringify(list)); return true; }
-  catch(e){ return false; }
-}
-function doPublish(aid){
-  if(!aid){ toast(L("请选择要发布的文章","Please select an article to publish")); return; }
-  const bank = loadBank();
-  const art = bank.find(a => a.id === aid);
-  if(!art){ toast(L("文章未找到","Article not found")); return; }
-  const history = loadPublishHistory();
-  history.unshift({
-    id: "pub_"+Date.now()+"_"+Math.random().toString(36).slice(2,6),
-    articleId: aid,
-    title: art.title,
-    level: art.level || "—",
-    topic: topicLabelOf(art),
-    publishedAt: new Date().toISOString(),
-    status: "done",
-  });
-  savePublishHistory(history);
-  art.published = true;
-  saveBank(bank);
-  toast(L("已发布 · 记录已保存到发布历史","Published · saved to publish history"));
-  render();
-}
-function sPublish(){
-  const bank = loadBank().filter(a => !!a.reviewedBy);
-  const published = bank.filter(a => a.published);
-  const pending = bank.filter(a => !a.published);
-  const history = loadPublishHistory();
-  let html = head("", L("发布管理","Publish Management"), "Instant publish · history");
-  html += `<p class="lede">${L("从已审核文章中快速发布单篇文章，无需选择渠道或排期。发布后自动记录到发布历史，并标记为已发布状态。","Quickly publish individual reviewed articles without selecting channels or schedules. Published articles are automatically recorded in publish history and marked as published.")}</p>`;
-
-  /* 发布统计卡片 */
-  html += `<div class="pub-stats">
-    <div class="pub-stat-card"><div class="pub-stat-num">${bank.length}</div><div class="pub-stat-lbl">${L("可发布总量","Available")}</div></div>
-    <div class="pub-stat-card"><div class="pub-stat-num">${published.length}</div><div class="pub-stat-lbl">${L("已发布","Published")}</div></div>
-    <div class="pub-stat-card"><div class="pub-stat-num">${pending.length}</div><div class="pub-stat-lbl">${L("待发布","Pending")}</div></div>
-    <div class="pub-stat-card"><div class="pub-stat-num">${history.length}</div><div class="pub-stat-lbl">${L("历史记录","History")}</div></div>
-  </div>`;
-
-  /* 两列布局 */
-  html += `<div class="pub-layout">`;
-
-  /* 左栏：待发布文章（按主题分组） */
-  html += `<div class="pub-panel"><h4> ${L("待发布文章","Pending articles")}</h4>`;
-  if(!pending.length){
-    html += `<div class="empty">${L("全部已发布","All published")}</div>`;
-  } else {
-    const pGrp = {};
-    pending.forEach(a => {
-      const catKey = articlePrimaryCat(a);
-      if(!pGrp[catKey]) pGrp[catKey] = [];
-      pGrp[catKey].push(a);
-    });
-    Object.entries(pGrp).forEach(([catKey, arts]) => {
-      const cat = TOPIC_CATS.find(c => c.key === catKey);
-      html += `<div class="pub-topic"><span class="pub-topic-dot" style="background:${cat?cat.color:"#999"}"></span><b>${cat?L(cat.zh,cat.en):L("未分类","Other")}</b><span class="pub-topic-count">${arts.length}</span></div>`;
-      arts.forEach(a => {
-        html += `<div class="pub-item">
-          <b>${esc(a.title)}</b>
-          <span class="pub-item-lvl ${a.level||""}">${a.level||"—"}</span>
-          <span class="pub-item-date">${fmtDate(a.createdAt)}</span>
-          <button class="pub-item-btn" onclick="doPublish('${a.id}')">${L("发布","Publish")}</button>
-        </div>`;
-      });
-    });
-  }
-  html += `</div>`;
-
-  /* 右栏：发布历史 */
-  html += `<div class="pub-panel"><h4> ${L("发布历史","Publish history")} <span style="font-size:11px;color:var(--muted);font-weight:400">(${history.length})</span></h4><div class="pub-history">`;
-  if(!history.length){
-    html += `<div class="empty">${L("暂无发布记录","No publish history yet")}</div>`;
-  } else {
-    history.forEach(h => {
-      html += `<div class="pub-entry">
-        <span class="pub-status done"></span>
-        <b>${esc(h.title)}</b>
-        <span class="pub-meta">${h.level} · ${h.topic}</span>
-        <span class="pub-time">${fmtDate(h.publishedAt)}</span>
-      </div>`;
-    });
-  }
-  html += `</div></div></div>`;
-  html += wfStrip();
-  return html;
-}
-
-/* ---------- 14 · 用户反馈 ---------- */
-const FB_KEY = "wb_feedback_data_v1";
-function initFeedbackData(){
-  let fd;
-  try { fd = JSON.parse(localStorage.getItem(FB_KEY)); }
-  catch(e){}
-  /* 检测是否为旧版数据（key 不匹配 TOPIC_CATS 就算旧版），是则覆盖 */
-  if(fd && fd.initialized && fd.topicReads && fd.topicReads["daily_life"]){
-    localStorage.removeItem(FB_KEY);
-    fd = null;
-  }
-  if(fd && fd.initialized) return fd;
-  /* 预填充模拟数据 */
-  fd = {
-    initialized: true,
-    topicReads: {
-      "world": 3120, "science": 2680, "culture": 2450,
-      "business": 1890, "growth": 1560, "story": 1320,
-      "other": 980
-    },
-    tagClicks: {
-      "旅行": 892, "美食": 764, "运动": 651, "历史": 598,
-      "科技": 523, "音乐": 487, "电影": 432, "艺术": 398
-    },
-    likedArticles: [
-      { title:"A Day in London", likes:342 },
-      { title:"The Story of Coffee", likes:287 },
-      { title:"How Solar Panels Work", likes:256 },
-      { title:"The History of Jazz", likes:234 },
-      { title:"My Favorite Hobby", likes:198 },
-    ],
-    totalFeedback: 5,
-  };
-  localStorage.setItem(FB_KEY, JSON.stringify(fd));
-  return fd;
-}
-function clearFeedbackData(){
-  localStorage.removeItem(FB_KEY);
-  initFeedbackData();
-  render();
-}
-function sFeedback(){
-  const fd = initFeedbackData();
-  /* 每日随机波动（±5%） */
-  const jitter = () => Math.round((0.95 + Math.random()*0.1) * 100) / 100;
-  const jTopic = Object.fromEntries(Object.entries(fd.topicReads).map(([k,v]) => [k, Math.round(v*jitter())]));
-  const jTag = Object.fromEntries(Object.entries(fd.tagClicks).map(([k,v]) => [k, Math.round(v*jitter())]));
-  const jLiked = fd.likedArticles.map(a => ({ ...a, likes: Math.round(a.likes*jitter()) }));
-  const totalReads = Object.values(jTopic).reduce((s,v) => s+v, 0);
-  const totalClicks = Object.values(jTag).reduce((s,v) => s+v, 0);
-
-  let html = head("", L("用户反馈","User Feedback"), "Topic reads · tag clicks · liked articles");
-  html += `<p class="lede">${L("用户反馈面板展示模拟的用户互动数据：各主题阅读量、标签点击偏好、用户点赞文章排名。数据预填充并每日随机波动 ±5%，点击重置按钮可恢复初始值。","The user feedback panel displays simulated user engagement data: topic reads, tag click preferences, and liked article rankings. Data is pre-populated with daily random fluctuations of ±5%. Click reset to restore initial values.")}</p>`;
-
-  /* 控制按钮 */
-  html += `<div class="fdb-controls">
-    <button class="fdb-reset-btn" onclick="clearFeedbackData()"> ${L("重置数据","Reset data")}</button>
-  </div>`;
-
-  /* KPI 卡片 */
-  html += `<div class="fdb-grid">
-    <div class="fdb-card"><div class="fdb-num">${totalReads.toLocaleString()}</div><div class="fdb-lbl">${L("总阅读量","Total reads")}</div><div class="fdb-sub">${L("模拟数据","Simulated")}</div></div>
-    <div class="fdb-card"><div class="fdb-num">${totalClicks.toLocaleString()}</div><div class="fdb-lbl">${L("标签点击量","Tag clicks")}</div><div class="fdb-sub">${L("模拟数据","Simulated")}</div></div>
-    <div class="fdb-card"><div class="fdb-num">${jLiked.length}</div><div class="fdb-lbl">${L("热门文章","Popular articles")}</div><div class="fdb-sub">${L("用户点赞排名","User likes ranking")}</div></div>
-    <div class="fdb-card"><div class="fdb-num">${fd.totalFeedback||0}</div><div class="fdb-lbl">${L("反馈条数","Feedback count")}</div><div class="fdb-sub">${L("用户主动反馈","User submitted")}</div></div>
-  </div>`;
-
-  /* 主题阅读量条形图 */
-  html += `<div class="fdb-chart-container"><h4> ${L("主题阅读量","Topic reads")}</h4><div class="fdb-chart">`;
-  const maxRead = Math.max(...Object.values(jTopic), 1);
-  Object.entries(jTopic).forEach(([k,v]) => {
-    const cat = TOPIC_CATS.find(c => c.key === k);
-    const lbl = cat ? L(cat.zh,cat.en) : L("其他","Other");
-    const pct = Math.round(v/maxRead*100);
-    html += `<div class="fdb-chart-row"><span class="fdb-chart-lbl">${lbl}</span><div class="fdb-chart-track"><div class="fdb-chart-fill" style="width:${pct}%;background:${cat?cat.color:"#999"}">${v.toLocaleString()}</div></div><span class="fdb-chart-val">${v.toLocaleString()}</span></div>`;
-  });
-  html += `</div></div>`;
-
-  /* 标签点击偏好条形图 */
-  html += `<div class="fdb-chart-container"><h4> ${L("标签点击偏好","Tag click preferences")}</h4><div class="fdb-chart">`;
-  const maxTag = Math.max(...Object.values(jTag), 1);
-  Object.entries(jTag).forEach(([k,v]) => {
-    const pct = Math.round(v/maxTag*100);
-    html += `<div class="fdb-chart-row"><span class="fdb-chart-lbl">${esc(k)}</span><div class="fdb-chart-track"><div class="fdb-chart-fill" style="width:${pct}%;background:var(--teal)">${v.toLocaleString()}</div></div><span class="fdb-chart-val">${v.toLocaleString()}</span></div>`;
-  });
-  html += `</div></div>`;
-
-  /* 热门文章排名 */
-  html += `<div class="fdb-chart-container"><h4> ${L("热门文章排名","Popular article ranking")}</h4><div class="fdb-rank-list">`;
-  jLiked.forEach((a,i) => {
-    const cls = i===0?"gold":(i===1?"silver":(i===2?"bronze":"normal"));
-    html += `<div class="fdb-rank-item"><span class="fdb-rank-num ${cls}">#${i+1}</span><b>${esc(a.title)}</b><span class="fdb-rank-likes"> ${a.likes.toLocaleString()}</span></div>`;
-  });
-  html += `</div></div>`;
-
-  html += wfStrip();
-  return html;
-}
-
 /* ---------- router ---------- */
 function render(){
   /* 「查看原文」独立视图：不占 step 编号（避免六处同步），优先渲染；
@@ -5872,7 +5300,7 @@ function render(){
     renderPasteModal();
     return;
   }
-  const fns=[s0,s1,s2,s3,sMaterialBank,s4,s5,s6,s7,s9,s12,sArticleBank,sInventory,sPublish,sOps,sFeedback];
+  const fns=[s0,s1,s2,s3,sMaterialBank,s4,s5,s6,s7,s9,s12,sArticleBank];
   const ro = state.user && !canOperate(cur);
   const roBanner = ro ? `<div class="ro-banner">${L("只读查看 · 本步骤由「"+ownerLabel(cur)+"」职能操作","Read-only · this step is operated by "+ownerLabel(cur))}</div>` : "";
   stage.innerHTML=`<div class="wrap${ro?" ro":""}">${roBanner}${fns[cur]()}</div>`;
