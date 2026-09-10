@@ -8,15 +8,16 @@
 //
 // 环境变量：
 //   SITE         默认 https://web-production-2a16e.up.railway.app/
-//   ROLE         登录角色，默认 review（全权限，可遍历全部 16 页）
-//   PAGES        遍历页数，默认 16
+//   ROLE         登录角色，默认 review（全权限，可遍历全部 12 页）
+//   PAGES        遍历页数，默认 12
+//   REQUIRE_BRIDGE 设 0 则跳过 bridgeOk 校验（本地静态服务没桥接层时用）
 //   SHOT         截图输出路径
 //   CDP_PORT     调试端口，默认 9222
 //   CHROME_BIN   指定 Chrome 可执行文件
 //
 // 脚本会自己拉起 headless Chrome，无需手动起进程。
 //
-// 验收线：页面遍历 0 条 JS 未捕获异常、0 条 console.error。
+// 验收线：页面遍历 0 条 JS 未捕获异常、0 条 console.error（线上另要求 bridgeOk=true）。
 // 退出码：0 = 通过；1 = 未通过
 
 import fs from 'node:fs';
@@ -26,7 +27,8 @@ import path from 'node:path';
 
 const SITE = process.env.SITE || 'https://web-production-2a16e.up.railway.app/';
 const ROLE = process.env.ROLE || 'review';
-const PAGES = Number(process.env.PAGES || 16);
+const PAGES = Number(process.env.PAGES || 12);
+const REQUIRE_BRIDGE = process.env.REQUIRE_BRIDGE !== '0';
 const PORT = Number(process.env.CDP_PORT || 9222);
 const CDP = `http://127.0.0.1:${PORT}`;
 const SHOT = process.env.SHOT || `/tmp/readpal_e2e_${Date.now()}.png`;
@@ -168,8 +170,9 @@ async function main() {
   console.log(consoleErrs.length ? consoleErrs.join('\n') : '（无）');
 
   const pass = errors.length === 0 && consoleErrs.length === 0
-    && appInfo?.bridgeOk === true;
-  console.log(`\n结论: ${pass ? '通过 ✅' : '未通过 ❌'}`);
+    && (!REQUIRE_BRIDGE || appInfo?.bridgeOk === true);
+  console.log(`\n结论: ${pass ? '通过 ✅' : '未通过 ❌'}`
+    + (REQUIRE_BRIDGE ? '' : '（已跳过 bridgeOk 校验：REQUIRE_BRIDGE=0）'));
 
   ws.close();
   if (chrome) chrome.kill();
