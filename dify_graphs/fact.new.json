@@ -1,0 +1,953 @@
+{
+ "id": "ca4dcba3-972c-4269-9020-056b4b374982",
+ "graph": {
+  "nodes": [
+   {
+    "data": {
+     "desc": "接收素材与档位偏好（档位可不填，由分级节点自动判断）",
+     "selected": false,
+     "title": "开始",
+     "type": "start",
+     "variables": [
+      {
+       "label": "素材",
+       "max_length": 5000,
+       "options": [],
+       "required": true,
+       "type": "paragraph",
+       "variable": "material"
+      },
+      {
+       "label": "档位偏好（可选，空则由分级节点判定）",
+       "max_length": 48,
+       "options": [
+        "A1.1",
+        "A1.2",
+        "A1.3",
+        "A2.1",
+        "A2.2",
+        "A2.3",
+        "B1.1",
+        "B1.2",
+        "B1.3",
+        "B2+.1",
+        "B2+.2",
+        "B2+.3"
+       ],
+       "required": false,
+       "type": "select",
+       "variable": "level"
+      },
+      {
+       "label": "写作风格",
+       "max_length": 48,
+       "options": [
+        "hemingway",
+        "zhuziqing",
+        "ohenry",
+        "twain",
+        "murakami",
+        "luxun",
+        "shakespeare",
+        "default"
+       ],
+       "required": false,
+       "type": "select",
+       "variable": "style"
+      }
+     ]
+    },
+    "height": 22,
+    "id": "nodeStart",
+    "position": {
+     "x": 60,
+     "y": 280
+    },
+    "type": "start",
+    "width": 150,
+    "zIndex": 0,
+    "positionAbsolute": {
+     "x": 60,
+     "y": 280
+    }
+   },
+   {
+    "data": {
+     "answer": "",
+     "context": {
+      "enabled": false,
+      "variable_selector": []
+     },
+     "desc": "抽取素材中的客观事实，输出 JSON（summary/facts/numbers/sources）",
+     "model": {
+      "completion_params": {
+       "max_tokens": 2000,
+       "temperature": 0.2,
+       "response_format": "json_object",
+       "enable_thinking": false
+      },
+      "mode": "chat",
+      "name": "deepseek-ai/DeepSeek-V4-Flash",
+      "provider": "langgenius/siliconflow/siliconflow"
+     },
+     "prompt_template": [
+      {
+       "id": "pt-fact-sys",
+       "role": "system",
+       "text": "你是教育内容生产流水线中的\"素材事实抽取器\"。输入一段素材（可能是热点新闻、YouTube 字幕或网页内容），抽取其中的客观事实，输出严格的 JSON。\n\n输出格式（只输出 JSON，不要任何解释，不要 markdown 代码块）：\n{\"summary\": \"30字以内的中文主题概括\", \"summary_en\": \"English topic summary (within 15 words)\", \"facts\": [{\"en\": \"English atomic fact, keep numbers/dates/names exactly\", \"zh\": \"对应中文事实\"}], \"numbers\": [\"3 million\", \"2025\", \"45%\"], \"sources\": [\"原始信源名称\"]}\n\n要求：\n1. 只抽取素材中明确出现的事实，禁止推断或补充。\n2. 数字、百分比、专名必须原样保留（英文事实里尤其要保持数字精度），这是后续事实一致性校验的依据。\n3. facts 每一条都必须同时给出 en（英文事实，供英文文章生成直接引用）和 zh（中文对照翻译）两个字段，一一对应。\n4. 若素材包含观点性内容，放入 summary 中注明\"观点\"。\n5. facts 数量必须控制在 6-12 条。若自然抽取多于 12 条，请把同主题、同类的相邻事实合并为一条（例如把多个同类的数字事实并成一句并列句），确保最终不超过 12 条；少于 6 条时，把含多个信息点的长句拆成多条。合并时不得丢失任何数字、百分比、专名与时间。"
+      },
+      {
+       "id": "pt-fact-user",
+       "role": "user",
+       "text": "{{#nodeStart.material#}}"
+      }
+     ],
+     "selected": false,
+     "title": "① 事实抽取",
+     "type": "llm"
+    },
+    "height": 22,
+    "id": "nodeFact",
+    "position": {
+     "x": 360,
+     "y": 280
+    },
+    "type": "llm",
+    "width": 150,
+    "zIndex": 0,
+    "positionAbsolute": {
+     "x": 360,
+     "y": 280
+    }
+   },
+   {
+    "data": {
+     "answer": "",
+     "context": {
+      "enabled": true,
+      "variable_selector": [
+       "nodeKBSens",
+       "result"
+      ]
+     },
+     "desc": "按 S0-S3 规则判断素材是否可进入选题",
+     "model": {
+      "completion_params": {
+       "max_tokens": 800,
+       "temperature": 0.1,
+       "response_format": "json_object",
+       "enable_thinking": false
+      },
+      "mode": "chat",
+      "name": "deepseek-ai/DeepSeek-V4-Flash",
+      "provider": "langgenius/siliconflow/siliconflow"
+     },
+     "prompt_template": [
+      {
+       "id": "pt-check-sys",
+       "role": "system",
+       "text": "你是教育内容安全审查员。根据敏感内容规则判断素材是否可进入选题。\n\n输出 JSON（只输出 JSON，不要任何解释，不要 markdown 代码块）：{\"level\":\"S0|S1|S2|S3\",\"action\":\"exclude|soften|downgrade|ok\",\"reason\":\"20字以内\"}\n\n规则速记：\n- S0 红线：政治敏感、色情暴力、赌博毒品、未成年侵害、歧视攻击 → 直接排除\n- S1 谨慎：灾难细节、社会争议、网络谣言 → 排除或软处理\n- S2 降级：行业负面、敏感数据 → 降级表述后可用\n- S3 正常：科技/教育/文化/健康/环境等 → 正常\n\n不确定时按高一档处理。"
+      },
+      {
+       "id": "pt-check-user",
+       "role": "user",
+       "text": "敏感内容规则（知识库检索结果）：\n{{#context#}}\n\n素材内容：\n{{#nodeStart.material#}}\n\n请判断。"
+      }
+     ],
+     "selected": false,
+     "title": "② 敏感排查",
+     "type": "llm"
+    },
+    "height": 22,
+    "id": "nodeCheck",
+    "position": {
+     "x": 660,
+     "y": 280
+    },
+    "type": "llm",
+    "width": 150,
+    "zIndex": 0,
+    "positionAbsolute": {
+     "x": 660,
+     "y": 280
+    }
+   },
+   {
+    "data": {
+     "answer": "",
+     "context": {
+      "enabled": true,
+      "variable_selector": [
+       "nodeKBGrade",
+       "result"
+      ]
+     },
+     "desc": "依据 12 子档量化表判定素材档位，输出子档 + 大档 + 依据",
+     "model": {
+      "completion_params": {
+       "max_tokens": 900,
+       "temperature": 0.2,
+       "response_format": "json_object",
+       "enable_thinking": false
+      },
+      "mode": "chat",
+      "name": "deepseek-ai/DeepSeek-V4-Flash",
+      "provider": "langgenius/siliconflow/siliconflow"
+     },
+     "prompt_template": [
+      {
+       "role": "system",
+       "text": "你是语言教学分级专家，依据《APP阅读级别量化表》为素材选择最合适的生成档位。全平台分 4 个大档、12 个子档。\n\n输出 JSON（只输出 JSON，不要任何解释，不要 markdown 代码块）：\n{\"level\":\"A1.1|A1.2|A1.3|A2.1|A2.2|A2.3|B1.1|B1.2|B1.3|B2+.1|B2+.2|B2+.3\",\"level_big\":\"A1|A2|B1|B2+\",\"reason\":\"40字以内\",\"suggested_angle\":\"建议的切入角度\"}\n\n【12 子档速查表】子档｜词数｜蓝思｜平均句长｜认知特征\nA1.1 ｜60–90   ｜BR–200L   ｜5–7  ｜一个场景一件事，读者五米之内的世界\nA1.2 ｜90–120  ｜200–300L ｜7–9  ｜「先……然后……」的两段式故事\nA1.3 ｜120–160 ｜300–400L ｜8–10 ｜第一次读到有事件、有变化的文本\nA2.1 ｜160–200 ｜400–500L ｜10–12｜开头—发展—结尾，或总分关系\nA2.2 ｜200–250 ｜500–580L ｜11–13｜具象科普进场；商业类首次出现（一个人做小生意的故事）\nA2.3 ｜250–300 ｜580–650L ｜12–14｜第一次离开读者的直接生活经验（别国的人怎么生活）\nB1.1 ｜300–380 ｜650–720L ｜13–15｜阅读目的从「练英文」转向「知道点什么」\nB1.2 ｜380–450 ｜720–800L ｜15–17｜出现明确的作者立场，不只是陈述事实\nB1.3 ｜450–550 ｜800–880L ｜16–18｜人物故事 / 事件复盘 / 深度文化对比\nB2+.1｜550–700 ｜880–1000L｜18–21｜解释性报道与商业案例，名词化密度上升\nB2+.2｜700–900 ｜1000–1120L｜20–23｜有真实争议、多方立场的议题\nB2+.3｜900–1200｜1120–1300L｜22–26｜抽象论证、跨领域引用、文学性非虚构\n\n判定规则：\n- 必须综合看主题认知半径、语言复杂度、蓝思与句长，**不得只看词数**。\n- 素材本身没有词数——你要判断的是「这个素材适合用哪一档的篇幅与语言去重写」。\n- 常见误判：把「生僻但短」当低档（句短但概念抽象不是 A1/A2，认知难度归 B2+）；让 A1/A2 承载议论。\n- 若下方知识库检索结果与本表冲突，**以本表为准**。\n- 若用户明确指定了档位偏好，优先遵循用户偏好。"
+      },
+      {
+       "role": "user",
+       "text": "知识库检索结果（参考，冲突时以系统提示中的速查表为准）：\n{{#context#}}\n\n素材内容：\n{{#nodeStart.material#}}\n\n用户档位偏好：{{#nodeStart.level#}}\n\n请输出分级 JSON。"
+      }
+     ],
+     "selected": false,
+     "title": "③ 分级（12 子档）",
+     "type": "llm"
+    },
+    "height": 22,
+    "id": "nodeGrade",
+    "position": {
+     "x": 960,
+     "y": 280
+    },
+    "type": "llm",
+    "width": 150,
+    "zIndex": 0,
+    "positionAbsolute": {
+     "x": 960,
+     "y": 280
+    }
+   },
+   {
+    "data": {
+     "code": "function main({ fact_text, grade_text, check_text }) {\n  const strip = (t) => String(t || '').replace(/<think>[\\s\\S]*?<\\/think>/g, '').trim();\n  const parseJSON = (t) => {\n    const s = strip(t).replace(/```json|```/g, '');\n    const m = s.match(/\\{[\\s\\S]*\\}/);\n    if (m) { try { return JSON.parse(m[0]); } catch (e) { } }\n    return {};\n  };\n  const normLevel = (v) => {\n    let s = String(v || '').trim().toUpperCase().replace(/\\s+/g, '').replace(/[_-]/g, '.').replace(/档/g, '');\n    s = s.replace(/^B2PLUS/, 'B2+').replace(/^B2P/, 'B2+');\n    const AL = {\n      'A1.1':'A1.1','A1.2':'A1.2','A1.3':'A1.3',\n      'A2.1':'A2.1','A2.2':'A2.2','A2.3':'A2.3',\n      'B1.1':'B1.1','B1.2':'B1.2','B1.3':'B1.3',\n      'B2+.1':'B2+.1','B2+.2':'B2+.2','B2+.3':'B2+.3',\n      'B2.1':'B2+.1','B2.2':'B2+.2','B2.3':'B2+.3','B2':'B2+.1','C1':'B2+.3',\n      'A1':'A1.1','A2':'A2.1','B1':'B1.1'\n    };\n    if (AL[s]) return AL[s];\n    const m = s.match(/^(A1|A2|B1|B2\\+?)\\.?([123])$/);\n    if (m) { const big = m[1] === 'B2' ? 'B2+' : m[1]; return big + '.' + m[2]; }\n    return 'B1.1';\n  };\n  const fact = parseJSON(fact_text);\n  const grade = parseJSON(grade_text);\n  const check = parseJSON(check_text);\n  const rawFacts = Array.isArray(fact.facts) ? fact.facts : [];\n  const facts = rawFacts.map(f => {\n    if (typeof f === 'string') return { en: f, zh: f };\n    return { en: String((f && f.en) || '').trim(), zh: String((f && f.zh) || '').trim() };\n  }).filter(f => f.en || f.zh);\n  const sensLevel = String(check.level || 'S3').toUpperCase().trim();\n  const sensAction = String(check.action || 'ok').toLowerCase().trim();\n  const lv = normLevel(grade.level);\n  const big = lv.indexOf('B2+') === 0 ? 'B2+' : lv.slice(0, 2);\n  return {\n    summary: fact.summary || fact.summary_en || '（未识别主题）',\n    facts_text: facts.length ? facts.map((f, i) => (i + 1) + '. ' + (f.en || f.zh)).join('\\n') : '（无）',\n    level: lv,\n    level_big: big,\n    grade_reason: grade.reason || '',\n    angle: grade.suggested_angle || '（无特殊角度）',\n    sensitive: sensLevel + ' / ' + sensAction + ' / ' + (check.reason || ''),\n    sens_level: sensLevel,\n    sens_action: sensAction,\n    sens_reason: check.reason || '',\n    facts_json: JSON.stringify(facts),\n    // facts_raw 必须是「干净 JSON」：硅基流动的模型默认会把思考过程写进 text，\n    // 原样透传会让下游 GEN 多吞约 3.5 倍 token，前端也会读到思考文本。\n    facts_raw: (function () {\n      const s = strip(fact_text).replace(/```json|```/g, '');\n      const m = s.match(/\\{[\\s\\S]*\\}/);\n      return m ? m[0] : '';\n    })()\n  };\n}",
+     "desc": "清洗 ①②③ 输出，归一化 12 子档并派生大档",
+     "code_language": "javascript",
+     "outputs": {
+      "summary": {
+       "children": null,
+       "type": "string"
+      },
+      "facts_text": {
+       "children": null,
+       "type": "string"
+      },
+      "level": {
+       "children": null,
+       "type": "string"
+      },
+      "level_big": {
+       "children": null,
+       "type": "string"
+      },
+      "grade_reason": {
+       "children": null,
+       "type": "string"
+      },
+      "angle": {
+       "children": null,
+       "type": "string"
+      },
+      "sensitive": {
+       "children": null,
+       "type": "string"
+      },
+      "sens_level": {
+       "children": null,
+       "type": "string"
+      },
+      "sens_action": {
+       "children": null,
+       "type": "string"
+      },
+      "sens_reason": {
+       "children": null,
+       "type": "string"
+      },
+      "facts_json": {
+       "children": null,
+       "type": "string"
+      },
+      "facts_raw": {
+       "children": null,
+       "type": "string"
+      }
+     },
+     "selected": false,
+     "title": "③+ 清洗解析",
+     "type": "code",
+     "variables": [
+      {
+       "value_selector": [
+        "nodeFact",
+        "text"
+       ],
+       "variable": "fact_text"
+      },
+      {
+       "value_selector": [
+        "nodeGrade",
+        "text"
+       ],
+       "variable": "grade_text"
+      },
+      {
+       "value_selector": [
+        "nodeCheck",
+        "text"
+       ],
+       "variable": "check_text"
+      }
+     ]
+    },
+    "height": 22,
+    "id": "nodeClean",
+    "position": {
+     "x": 1260,
+     "y": 280
+    },
+    "type": "code",
+    "width": 150,
+    "zIndex": 0,
+    "positionAbsolute": {
+     "x": 1260,
+     "y": 280
+    }
+   },
+   {
+    "data": {
+     "desc": "输出事实卡 / 12 子档分级结果 / 敏感级别",
+     "outputs": [
+      {
+       "variable": "summary",
+       "value_selector": [
+        "nodeClean",
+        "summary"
+       ]
+      },
+      {
+       "variable": "facts_text",
+       "value_selector": [
+        "nodeClean",
+        "facts_text"
+       ]
+      },
+      {
+       "variable": "facts_json",
+       "value_selector": [
+        "nodeClean",
+        "facts_json"
+       ]
+      },
+      {
+       "variable": "angle",
+       "value_selector": [
+        "nodeClean",
+        "angle"
+       ]
+      },
+      {
+       "variable": "level",
+       "value_selector": [
+        "nodeClean",
+        "level"
+       ]
+      },
+      {
+       "variable": "sens_level",
+       "value_selector": [
+        "nodeClean",
+        "sens_level"
+       ]
+      },
+      {
+       "variable": "sens_reason",
+       "value_selector": [
+        "nodeClean",
+        "sens_reason"
+       ]
+      },
+      {
+       "variable": "facts_raw",
+       "value_selector": [
+        "nodeClean",
+        "facts_raw"
+       ]
+      },
+      {
+       "variable": "fact_json",
+       "value_selector": [
+        "nodeClean",
+        "facts_raw"
+       ]
+      },
+      {
+       "value_selector": [
+        "nodeClean",
+        "level_big"
+       ],
+       "variable": "level_big"
+      },
+      {
+       "value_selector": [
+        "nodeClean",
+        "grade_reason"
+       ],
+       "variable": "grade_reason"
+      }
+     ],
+     "selected": false,
+     "title": "结束",
+     "type": "end"
+    },
+    "height": 22,
+    "id": "nodeEnd",
+    "position": {
+     "x": 2160,
+     "y": 260
+    },
+    "type": "end",
+    "width": 150,
+    "zIndex": 0,
+    "positionAbsolute": {
+     "x": 2160,
+     "y": 260
+    }
+   },
+   {
+    "id": "nodeGate",
+    "position": {
+     "x": 1560,
+     "y": 280
+    },
+    "sourcePosition": "right",
+    "targetPosition": "left",
+    "data": {
+     "type": "if-else",
+     "title": "敏感分流",
+     "desc": "action=exclude 或 S0/S1 级别 → 终止并返回排除原因",
+     "selected": false,
+     "cases": [
+      {
+       "case_id": "true",
+       "logical_operator": "or",
+       "conditions": [
+        {
+         "comparison_operator": "contains",
+         "varType": "string",
+         "variable_selector": [
+          "nodeClean",
+          "sens_action"
+         ],
+         "value": "exclude"
+        },
+        {
+         "comparison_operator": "is",
+         "varType": "string",
+         "variable_selector": [
+          "nodeClean",
+          "sens_level"
+         ],
+         "value": "S0"
+        },
+        {
+         "comparison_operator": "is",
+         "varType": "string",
+         "variable_selector": [
+          "nodeClean",
+          "sens_level"
+         ],
+         "value": "S1"
+        }
+       ]
+      }
+     ]
+    },
+    "zIndex": 0,
+    "type": "custom",
+    "positionAbsolute": {
+     "x": 1560,
+     "y": 280
+    },
+    "width": 242,
+    "height": 292
+   },
+   {
+    "id": "nodeExcluded",
+    "position": {
+     "x": 1860,
+     "y": 130
+    },
+    "sourcePosition": "right",
+    "targetPosition": "left",
+    "data": {
+     "type": "end",
+     "title": "结束（敏感排除）",
+     "desc": "素材未通过敏感排查，返回原因",
+     "selected": false,
+     "outputs": [
+      {
+       "variable": "status",
+       "value_selector": [
+        "nodeClean",
+        "sens_action"
+       ]
+      },
+      {
+       "variable": "sensitive_level",
+       "value_selector": [
+        "nodeClean",
+        "sens_level"
+       ]
+      },
+      {
+       "variable": "sensitive_reason",
+       "value_selector": [
+        "nodeClean",
+        "sens_reason"
+       ]
+      },
+      {
+       "variable": "summary",
+       "value_selector": [
+        "nodeClean",
+        "summary"
+       ]
+      }
+     ]
+    },
+    "zIndex": 0,
+    "type": "custom",
+    "positionAbsolute": {
+     "x": 1860,
+     "y": 130
+    },
+    "width": 242,
+    "height": 194
+   },
+   {
+    "id": "nodeKBSens",
+    "position": {
+     "x": 600,
+     "y": 160
+    },
+    "sourcePosition": "right",
+    "targetPosition": "left",
+    "data": {
+     "type": "knowledge-retrieval",
+     "title": "KB 敏感规则检索",
+     "desc": "从知识库检索敏感内容规则",
+     "selected": false,
+     "query_variable_selector": [
+      "nodeQRule",
+      "query"
+     ],
+     "dataset_ids": [
+      "30d28341-8da6-42b5-a07a-71debda87081"
+     ],
+     "retrieval_mode": "multiple",
+     "multiple_retrieval_config": {
+      "top_k": 5,
+      "score_threshold": 0.3,
+      "reranking_enable": false
+     }
+    },
+    "zIndex": 0,
+    "type": "custom",
+    "positionAbsolute": {
+     "x": 600,
+     "y": 160
+    },
+    "width": 242,
+    "height": 118
+   },
+   {
+    "id": "nodeKBGrade",
+    "position": {
+     "x": 900,
+     "y": 160
+    },
+    "sourcePosition": "right",
+    "targetPosition": "left",
+    "data": {
+     "type": "knowledge-retrieval",
+     "title": "KB 分级标准检索",
+     "desc": "从知识库检索分级标准",
+     "selected": false,
+     "query_variable_selector": [
+      "nodeQGrade",
+      "query"
+     ],
+     "dataset_ids": [
+      "79cb2c5c-66f5-41d1-934f-ce0678a49d0b"
+     ],
+     "retrieval_mode": "multiple",
+     "multiple_retrieval_config": {
+      "top_k": 8,
+      "score_threshold": 0.3,
+      "reranking_enable": false
+     }
+    },
+    "zIndex": 0,
+    "type": "custom",
+    "positionAbsolute": {
+     "x": 900,
+     "y": 160
+    },
+    "width": 242,
+    "height": 118
+   },
+   {
+    "data": {
+     "code": "function main() {\n  return { query: \"\\u654f\\u611f\\u5185\\u5bb9\\u5224\\u5b9a\\u4e0e\\u5904\\u7f6e\\u89c4\\u5219 \\u56db\\u6863\\u5b9a\\u4e49 S0 \\u7ea2\\u7ebf S1 S2 S3 \\u5904\\u7406\\u52a8\\u4f5c \\u653f\\u6cbb \\u5b97\\u6559 \\u66b4\\u529b \\u8272\\u60c5 \\u8fdd\\u7981 \\u5206\\u7ea7 \\u5904\\u7f6e\\u65b9\\u5f0f \\u6392\\u9664 \\u8f6f\\u5904\\u7406 \\u964d\\u7ea7\\u8868\\u8ff0\" };\n}",
+     "desc": "输出固定的中文检索意图，让中文的敏感规则语料被稳定召回",
+     "code_language": "javascript",
+     "outputs": {
+      "query": {
+       "children": null,
+       "type": "string"
+      }
+     },
+     "selected": false,
+     "title": "KB 敏感规则检索词",
+     "type": "code",
+     "variables": []
+    },
+    "height": 22,
+    "id": "nodeQRule",
+    "position": {
+     "x": 600,
+     "y": 20
+    },
+    "type": "code",
+    "width": 150,
+    "zIndex": 0,
+    "positionAbsolute": {
+     "x": 600,
+     "y": 20
+    }
+   },
+   {
+    "data": {
+     "code": "function main() {\n  return { query: \"\\u82f1\\u8bed\\u5206\\u7ea7\\u9605\\u8bfb\\u6807\\u51c6 12 \\u4e2a\\u5b50\\u6863\\u4f4d \\u8bcd\\u6570 \\u84dd\\u601d \\u5e73\\u5747\\u53e5\\u957f \\u4e3b\\u9898\\u8303\\u56f4 \\u8bed\\u8a00\\u96be\\u5ea6 \\u4f53\\u88c1\\u914d\\u6bd4 \\u9898\\u76ee\\u5206\\u5e03 \\u5224\\u5b9a\\u89c4\\u5219 \\u5e38\\u89c1\\u8bef\\u5224 \\u5feb\\u901f\\u5bf9\\u7167\\u8868 A1 A2 B1 B2\" };\n}",
+     "desc": "输出固定的中文检索意图，让中文的 12 档分级标准被稳定召回",
+     "code_language": "javascript",
+     "outputs": {
+      "query": {
+       "children": null,
+       "type": "string"
+      }
+     },
+     "selected": false,
+     "title": "KB 分级标准检索词",
+     "type": "code",
+     "variables": []
+    },
+    "height": 22,
+    "id": "nodeQGrade",
+    "position": {
+     "x": 900,
+     "y": 20
+    },
+    "type": "code",
+    "width": 150,
+    "zIndex": 0,
+    "positionAbsolute": {
+     "x": 900,
+     "y": 20
+    }
+   }
+  ],
+  "edges": [
+   {
+    "data": {
+     "isInIteration": false,
+     "sourceHandle": "1",
+     "targetHandle": "2",
+     "sourceType": "start",
+     "targetType": "llm",
+     "isInLoop": false
+    },
+    "id": "e-start-fact",
+    "source": "nodeStart",
+    "target": "nodeFact",
+    "type": "custom",
+    "sourceHandle": "source",
+    "targetHandle": "target",
+    "zIndex": 0
+   },
+   {
+    "data": {
+     "isInIteration": false,
+     "sourceHandle": "1",
+     "targetHandle": "2",
+     "sourceType": "llm",
+     "targetType": "code",
+     "isInLoop": false
+    },
+    "id": "e-grade-clean",
+    "source": "nodeGrade",
+    "target": "nodeClean",
+    "type": "custom",
+    "sourceHandle": "source",
+    "targetHandle": "target",
+    "zIndex": 0
+   },
+   {
+    "id": "nodeClean-nodeGate-source",
+    "source": "nodeClean",
+    "sourceHandle": "source",
+    "target": "nodeGate",
+    "targetHandle": "target",
+    "type": "custom",
+    "zIndex": 0,
+    "data": {
+     "sourceType": "code",
+     "targetType": "if-else",
+     "isInIteration": false,
+     "isInLoop": false
+    }
+   },
+   {
+    "id": "nodeGate-nodeExcluded-true",
+    "source": "nodeGate",
+    "sourceHandle": "true",
+    "target": "nodeExcluded",
+    "targetHandle": "target",
+    "type": "custom",
+    "zIndex": 0,
+    "data": {
+     "sourceType": "if-else",
+     "targetType": "end",
+     "isInIteration": false,
+     "isInLoop": false
+    }
+   },
+   {
+    "id": "nodeFact-nodeKBSens-source",
+    "source": "nodeFact",
+    "sourceHandle": "source",
+    "target": "nodeKBSens",
+    "targetHandle": "target",
+    "type": "custom",
+    "zIndex": 0,
+    "data": {
+     "sourceType": "llm",
+     "targetType": "knowledge-retrieval",
+     "isInIteration": false,
+     "isInLoop": false
+    }
+   },
+   {
+    "id": "nodeKBSens-nodeCheck-source",
+    "source": "nodeKBSens",
+    "sourceHandle": "source",
+    "target": "nodeCheck",
+    "targetHandle": "target",
+    "type": "custom",
+    "zIndex": 0,
+    "data": {
+     "sourceType": "knowledge-retrieval",
+     "targetType": "llm",
+     "isInIteration": false,
+     "isInLoop": false
+    }
+   },
+   {
+    "id": "nodeCheck-nodeKBGrade-source",
+    "source": "nodeCheck",
+    "sourceHandle": "source",
+    "target": "nodeKBGrade",
+    "targetHandle": "target",
+    "type": "custom",
+    "zIndex": 0,
+    "data": {
+     "sourceType": "llm",
+     "targetType": "knowledge-retrieval",
+     "isInIteration": false,
+     "isInLoop": false
+    }
+   },
+   {
+    "id": "nodeKBGrade-nodeGrade-source",
+    "source": "nodeKBGrade",
+    "sourceHandle": "source",
+    "target": "nodeGrade",
+    "targetHandle": "target",
+    "type": "custom",
+    "zIndex": 0,
+    "data": {
+     "sourceType": "knowledge-retrieval",
+     "targetType": "llm",
+     "isInIteration": false,
+     "isInLoop": false
+    }
+   },
+   {
+    "id": "nodeGate-nodeGenAll-false",
+    "source": "nodeGate",
+    "target": "nodeEnd",
+    "type": "custom",
+    "sourceHandle": "false",
+    "targetHandle": "target",
+    "zIndex": 0,
+    "data": {
+     "sourceType": "if-else",
+     "targetType": "end",
+     "isInIteration": false,
+     "isInLoop": false
+    }
+   },
+   {
+    "data": {
+     "isInIteration": false,
+     "sourceHandle": "1",
+     "targetHandle": "2",
+     "sourceType": "code",
+     "targetType": "knowledge-retrieval",
+     "isInLoop": false
+    },
+    "id": "e-nodeQRule-nodeKBSens",
+    "source": "nodeQRule",
+    "target": "nodeKBSens",
+    "type": "custom",
+    "sourceHandle": "source",
+    "targetHandle": "target",
+    "zIndex": 0
+   },
+   {
+    "data": {
+     "isInIteration": false,
+     "sourceHandle": "1",
+     "targetHandle": "2",
+     "sourceType": "start",
+     "targetType": "code",
+     "isInLoop": false
+    },
+    "id": "e-nodeStart-nodeQRule",
+    "source": "nodeStart",
+    "target": "nodeQRule",
+    "type": "custom",
+    "sourceHandle": "source",
+    "targetHandle": "target",
+    "zIndex": 0
+   },
+   {
+    "data": {
+     "isInIteration": false,
+     "sourceHandle": "1",
+     "targetHandle": "2",
+     "sourceType": "code",
+     "targetType": "knowledge-retrieval",
+     "isInLoop": false
+    },
+    "id": "e-nodeQGrade-nodeKBGrade",
+    "source": "nodeQGrade",
+    "target": "nodeKBGrade",
+    "type": "custom",
+    "sourceHandle": "source",
+    "targetHandle": "target",
+    "zIndex": 0
+   },
+   {
+    "data": {
+     "isInIteration": false,
+     "sourceHandle": "1",
+     "targetHandle": "2",
+     "sourceType": "start",
+     "targetType": "code",
+     "isInLoop": false
+    },
+    "id": "e-nodeStart-nodeQGrade",
+    "source": "nodeStart",
+    "target": "nodeQGrade",
+    "type": "custom",
+    "sourceHandle": "source",
+    "targetHandle": "target",
+    "zIndex": 0
+   }
+  ],
+  "viewport": {
+   "x": null,
+   "y": null,
+   "zoom": null
+  }
+ },
+ "features": {
+  "opening_statement": "",
+  "suggested_questions": [],
+  "suggested_questions_after_answer": {
+   "enabled": false
+  },
+  "text_to_speech": {
+   "enabled": false,
+   "voice": "",
+   "language": ""
+  },
+  "speech_to_text": {
+   "enabled": false
+  },
+  "retriever_resource": {
+   "enabled": false
+  },
+  "sensitive_word_avoidance": {
+   "enabled": false
+  },
+  "file_upload": {
+   "image": {
+    "enabled": false,
+    "number_limits": 3,
+    "transfer_methods": [
+     "local_file",
+     "remote_url"
+    ]
+   },
+   "enabled": false,
+   "allowed_file_types": [
+    "image"
+   ],
+   "allowed_file_extensions": [
+    ".JPG",
+    ".JPEG",
+    ".PNG",
+    ".GIF",
+    ".WEBP",
+    ".SVG"
+   ],
+   "allowed_file_upload_methods": [
+    "local_file",
+    "remote_url"
+   ],
+   "number_limits": 3,
+   "fileUploadConfig": {
+    "file_size_limit": 15,
+    "knowledge_file_size_limit": 50,
+    "batch_count_limit": 5,
+    "file_upload_limit": 50,
+    "image_file_size_limit": 10,
+    "video_file_size_limit": 100,
+    "audio_file_size_limit": 50,
+    "skill_file_size_limit": 50,
+    "workflow_file_upload_limit": 10,
+    "image_file_batch_limit": 10,
+    "single_chunk_attachment_limit": 10,
+    "attachment_image_file_size_limit": 2
+   }
+  }
+ },
+ "version": "draft",
+ "created_by": {
+  "id": "179c3332-b9f0-49f1-9075-a47207910541",
+  "name": "Bryan",
+  "email": "3124350013@qq.com"
+ },
+ "created_at": 1788338830,
+ "tool_published": false,
+ "environment_variables": [],
+ "conversation_variables": [],
+ "rag_pipeline_variables": []
+}
