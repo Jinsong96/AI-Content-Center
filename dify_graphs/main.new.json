@@ -1,0 +1,1893 @@
+{
+ "graph": {
+  "nodes": [
+   {
+    "data": {
+     "desc": "接收素材与档位偏好（档位可不填，由分级节点自动判断）",
+     "selected": false,
+     "title": "开始",
+     "type": "start",
+     "variables": [
+      {
+       "label": "素材",
+       "max_length": 5000,
+       "options": [],
+       "required": true,
+       "type": "paragraph",
+       "variable": "material"
+      },
+      {
+       "label": "档位偏好（可选，空则由分级节点判定）",
+       "max_length": 48,
+       "options": [
+        "A1.1",
+        "A1.2",
+        "A1.3",
+        "A2.1",
+        "A2.2",
+        "A2.3",
+        "B1.1",
+        "B1.2",
+        "B1.3",
+        "B2+.1",
+        "B2+.2",
+        "B2+.3"
+       ],
+       "required": false,
+       "type": "select",
+       "variable": "level"
+      },
+      {
+       "label": "写作风格",
+       "max_length": 48,
+       "options": [
+        "hemingway",
+        "zhuziqing",
+        "ohenry",
+        "twain",
+        "murakami",
+        "luxun",
+        "shakespeare",
+        "default"
+       ],
+       "required": false,
+       "type": "select",
+       "variable": "style"
+      }
+     ]
+    },
+    "height": 22,
+    "id": "nodeStart",
+    "position": {
+     "x": 60,
+     "y": 280
+    },
+    "type": "start",
+    "width": 150,
+    "zIndex": 0,
+    "positionAbsolute": {
+     "x": 60,
+     "y": 280
+    }
+   },
+   {
+    "data": {
+     "answer": "",
+     "context": {
+      "enabled": false,
+      "variable_selector": []
+     },
+     "desc": "抽取素材中的客观事实，输出 JSON（summary/facts/numbers/sources）",
+     "model": {
+      "completion_params": {
+       "max_tokens": 2000,
+       "temperature": 0.2,
+       "response_format": "json_object",
+       "enable_thinking": false
+      },
+      "mode": "chat",
+      "name": "deepseek-ai/DeepSeek-V4-Flash",
+      "provider": "langgenius/siliconflow/siliconflow"
+     },
+     "prompt_template": [
+      {
+       "id": "pt-fact-sys",
+       "role": "system",
+       "text": "你是教育内容生产流水线中的\"素材事实抽取器\"。输入一段素材（可能是热点新闻、YouTube 字幕或网页内容），抽取其中的客观事实，输出严格的 JSON。\n\n输出格式（只输出 JSON，不要任何解释，不要 markdown 代码块）：\n{\"summary\": \"30字以内的中文主题概括\", \"summary_en\": \"English topic summary (within 15 words)\", \"facts\": [{\"en\": \"English atomic fact, keep numbers/dates/names exactly\", \"zh\": \"对应中文事实\"}], \"numbers\": [\"3 million\", \"2025\", \"45%\"], \"sources\": [\"原始信源名称\"]}\n\n要求：\n1. 只抽取素材中明确出现的事实，禁止推断或补充。\n2. 数字、百分比、专名必须原样保留（英文事实里尤其要保持数字精度），这是后续事实一致性校验的依据。\n3. facts 每一条都必须同时给出 en（英文事实，供英文文章生成直接引用）和 zh（中文对照翻译）两个字段，一一对应。\n4. 若素材包含观点性内容，放入 summary 中注明\"观点\"。\n5. facts 数量必须控制在 6-12 条。若自然抽取多于 12 条，请把同主题、同类的相邻事实合并为一条（例如把多个同类的数字事实并成一句并列句），确保最终不超过 12 条；少于 6 条时，把含多个信息点的长句拆成多条。合并时不得丢失任何数字、百分比、专名与时间。"
+      },
+      {
+       "id": "pt-fact-user",
+       "role": "user",
+       "text": "{{#nodeStart.material#}}"
+      }
+     ],
+     "selected": false,
+     "title": "① 事实抽取",
+     "type": "llm"
+    },
+    "height": 22,
+    "id": "nodeFact",
+    "position": {
+     "x": 360,
+     "y": 280
+    },
+    "type": "llm",
+    "width": 150,
+    "zIndex": 0,
+    "positionAbsolute": {
+     "x": 360,
+     "y": 280
+    }
+   },
+   {
+    "data": {
+     "code": "function main() {\n  return { query: \"\\u654f\\u611f\\u5185\\u5bb9\\u5224\\u5b9a\\u4e0e\\u5904\\u7f6e\\u89c4\\u5219 \\u56db\\u6863\\u5b9a\\u4e49 S0 \\u7ea2\\u7ebf S1 S2 S3 \\u5904\\u7406\\u52a8\\u4f5c \\u653f\\u6cbb \\u5b97\\u6559 \\u66b4\\u529b \\u8272\\u60c5 \\u8fdd\\u7981 \\u5206\\u7ea7 \\u5904\\u7f6e\\u65b9\\u5f0f \\u6392\\u9664 \\u8f6f\\u5904\\u7406 \\u964d\\u7ea7\\u8868\\u8ff0\" };\n}",
+     "desc": "输出固定的中文检索意图，让中文的敏感规则语料被稳定召回",
+     "code_language": "javascript",
+     "outputs": {
+      "query": {
+       "children": null,
+       "type": "string"
+      }
+     },
+     "selected": false,
+     "title": "KB 敏感规则检索词",
+     "type": "code",
+     "variables": []
+    },
+    "height": 22,
+    "id": "nodeQRule",
+    "position": {
+     "x": 600,
+     "y": 20
+    },
+    "type": "code",
+    "width": 150,
+    "zIndex": 0,
+    "positionAbsolute": {
+     "x": 600,
+     "y": 20
+    }
+   },
+   {
+    "id": "nodeKBSens",
+    "position": {
+     "x": 600,
+     "y": 160
+    },
+    "sourcePosition": "right",
+    "targetPosition": "left",
+    "data": {
+     "type": "knowledge-retrieval",
+     "title": "KB 敏感规则检索",
+     "desc": "从知识库检索敏感内容规则",
+     "selected": false,
+     "query_variable_selector": [
+      "nodeQRule",
+      "query"
+     ],
+     "dataset_ids": [
+      "30d28341-8da6-42b5-a07a-71debda87081"
+     ],
+     "retrieval_mode": "multiple",
+     "multiple_retrieval_config": {
+      "top_k": 5,
+      "score_threshold": 0.3,
+      "reranking_enable": false
+     }
+    },
+    "zIndex": 0,
+    "type": "custom",
+    "positionAbsolute": {
+     "x": 600,
+     "y": 160
+    },
+    "width": 242,
+    "height": 118
+   },
+   {
+    "data": {
+     "answer": "",
+     "context": {
+      "enabled": true,
+      "variable_selector": [
+       "nodeKBSens",
+       "result"
+      ]
+     },
+     "desc": "按 S0-S3 规则判断素材是否可进入选题",
+     "model": {
+      "completion_params": {
+       "max_tokens": 800,
+       "temperature": 0.1,
+       "response_format": "json_object",
+       "enable_thinking": false
+      },
+      "mode": "chat",
+      "name": "deepseek-ai/DeepSeek-V4-Flash",
+      "provider": "langgenius/siliconflow/siliconflow"
+     },
+     "prompt_template": [
+      {
+       "id": "pt-check-sys",
+       "role": "system",
+       "text": "你是教育内容安全审查员。根据敏感内容规则判断素材是否可进入选题。\n\n输出 JSON（只输出 JSON，不要任何解释，不要 markdown 代码块）：{\"level\":\"S0|S1|S2|S3\",\"action\":\"exclude|soften|downgrade|ok\",\"reason\":\"20字以内\"}\n\n规则速记：\n- S0 红线：政治敏感、色情暴力、赌博毒品、未成年侵害、歧视攻击 → 直接排除\n- S1 谨慎：灾难细节、社会争议、网络谣言 → 排除或软处理\n- S2 降级：行业负面、敏感数据 → 降级表述后可用\n- S3 正常：科技/教育/文化/健康/环境等 → 正常\n\n不确定时按高一档处理。"
+      },
+      {
+       "id": "pt-check-user",
+       "role": "user",
+       "text": "敏感内容规则（知识库检索结果）：\n{{#context#}}\n\n素材内容：\n{{#nodeStart.material#}}\n\n请判断。"
+      }
+     ],
+     "selected": false,
+     "title": "② 敏感排查",
+     "type": "llm"
+    },
+    "height": 22,
+    "id": "nodeCheck",
+    "position": {
+     "x": 660,
+     "y": 280
+    },
+    "type": "llm",
+    "width": 150,
+    "zIndex": 0,
+    "positionAbsolute": {
+     "x": 660,
+     "y": 280
+    }
+   },
+   {
+    "data": {
+     "code": "function main() {\n  return { query: \"\\u82f1\\u8bed\\u5206\\u7ea7\\u9605\\u8bfb\\u6807\\u51c6 12 \\u4e2a\\u5b50\\u6863\\u4f4d \\u8bcd\\u6570 \\u84dd\\u601d \\u5e73\\u5747\\u53e5\\u957f \\u4e3b\\u9898\\u8303\\u56f4 \\u8bed\\u8a00\\u96be\\u5ea6 \\u4f53\\u88c1\\u914d\\u6bd4 \\u9898\\u76ee\\u5206\\u5e03 \\u5224\\u5b9a\\u89c4\\u5219 \\u5e38\\u89c1\\u8bef\\u5224 \\u5feb\\u901f\\u5bf9\\u7167\\u8868 A1 A2 B1 B2\" };\n}",
+     "desc": "输出固定的中文检索意图，让中文的 12 档分级标准被稳定召回",
+     "code_language": "javascript",
+     "outputs": {
+      "query": {
+       "children": null,
+       "type": "string"
+      }
+     },
+     "selected": false,
+     "title": "KB 分级标准检索词",
+     "type": "code",
+     "variables": []
+    },
+    "height": 22,
+    "id": "nodeQGrade",
+    "position": {
+     "x": 900,
+     "y": 20
+    },
+    "type": "code",
+    "width": 150,
+    "zIndex": 0,
+    "positionAbsolute": {
+     "x": 900,
+     "y": 20
+    }
+   },
+   {
+    "id": "nodeKBGrade",
+    "position": {
+     "x": 900,
+     "y": 160
+    },
+    "sourcePosition": "right",
+    "targetPosition": "left",
+    "data": {
+     "type": "knowledge-retrieval",
+     "title": "KB 分级标准检索",
+     "desc": "从知识库检索分级标准",
+     "selected": false,
+     "query_variable_selector": [
+      "nodeQGrade",
+      "query"
+     ],
+     "dataset_ids": [
+      "79cb2c5c-66f5-41d1-934f-ce0678a49d0b"
+     ],
+     "retrieval_mode": "multiple",
+     "multiple_retrieval_config": {
+      "top_k": 8,
+      "score_threshold": 0.3,
+      "reranking_enable": false
+     }
+    },
+    "zIndex": 0,
+    "type": "custom",
+    "positionAbsolute": {
+     "x": 900,
+     "y": 160
+    },
+    "width": 242,
+    "height": 118
+   },
+   {
+    "data": {
+     "answer": "",
+     "context": {
+      "enabled": true,
+      "variable_selector": [
+       "nodeKBGrade",
+       "result"
+      ]
+     },
+     "desc": "依据 12 子档量化表判定素材档位，输出子档 + 大档 + 依据",
+     "model": {
+      "completion_params": {
+       "max_tokens": 900,
+       "temperature": 0.2,
+       "response_format": "json_object",
+       "enable_thinking": false
+      },
+      "mode": "chat",
+      "name": "deepseek-ai/DeepSeek-V4-Flash",
+      "provider": "langgenius/siliconflow/siliconflow"
+     },
+     "prompt_template": [
+      {
+       "role": "system",
+       "text": "你是语言教学分级专家，依据《APP阅读级别量化表》为素材选择最合适的生成档位。全平台分 4 个大档、12 个子档。\n\n输出 JSON（只输出 JSON，不要任何解释，不要 markdown 代码块）：\n{\"level\":\"A1.1|A1.2|A1.3|A2.1|A2.2|A2.3|B1.1|B1.2|B1.3|B2+.1|B2+.2|B2+.3\",\"level_big\":\"A1|A2|B1|B2+\",\"reason\":\"40字以内\",\"suggested_angle\":\"建议的切入角度\"}\n\n【12 子档速查表】子档｜词数｜蓝思｜平均句长｜认知特征\nA1.1 ｜60–90   ｜BR–200L   ｜5–7  ｜一个场景一件事，读者五米之内的世界\nA1.2 ｜90–120  ｜200–300L ｜7–9  ｜「先……然后……」的两段式故事\nA1.3 ｜120–160 ｜300–400L ｜8–10 ｜第一次读到有事件、有变化的文本\nA2.1 ｜160–200 ｜400–500L ｜10–12｜开头—发展—结尾，或总分关系\nA2.2 ｜200–250 ｜500–580L ｜11–13｜具象科普进场；商业类首次出现（一个人做小生意的故事）\nA2.3 ｜250–300 ｜580–650L ｜12–14｜第一次离开读者的直接生活经验（别国的人怎么生活）\nB1.1 ｜300–380 ｜650–720L ｜13–15｜阅读目的从「练英文」转向「知道点什么」\nB1.2 ｜380–450 ｜720–800L ｜15–17｜出现明确的作者立场，不只是陈述事实\nB1.3 ｜450–550 ｜800–880L ｜16–18｜人物故事 / 事件复盘 / 深度文化对比\nB2+.1｜550–700 ｜880–1000L｜18–21｜解释性报道与商业案例，名词化密度上升\nB2+.2｜700–900 ｜1000–1120L｜20–23｜有真实争议、多方立场的议题\nB2+.3｜900–1200｜1120–1300L｜22–26｜抽象论证、跨领域引用、文学性非虚构\n\n判定规则：\n- 必须综合看主题认知半径、语言复杂度、蓝思与句长，**不得只看词数**。\n- 素材本身没有词数——你要判断的是「这个素材适合用哪一档的篇幅与语言去重写」。\n- 常见误判：把「生僻但短」当低档（句短但概念抽象不是 A1/A2，认知难度归 B2+）；让 A1/A2 承载议论。\n- 若下方知识库检索结果与本表冲突，**以本表为准**。\n- 若用户明确指定了档位偏好，优先遵循用户偏好。"
+      },
+      {
+       "role": "user",
+       "text": "知识库检索结果（参考，冲突时以系统提示中的速查表为准）：\n{{#context#}}\n\n素材内容：\n{{#nodeStart.material#}}\n\n用户档位偏好：{{#nodeStart.level#}}\n\n请输出分级 JSON。"
+      }
+     ],
+     "selected": false,
+     "title": "③ 分级（12 子档）",
+     "type": "llm"
+    },
+    "height": 22,
+    "id": "nodeGrade",
+    "position": {
+     "x": 960,
+     "y": 280
+    },
+    "type": "llm",
+    "width": 150,
+    "zIndex": 0,
+    "positionAbsolute": {
+     "x": 960,
+     "y": 280
+    }
+   },
+   {
+    "data": {
+     "code": "function main({ fact_text, grade_text, check_text }) {\n  const strip = (t) => String(t || '').replace(/<think>[\\s\\S]*?<\\/think>/g, '').trim();\n  const parseJSON = (t) => {\n    const s = strip(t).replace(/```json|```/g, '');\n    const m = s.match(/\\{[\\s\\S]*\\}/);\n    if (m) { try { return JSON.parse(m[0]); } catch (e) { } }\n    return {};\n  };\n  const normLevel = (v) => {\n    let s = String(v || '').trim().toUpperCase().replace(/\\s+/g, '').replace(/[_-]/g, '.').replace(/档/g, '');\n    s = s.replace(/^B2PLUS/, 'B2+').replace(/^B2P/, 'B2+');\n    const AL = {\n      'A1.1':'A1.1','A1.2':'A1.2','A1.3':'A1.3',\n      'A2.1':'A2.1','A2.2':'A2.2','A2.3':'A2.3',\n      'B1.1':'B1.1','B1.2':'B1.2','B1.3':'B1.3',\n      'B2+.1':'B2+.1','B2+.2':'B2+.2','B2+.3':'B2+.3',\n      'B2.1':'B2+.1','B2.2':'B2+.2','B2.3':'B2+.3','B2':'B2+.1','C1':'B2+.3',\n      'A1':'A1.1','A2':'A2.1','B1':'B1.1'\n    };\n    if (AL[s]) return AL[s];\n    const m = s.match(/^(A1|A2|B1|B2\\+?)\\.?([123])$/);\n    if (m) { const big = m[1] === 'B2' ? 'B2+' : m[1]; return big + '.' + m[2]; }\n    return 'B1.1';\n  };\n  const fact = parseJSON(fact_text);\n  const grade = parseJSON(grade_text);\n  const check = parseJSON(check_text);\n  const rawFacts = Array.isArray(fact.facts) ? fact.facts : [];\n  const facts = rawFacts.map(f => {\n    if (typeof f === 'string') return { en: f, zh: f };\n    return { en: String((f && f.en) || '').trim(), zh: String((f && f.zh) || '').trim() };\n  }).filter(f => f.en || f.zh);\n  const sensLevel = String(check.level || 'S3').toUpperCase().trim();\n  const sensAction = String(check.action || 'ok').toLowerCase().trim();\n  const lv = normLevel(grade.level);\n  const big = lv.indexOf('B2+') === 0 ? 'B2+' : lv.slice(0, 2);\n  return {\n    summary: fact.summary || fact.summary_en || '（未识别主题）',\n    facts_text: facts.length ? facts.map((f, i) => (i + 1) + '. ' + (f.en || f.zh)).join('\\n') : '（无）',\n    level: lv,\n    level_big: big,\n    grade_reason: grade.reason || '',\n    angle: grade.suggested_angle || '（无特殊角度）',\n    sensitive: sensLevel + ' / ' + sensAction + ' / ' + (check.reason || ''),\n    sens_level: sensLevel,\n    sens_action: sensAction,\n    sens_reason: check.reason || '',\n    facts_json: JSON.stringify(facts),\n    // facts_raw 必须是「干净 JSON」：硅基流动的模型默认会把思考过程写进 text，\n    // 原样透传会让下游 GEN 多吞约 3.5 倍 token，前端也会读到思考文本。\n    facts_raw: (function () {\n      const s = strip(fact_text).replace(/```json|```/g, '');\n      const m = s.match(/\\{[\\s\\S]*\\}/);\n      return m ? m[0] : '';\n    })()\n  };\n}",
+     "desc": "清洗 ①②③ 输出，归一化 12 子档并派生大档",
+     "code_language": "javascript",
+     "outputs": {
+      "summary": {
+       "children": null,
+       "type": "string"
+      },
+      "facts_text": {
+       "children": null,
+       "type": "string"
+      },
+      "level": {
+       "children": null,
+       "type": "string"
+      },
+      "level_big": {
+       "children": null,
+       "type": "string"
+      },
+      "grade_reason": {
+       "children": null,
+       "type": "string"
+      },
+      "angle": {
+       "children": null,
+       "type": "string"
+      },
+      "sensitive": {
+       "children": null,
+       "type": "string"
+      },
+      "sens_level": {
+       "children": null,
+       "type": "string"
+      },
+      "sens_action": {
+       "children": null,
+       "type": "string"
+      },
+      "sens_reason": {
+       "children": null,
+       "type": "string"
+      },
+      "facts_json": {
+       "children": null,
+       "type": "string"
+      },
+      "facts_raw": {
+       "children": null,
+       "type": "string"
+      }
+     },
+     "selected": false,
+     "title": "③+ 清洗解析",
+     "type": "code",
+     "variables": [
+      {
+       "value_selector": [
+        "nodeFact",
+        "text"
+       ],
+       "variable": "fact_text"
+      },
+      {
+       "value_selector": [
+        "nodeGrade",
+        "text"
+       ],
+       "variable": "grade_text"
+      },
+      {
+       "value_selector": [
+        "nodeCheck",
+        "text"
+       ],
+       "variable": "check_text"
+      }
+     ]
+    },
+    "height": 22,
+    "id": "nodeClean",
+    "position": {
+     "x": 1260,
+     "y": 280
+    },
+    "type": "code",
+    "width": 150,
+    "zIndex": 0,
+    "positionAbsolute": {
+     "x": 1260,
+     "y": 280
+    }
+   },
+   {
+    "id": "nodeGate",
+    "position": {
+     "x": 1560,
+     "y": 280
+    },
+    "sourcePosition": "right",
+    "targetPosition": "left",
+    "data": {
+     "type": "if-else",
+     "title": "敏感分流",
+     "desc": "action=exclude 或 S0/S1 级别 → 终止并返回排除原因",
+     "selected": false,
+     "cases": [
+      {
+       "case_id": "true",
+       "logical_operator": "or",
+       "conditions": [
+        {
+         "comparison_operator": "contains",
+         "varType": "string",
+         "variable_selector": [
+          "nodeClean",
+          "sens_action"
+         ],
+         "value": "exclude"
+        },
+        {
+         "comparison_operator": "is",
+         "varType": "string",
+         "variable_selector": [
+          "nodeClean",
+          "sens_level"
+         ],
+         "value": "S0"
+        },
+        {
+         "comparison_operator": "is",
+         "varType": "string",
+         "variable_selector": [
+          "nodeClean",
+          "sens_level"
+         ],
+         "value": "S1"
+        }
+       ]
+      }
+     ]
+    },
+    "zIndex": 0,
+    "type": "custom",
+    "positionAbsolute": {
+     "x": 1560,
+     "y": 280
+    },
+    "width": 242,
+    "height": 292
+   },
+   {
+    "id": "nodeExcluded",
+    "position": {
+     "x": 1860,
+     "y": 130
+    },
+    "sourcePosition": "right",
+    "targetPosition": "left",
+    "data": {
+     "type": "end",
+     "title": "结束（敏感排除）",
+     "desc": "素材未通过敏感排查，返回原因",
+     "selected": false,
+     "outputs": [
+      {
+       "variable": "status",
+       "value_selector": [
+        "nodeClean",
+        "sens_action"
+       ]
+      },
+      {
+       "variable": "sensitive_level",
+       "value_selector": [
+        "nodeClean",
+        "sens_level"
+       ]
+      },
+      {
+       "variable": "sensitive_reason",
+       "value_selector": [
+        "nodeClean",
+        "sens_reason"
+       ]
+      },
+      {
+       "variable": "summary",
+       "value_selector": [
+        "nodeClean",
+        "summary"
+       ]
+      }
+     ]
+    },
+    "zIndex": 0,
+    "type": "custom",
+    "positionAbsolute": {
+     "x": 1860,
+     "y": 130
+    },
+    "width": 242,
+    "height": 194
+   },
+   {
+    "id": "nodeStyle",
+    "type": "code",
+    "width": 150,
+    "height": 22,
+    "zIndex": 0,
+    "position": {
+     "x": 60,
+     "y": 1080.0
+    },
+    "positionAbsolute": {
+     "x": 60,
+     "y": 1080.0
+    },
+    "data": {
+     "title": "⑧ 写作风格映射",
+     "desc": "把 style 键映射为英文写作风格指令（按 CEFR 难度自适应）",
+     "code_language": "javascript",
+     "code": "function main({ style }) {\n  const STYLES = {\n    default: \"Neutral, clear, natural expository prose — the platform's standard graded-reading style, without imitating a specific author.\",\n    hemingway: \"Ernest Hemingway: short declarative sentences, few adjectives, concrete nouns and action verbs, understated emotion (iceberg theory).\",\n    zhuziqing: \"Zhu Ziqing: lyrical, refined prose with vivid sensory imagery, gentle rhythm and delicate observation; warm and reflective.\",\n    ohenry: \"O. Henry: warm humor, vivid characters and a surprising ironic twist at the end.\",\n    twain: \"Mark Twain: colloquial, humorous and lightly satirical; down-to-earth language, witty observations and folksy charm.\",\n    murakami: \"Haruki Murakami: quiet, imagistic narration with dreamlike metaphors, understated emotion and a sense of solitude.\",\n    luxun: \"Lu Xun: sharp, incisive and critical; direct piercing language, irony and moral seriousness.\",\n    shakespeare: \"William Shakespeare: elevated, rhetorical and lyrical; rich in imagery, metaphor and rhythm.\"\n  };\n  const key = String(style || '').toLowerCase();\n  const base = STYLES[key] || STYLES.default;\n  const instruction = base + \" Keep all facts, names, numbers and the required structure (title, paragraphs, glossary) unchanged — only the writing style differs. Adapt sentence length and vocabulary to the target CEFR level.\";\n  return { style_key: (key in STYLES) ? key : 'default', style_instruction: instruction };\n}",
+     "selected": false,
+     "type": "code",
+     "outputs": {
+      "style_instruction": {
+       "children": null,
+       "type": "string"
+      },
+      "style_key": {
+       "children": null,
+       "type": "string"
+      }
+     },
+     "variables": [
+      {
+       "variable": "style",
+       "value_selector": [
+        "nodeStart",
+        "style"
+       ]
+      }
+     ]
+    }
+   },
+   {
+    "data": {
+     "answer": "",
+     "context": {
+      "enabled": false,
+      "variable_selector": []
+     },
+     "desc": "用 flash 统一生成一个全档共用标题，避免四组各写各的",
+     "model": {
+      "completion_params": {
+       "max_tokens": 300,
+       "temperature": 0.6,
+       "enable_thinking": false
+      },
+      "mode": "chat",
+      "name": "deepseek-ai/DeepSeek-V4-Flash",
+      "provider": "langgenius/siliconflow/siliconflow"
+     },
+     "prompt_template": [
+      {
+       "role": "system",
+       "text": "你是英语分级阅读编辑。根据主题摘要与切入角度，为这一系列分级文章拟一个英文标题。\n\n要求：\n1. 4–9 个英文单词。\n2. 只用常见词——同一个标题要同时供 A1.1（60 词入门）与 B2+.3（1200 词进阶）使用，必须让 A1.1 的学习者也能看懂。\n3. 可用一个冒号做成「主标题: 副标题」。\n4. 具体、有信息量，不要写成 \"The Importance of ...\" 这类空泛句式。\n5. 不要引号、不要句末句号、不要 Markdown 标题符号、不要换行。\n\n只输出标题本身，不要输出任何其他文字。"
+      },
+      {
+       "role": "user",
+       "text": "主题：{{#nodeClean.summary#}}\n切入角度：{{#nodeClean.angle#}}\n\n请给出英文标题。"
+      }
+     ],
+     "selected": false,
+     "title": "④-0 统一标题",
+     "type": "llm"
+    },
+    "height": 22,
+    "id": "nodeTitle",
+    "position": {
+     "x": 300,
+     "y": 1080.0
+    },
+    "type": "llm",
+    "width": 150,
+    "zIndex": 0,
+    "positionAbsolute": {
+     "x": 300,
+     "y": 1080.0
+    }
+   },
+   {
+    "data": {
+     "answer": "",
+     "context": {
+      "enabled": false,
+      "variable_selector": []
+     },
+     "desc": "生成 A1 档三个子档，组内段落级对齐",
+     "model": {
+      "completion_params": {
+       "max_tokens": 2500,
+       "temperature": 0.45,
+       "enable_thinking": false
+      },
+      "mode": "chat",
+      "name": "deepseek-ai/DeepSeek-V4-Flash",
+      "provider": "langgenius/siliconflow/siliconflow"
+     },
+     "prompt_template": [
+      {
+       "role": "system",
+       "text": "你是英语分级阅读作者。基于给定事实，生成 A1 档三个子档位（A1.1、A1.2、A1.3）的文章，三个子档必须段落级一一对应。\n\n【本组三个子档的硬性规格】（逐项达标，任一项显著偏离即视为不合格）\n- A1.1：正文 **目标 75 词**（硬区间 60–90；低于下限或超过上限都判不合格）\n    平均句长 5–7 词；蓝思 BR–200L\n    写作标尺：全篇 4 段；每段约 15–22 词（约 3 句，平均句长约 6 词）\n    词汇层级：只用最高频 600–800 词，几乎不出现派生词与抽象名词\n    语法范围：一般现在时、be 动词、there be；连接词只用 and / but\n    体裁 记叙 100%；主题半径：读者五米之内的世界——家人、宠物、一顿饭、天气、上学路上；一个场景一件事，不设转折\n- A1.2：正文 **目标 105 词**（硬区间 90–120；低于下限或超过上限都判不合格）\n    平均句长 7–9 词；蓝思 200–300L\n    写作标尺：全篇 4 段；每段约 22–30 词（约 3 句，平均句长约 8 词）\n    词汇层级：最高频 800 词以内，只用具象名词\n    语法范围：新增现在进行时、can / like to、because / so\n    体裁 记叙 100%；主题半径：动物、身体、四季、简单节日；故事出现「先……然后……」的两段式结构\n- A1.3：正文 **目标 140 词**（硬区间 120–160；低于下限或超过上限都判不合格）\n    平均句长 8–10 词；蓝思 300–400L\n    写作标尺：全篇 4 段；每段约 30–40 词（约 4 句，平均句长约 9 词）\n    词汇层级：最高频 800–1000 词\n    语法范围：一般过去时（规则动词 + 约 20 个高频不规则）\n    体裁 记叙 90% / 说明 10%；主题半径：从「我每天做什么」转向「我昨天遇到了什么」；可含极简说明文（一图配五六句话讲一个事实）\n- 本组是入门档，**句子必须短**（这是本组最核心的特征，也是校验最容易不合格的地方）。A1.1 全篇只有 60–90 词、约 12 句，千万不要写长——宁可内容朴素，也不要出现超过 10 词的句子。\n\n【必须自查的两条硬指标】\n① **正文字数**：以规格里的「目标 N 词」为靶心，必须落在硬区间内——**低于下限或超过上限都不合格**。\n  实测最容易犯的错是**超写三成以上**，所以写完先数总词数，超了就删段落细节，不够就补，**定稿再进下一档**。\n② **平均句长 = 正文总词数 ÷ 句子数**，必须落在规格区间内。\n写完每一档后，请自己数一遍总词数与句子数，与规格核对后再输出下一档。\n\n【段落总纲】\n- 这是供英语学习者阅读的完整文章，不是摘要。请围绕事实充分展开：补充背景、成因、过程、细节、影响等。\n- 本组三篇的段落数必须完全一致，均为 4 段。\n- 三个子档的段落数相同，但每段的词数与句法复杂度不同——难度差异靠词汇层级、句法复杂度和句长体现。\n\n【核心要求：段落一一对应（最重要）】\n1. 三个子档正文段数必须完全一致，均为 4 段。\n2. 三个子档的第 i 段必须讲同一个要点（仅语言难度不同）：\n   第 1 段 引入（是什么 / 在哪 / 何时）\n   第 2 至 3 段 展开（核心事实、背景、细节、数字、人名、例子，按材料内容自然分段）\n   第 4 段 收尾（意义 / 现状 / 影响）\n3. 段落大意、顺序、数量一一对应，切换难度不打断理解。\n4. 生词表：每个子档 3–5 个词，格式 \"word — 中文释义\"。\n5. **不要输出标题**，不要在 JSON 里出现 title 字段（标题由上游节点统一给出，见用户消息）。\n\n【事实卡引用标注（必须输出）】\n上方「素材事实」按 1 开始编号。你必须在 JSON 中额外输出 fact_map，标明每一段依据了哪几张事实卡。\n- 每个内层数组对应一档的 4 段，长度必须等于 4\n- 元素是该段所依据的事实卡编号（1-based，按升序排列）\n- 每段至少引用 1 张卡；同一张卡允许多段引用；**三个子档的 fact_map 必须完全一致**\n- 尽量让全部事实卡都被至少一段引用；确实无法纳入的可以不引，系统会标为「未被引用」交人工确认\n\n【输出格式：严格 JSON，只输出一个 JSON 对象，不要 markdown 代码块、不要解释、不要多余文字】\n{\"A1_1\":[\"段1\",...,\"段4\"],\"A1_2\":[...],\"A1_3\":[...],\"words\":{\"A1_1\":[\"word — 中文释义\"],\"A1_2\":[...],\"A1_3\":[...]},\"fact_map\":{\"A1_1\":[[1,2],...,[4]],\"A1_2\":[...],\"A1_3\":[...]}}\n\n【JSON 键名规则】键名里的点号与加号一律写成下划线：A1_1 表示 A1.1，A1_3 表示 A1.3。"
+      },
+      {
+       "role": "user",
+       "text": "标题（必须原样使用，不要另拟）：{{#nodeTitle.text#}}\n主题：{{#nodeClean.summary#}}\n素材事实：\n{{#nodeClean.facts_text#}}\n切入角度：{{#nodeClean.angle#}}\n\n写作风格：{{#nodeStyle.style_instruction#}}\n\n请生成 A1.1 / A1.2 / A1.3 三个子档的段落级对齐文章，输出严格 JSON。"
+      }
+     ],
+     "selected": false,
+     "title": "④-A1 生成（A1.1 / A1.2 / A1.3）",
+     "type": "llm"
+    },
+    "height": 22,
+    "id": "nodeGenA1",
+    "position": {
+     "x": 620,
+     "y": 640.0
+    },
+    "type": "llm",
+    "width": 150,
+    "zIndex": 0,
+    "positionAbsolute": {
+     "x": 620,
+     "y": 640.0
+    }
+   },
+   {
+    "data": {
+     "answer": "",
+     "context": {
+      "enabled": false,
+      "variable_selector": []
+     },
+     "desc": "生成 A2 档三个子档，组内段落级对齐",
+     "model": {
+      "completion_params": {
+       "max_tokens": 4000,
+       "temperature": 0.45,
+       "enable_thinking": false
+      },
+      "mode": "chat",
+      "name": "deepseek-ai/DeepSeek-V4-Flash",
+      "provider": "langgenius/siliconflow/siliconflow"
+     },
+     "prompt_template": [
+      {
+       "role": "system",
+       "text": "你是英语分级阅读作者。基于给定事实，生成 A2 档三个子档位（A2.1、A2.2、A2.3）的文章，三个子档必须段落级一一对应。\n\n【本组三个子档的硬性规格】（逐项达标，任一项显著偏离即视为不合格）\n- A2.1：正文 **目标 180 词**（硬区间 160–200；低于下限或超过上限都判不合格）\n    平均句长 10–12 词；蓝思 400–500L\n    写作标尺：全篇 5 段；每段约 32–40 词（约 3 句，平均句长约 11 词）\n    词汇层级：最高频 1000–1200 词，只用具象名词\n    语法范围：比较级、be going to / will、基础定语从句（who / which）\n    体裁 记叙 60% / 说明 30% / 应用文 10%；主题半径：兴趣爱好、旅行出行、购物、朋友与情绪、运动；有开头—发展—结尾或总分关系\n- A2.2：正文 **目标 225 词**（硬区间 200–250；低于下限或超过上限都判不合格）\n    平均句长 11–13 词；蓝思 500–580L\n    写作标尺：全篇 5 段；每段约 40–50 词（约 4 句，平均句长约 12 词）\n    词汇层级：最高频 1200–1500 词，可含常见具象名词\n    语法范围：现在完成时、情态动词、when / if 状语从句\n    体裁 记叙 50% / 说明 40% / 应用文 10%；主题半径：具象科普——动物为什么冬眠、雨是怎么来的；商业类首次出现，形式是「一个人做一件小生意」的故事\n- A2.3：正文 **目标 275 词**（硬区间 250–300；低于下限或超过上限都判不合格）\n    平均句长 12–14 词；蓝思 580–650L\n    写作标尺：全篇 5 段；每段约 50–60 词（约 4 句，平均句长约 13 词）\n    词汇层级：最高频 1500–1800 词\n    语法范围：初步被动语态、过去进行时\n    体裁 记叙 45% / 说明 45% / 应用文 10%；主题半径：第一次离开读者的直接生活经验——别的国家的人怎么生活、一百年前的人怎么出行、简单中外对比\n- 本组是初级档：句子**不能冗长，但必须落在平均 10–12 词/句**，低于 9 词/句同样判不合格（实测出现过 8.3 词/句）。字数靠「句数够多」而不是「把句子写长」来达标。\n- 篇幅梯度为 **180 / 225 / 275 词**：A2.1 不得少于 170 词、A2.2 不得少于 210 词、A2.3 不得少于 260 词——实测三档都只贴着区间下限，请按标称值写。\n- 词汇不能一味求简单：从 A2.1 起每段至少出现 3 个 7 字母以上的常用词（important / different / interesting / together / because 一类），否则平均词长偏低会让蓝思掉到 300L 以下。\n- ⚠️ **实测本组蓝思系统性偏低 120–150L**（A2.1 只有 277L / 目标 400–500L），**蓝思是硬约束**：请主动提高长词密度与句内信息量，不要为了「简单」把文章写得过于单薄。\n\n【必须自查的两条硬指标】\n① **正文字数**：以规格里的「目标 N 词」为靶心，必须落在硬区间内——**低于下限或超过上限都不合格**。\n  实测最容易犯的错是**超写三成以上**，所以写完先数总词数，超了就删段落细节，不够就补，**定稿再进下一档**。\n② **平均句长 = 正文总词数 ÷ 句子数**，必须落在规格区间内。\n写完每一档后，请自己数一遍总词数与句子数，与规格核对后再输出下一档。\n\n【段落总纲】\n- 这是供英语学习者阅读的完整文章，不是摘要。请围绕事实充分展开：补充背景、成因、过程、细节、影响等。\n- 本组三篇的段落数必须完全一致，均为 5 段。\n- 三个子档的段落数相同，但每段的词数与句法复杂度不同——难度差异靠词汇层级、句法复杂度和句长体现。\n\n【核心要求：段落一一对应（最重要）】\n1. 三个子档正文段数必须完全一致，均为 5 段。\n2. 三个子档的第 i 段必须讲同一个要点（仅语言难度不同）：\n   第 1 段 引入（是什么 / 在哪 / 何时）\n   第 2 至 4 段 展开（核心事实、背景、细节、数字、人名、例子，按材料内容自然分段）\n   第 5 段 收尾（意义 / 现状 / 影响）\n3. 段落大意、顺序、数量一一对应，切换难度不打断理解。\n4. 生词表：每个子档 3–5 个词，格式 \"word — 中文释义\"。\n5. **不要输出标题**，不要在 JSON 里出现 title 字段（标题由上游节点统一给出，见用户消息）。\n\n【事实卡引用标注（必须输出）】\n上方「素材事实」按 1 开始编号。你必须在 JSON 中额外输出 fact_map，标明每一段依据了哪几张事实卡。\n- 每个内层数组对应一档的 5 段，长度必须等于 5\n- 元素是该段所依据的事实卡编号（1-based，按升序排列）\n- 每段至少引用 1 张卡；同一张卡允许多段引用；**三个子档的 fact_map 必须完全一致**\n- 尽量让全部事实卡都被至少一段引用；确实无法纳入的可以不引，系统会标为「未被引用」交人工确认\n\n【输出格式：严格 JSON，只输出一个 JSON 对象，不要 markdown 代码块、不要解释、不要多余文字】\n{\"A2_1\":[\"段1\",...,\"段5\"],\"A2_2\":[...],\"A2_3\":[...],\"words\":{\"A2_1\":[\"word — 中文释义\"],\"A2_2\":[...],\"A2_3\":[...]},\"fact_map\":{\"A2_1\":[[1,2],...,[5]],\"A2_2\":[...],\"A2_3\":[...]}}\n\n【JSON 键名规则】键名里的点号与加号一律写成下划线：A2_1 表示 A2.1，A2_3 表示 A2.3。"
+      },
+      {
+       "role": "user",
+       "text": "标题（必须原样使用，不要另拟）：{{#nodeTitle.text#}}\n主题：{{#nodeClean.summary#}}\n素材事实：\n{{#nodeClean.facts_text#}}\n切入角度：{{#nodeClean.angle#}}\n\n写作风格：{{#nodeStyle.style_instruction#}}\n\n请生成 A2.1 / A2.2 / A2.3 三个子档的段落级对齐文章，输出严格 JSON。"
+      }
+     ],
+     "selected": false,
+     "title": "④-A2 生成（A2.1 / A2.2 / A2.3）",
+     "type": "llm"
+    },
+    "height": 22,
+    "id": "nodeGenA2",
+    "position": {
+     "x": 620,
+     "y": 820.0
+    },
+    "type": "llm",
+    "width": 150,
+    "zIndex": 0,
+    "positionAbsolute": {
+     "x": 620,
+     "y": 820.0
+    }
+   },
+   {
+    "data": {
+     "answer": "",
+     "context": {
+      "enabled": false,
+      "variable_selector": []
+     },
+     "desc": "生成 B1 档三个子档，组内段落级对齐",
+     "model": {
+      "completion_params": {
+       "max_tokens": 6000,
+       "temperature": 0.45,
+       "enable_thinking": false
+      },
+      "mode": "chat",
+      "name": "deepseek-ai/DeepSeek-V4-Flash",
+      "provider": "langgenius/siliconflow/siliconflow"
+     },
+     "prompt_template": [
+      {
+       "role": "system",
+       "text": "你是英语分级阅读作者。基于给定事实，生成 B1 档三个子档位（B1.1、B1.2、B1.3）的文章，三个子档必须段落级一一对应。\n\n【本组三个子档的硬性规格】（逐项达标，任一项显著偏离即视为不合格）\n- B1.1：正文 **目标 340 词**（硬区间 300–380；低于下限或超过上限都判不合格）\n    平均句长 13–15 词；蓝思 650–720L\n    写作标尺：全篇 6 段；每段约 50–63 词（约 4 句，平均句长约 14 词）\n    词汇层级：最高频 2000–2500 词，开始出现常见抽象名词（method / issue / benefit 一类）\n    语法范围：被动语态、宾语从句、动名词与不定式作主宾语\n    体裁 说明议论 55% / 记叙 30% / 应用说明 15%；主题半径：科技产品、环境与可持续、学习方法与心理学、求职与办公入门；阅读目的从「练英文」转向「知道点什么」\n- B1.2：正文 **目标 415 词**（硬区间 380–450；低于下限或超过上限都判不合格）\n    平均句长 15–17 词；蓝思 720–800L\n    写作标尺：全篇 6 段；每段约 63–75 词（约 4 句，平均句长约 16 词）\n    词汇层级：最高频 2500–3000 词，可含常见抽象名词与轻学术词\n    语法范围：条件句 I / II、现在完成进行时、非限定性定语从句\n    体裁 议论 ≥25%，其余以说明为主；主题半径：社会现象、创业与商业常识、健康科学；首次出现明确的作者立场，不只是陈述事实\n- B1.3：正文 **目标 500 词**（硬区间 450–550；低于下限或超过上限都判不合格）\n    平均句长 16–18 词；蓝思 800–880L\n    写作标尺：全篇 6 段；每段约 75–92 词（约 5 句，平均句长约 17 词）\n    词汇层级：最高频 3000 词，可含轻学术词与报道性动词\n    语法范围：过去完成时、报道性动词（claim / argue / suggest）、分词短语作状语\n    体裁 议论为主，辅以叙事与说明；主题半径：人物故事、事件复盘、深度一点的文化对比；选题吸引力要压过语言难度\n- 本组三个子档篇幅梯度为 **340 / 410 / 500 词**，这是下限概念：B1.1 不得少于 310 词、B1.2 不得少于 390 词、B1.3 不得少于 460 词。模型习惯少写约 20%，请按标称值写，宁多勿少。\n- **本组最容易整体失分的地方是「写得像 A2」**：实测曾出现 B1.1 只写 275 词、平均句长 11 词/句（规格 13–15），估算蓝思只有 377L，远低于 650L 下限，直接判不合格。所以 B1.1 也必须用足中级句法与抽象名词（method / issue / benefit / pressure 一类），**先把每句平均写到 13 个词以上，再让总词数达标**。\n- ⚠️ **反向也要防（实测硬失败点）**：B1.2 / B1.3 出现过平均句长 21–24 词/句（规格 15–17），估算蓝思冲到 1027L / 1172L，超出本档上限直接判不合格。**定稿前把超过 22 词的句子拆成两句**；本档的难度升级靠「词汇层级 + 从句类型」，**不要靠无限加长单个句子**。\n\n【必须自查的两条硬指标】\n① **正文字数**：以规格里的「目标 N 词」为靶心，必须落在硬区间内——**低于下限或超过上限都不合格**。\n  实测最容易犯的错是**超写三成以上**，所以写完先数总词数，超了就删段落细节，不够就补，**定稿再进下一档**。\n② **平均句长 = 正文总词数 ÷ 句子数**，必须落在规格区间内。\n写完每一档后，请自己数一遍总词数与句子数，与规格核对后再输出下一档。\n\n【段落总纲】\n- 这是供英语学习者阅读的完整文章，不是摘要。请围绕事实充分展开：补充背景、成因、过程、细节、影响等。\n- 本组三篇的段落数必须完全一致，均为 6 段。\n- 三个子档的段落数相同，但每段的词数与句法复杂度不同——难度差异靠词汇层级、句法复杂度和句长体现。\n\n【核心要求：段落一一对应（最重要）】\n1. 三个子档正文段数必须完全一致，均为 6 段。\n2. 三个子档的第 i 段必须讲同一个要点（仅语言难度不同）：\n   第 1 段 引入（是什么 / 在哪 / 何时）\n   第 2 至 5 段 展开（核心事实、背景、细节、数字、人名、例子，按材料内容自然分段）\n   第 6 段 收尾（意义 / 现状 / 影响）\n3. 段落大意、顺序、数量一一对应，切换难度不打断理解。\n4. 生词表：每个子档 3–5 个词，格式 \"word — 中文释义\"。\n5. **不要输出标题**，不要在 JSON 里出现 title 字段（标题由上游节点统一给出，见用户消息）。\n\n【事实卡引用标注（必须输出）】\n上方「素材事实」按 1 开始编号。你必须在 JSON 中额外输出 fact_map，标明每一段依据了哪几张事实卡。\n- 每个内层数组对应一档的 6 段，长度必须等于 6\n- 元素是该段所依据的事实卡编号（1-based，按升序排列）\n- 每段至少引用 1 张卡；同一张卡允许多段引用；**三个子档的 fact_map 必须完全一致**\n- 尽量让全部事实卡都被至少一段引用；确实无法纳入的可以不引，系统会标为「未被引用」交人工确认\n\n【输出格式：严格 JSON，只输出一个 JSON 对象，不要 markdown 代码块、不要解释、不要多余文字】\n{\"B1_1\":[\"段1\",...,\"段6\"],\"B1_2\":[...],\"B1_3\":[...],\"words\":{\"B1_1\":[\"word — 中文释义\"],\"B1_2\":[...],\"B1_3\":[...]},\"fact_map\":{\"B1_1\":[[1,2],...,[6]],\"B1_2\":[...],\"B1_3\":[...]}}\n\n【JSON 键名规则】键名里的点号与加号一律写成下划线：B1_1 表示 B1.1，B1_3 表示 B1.3。"
+      },
+      {
+       "role": "user",
+       "text": "标题（必须原样使用，不要另拟）：{{#nodeTitle.text#}}\n主题：{{#nodeClean.summary#}}\n素材事实：\n{{#nodeClean.facts_text#}}\n切入角度：{{#nodeClean.angle#}}\n\n写作风格：{{#nodeStyle.style_instruction#}}\n\n请生成 B1.1 / B1.2 / B1.3 三个子档的段落级对齐文章，输出严格 JSON。"
+      }
+     ],
+     "selected": false,
+     "title": "④-B1 生成（B1.1 / B1.2 / B1.3）",
+     "type": "llm"
+    },
+    "height": 22,
+    "id": "nodeGenB1",
+    "position": {
+     "x": 620,
+     "y": 1000.0
+    },
+    "type": "llm",
+    "width": 150,
+    "zIndex": 0,
+    "positionAbsolute": {
+     "x": 620,
+     "y": 1000.0
+    }
+   },
+   {
+    "data": {
+     "answer": "",
+     "context": {
+      "enabled": false,
+      "variable_selector": []
+     },
+     "desc": "生成 B2+ 档三个子档，组内段落级对齐",
+     "model": {
+      "completion_params": {
+       "max_tokens": 12000,
+       "temperature": 0.45,
+       "enable_thinking": false
+      },
+      "mode": "chat",
+      "name": "deepseek-ai/DeepSeek-V4-Flash",
+      "provider": "langgenius/siliconflow/siliconflow"
+     },
+     "prompt_template": [
+      {
+       "role": "system",
+       "text": "你是英语分级阅读作者。基于给定事实，生成 B2+ 档三个子档位（B2+.1、B2+.2、B2+.3）的文章，三个子档必须段落级一一对应。\n\n【本组三个子档的硬性规格】（逐项达标，任一项显著偏离即视为不合格）\n- B2+.1：正文 **目标 625 词**（硬区间 550–700；低于下限或超过上限都判不合格）\n    平均句长 18–21 词；蓝思 880–1000L\n    写作标尺：全篇 8 段；每段约 69–88 词（约 4 句，平均句长约 20 词）\n    词汇层级：AWL 学术词密度 4–6%\n    语法范围：名词化密度上升、hedging（tends to / it is likely that）、倒装、多重从句嵌套\n    体裁 新闻特写与说明性长文为主，议论约 30%；主题半径：主流媒体的解释性报道与商业案例——AI 与就业、气候政策、公司兴衰、消费行为、健康科学\n- B2+.2：正文 **目标 800 词**（硬区间 700–900；低于下限或超过上限都判不合格）\n    平均句长 20–23 词；蓝思 1000–1120L\n    写作标尺：全篇 8 段；每段约 88–112 词（约 5 句，平均句长约 22 词）\n    词汇层级：AWL 学术词密度 6–8%\n    语法范围：反讽、隐喻、让步结构与显性的作者声音\n    体裁 评论、书评、长篇特稿、研究综述科普版；主题半径：有真实争议、有多方立场的议题——媒体信任、教育公平、算法伦理、老龄化与移民、全球供应链\n- B2+.3：正文 **目标 1050 词**（硬区间 900–1200；低于下限或超过上限都判不合格）\n    平均句长 22–26 词；蓝思 1120–1300L\n    写作标尺：全篇 8 段；每段约 112–150 词（约 5 句，平均句长约 24 词）\n    词汇层级：AWL 学术词密度 8–10%\n    语法范围：句法复杂度与词汇抽象度同时到顶\n    体裁 抽象论证与文学性非虚构为主；主题半径：抽象论证、跨领域引用、文学性非虚构、当代思想散文、学术论文的引言与讨论部分\n- 本组三个子档的篇幅必须拉出梯度且各自**双向达标**：B2+.1 约 620 词、B2+.2 约 800 词、B2+.3 控制在 900–1200 词之间。既不要三个都写到 800 词左右就收尾，**也不要把 B2+.3 写成 1500 词以上**——上限同样是不合格项。\n- ⚠️ **实测本组系统性偏短**：B2+.1 仅 589 词、B2+.2 仅 658 词（目标 700–900）、B2+.3 仅 758 词（目标 900–1200），三档全部掉到区间下限之外。**请按标称值 620 / 800 / 1050 写足**，逐段把内容补够，不要提前收尾。\n\n【必须自查的两条硬指标】\n① **正文字数**：以规格里的「目标 N 词」为靶心，必须落在硬区间内——**低于下限或超过上限都不合格**。\n  实测最容易犯的错是**超写三成以上**，所以写完先数总词数，超了就删段落细节，不够就补，**定稿再进下一档**。\n② **平均句长 = 正文总词数 ÷ 句子数**，必须落在规格区间内。\n写完每一档后，请自己数一遍总词数与句子数，与规格核对后再输出下一档。\n\n【段落总纲】\n- 这是供英语学习者阅读的完整文章，不是摘要。请围绕事实充分展开：补充背景、成因、过程、细节、影响等。\n- 本组三篇的段落数必须完全一致，均为 8 段。\n- 三个子档的段落数相同，但每段的词数与句法复杂度不同——难度差异靠词汇层级、句法复杂度和句长体现。\n\n【核心要求：段落一一对应（最重要）】\n1. 三个子档正文段数必须完全一致，均为 8 段。\n2. 三个子档的第 i 段必须讲同一个要点（仅语言难度不同）：\n   第 1 段 引入（是什么 / 在哪 / 何时）\n   第 2 至 7 段 展开（核心事实、背景、细节、数字、人名、例子，按材料内容自然分段）\n   第 8 段 收尾（意义 / 现状 / 影响）\n3. 段落大意、顺序、数量一一对应，切换难度不打断理解。\n4. 生词表：每个子档 3–5 个词，格式 \"word — 中文释义\"。\n5. **不要输出标题**，不要在 JSON 里出现 title 字段（标题由上游节点统一给出，见用户消息）。\n\n【事实卡引用标注（必须输出）】\n上方「素材事实」按 1 开始编号。你必须在 JSON 中额外输出 fact_map，标明每一段依据了哪几张事实卡。\n- 每个内层数组对应一档的 8 段，长度必须等于 8\n- 元素是该段所依据的事实卡编号（1-based，按升序排列）\n- 每段至少引用 1 张卡；同一张卡允许多段引用；**三个子档的 fact_map 必须完全一致**\n- 尽量让全部事实卡都被至少一段引用；确实无法纳入的可以不引，系统会标为「未被引用」交人工确认\n\n【输出格式：严格 JSON，只输出一个 JSON 对象，不要 markdown 代码块、不要解释、不要多余文字】\n{\"B2P_1\":[\"段1\",...,\"段8\"],\"B2P_2\":[...],\"B2P_3\":[...],\"words\":{\"B2P_1\":[\"word — 中文释义\"],\"B2P_2\":[...],\"B2P_3\":[...]},\"fact_map\":{\"B2P_1\":[[1,2],...,[8]],\"B2P_2\":[...],\"B2P_3\":[...]}}\n\n【JSON 键名规则】键名里的点号与加号一律写成下划线：B2P_1 表示 B2+.1，B2P_3 表示 B2+.3。"
+      },
+      {
+       "role": "user",
+       "text": "标题（必须原样使用，不要另拟）：{{#nodeTitle.text#}}\n主题：{{#nodeClean.summary#}}\n素材事实：\n{{#nodeClean.facts_text#}}\n切入角度：{{#nodeClean.angle#}}\n\n写作风格：{{#nodeStyle.style_instruction#}}\n\n请生成 B2+.1 / B2+.2 / B2+.3 三个子档的段落级对齐文章，输出严格 JSON。"
+      }
+     ],
+     "selected": false,
+     "title": "④-B2+ 生成（B2+.1 / B2+.2 / B2+.3）",
+     "type": "llm"
+    },
+    "height": 22,
+    "id": "nodeGenB2p",
+    "position": {
+     "x": 620,
+     "y": 1180.0
+    },
+    "type": "llm",
+    "width": 150,
+    "zIndex": 0,
+    "positionAbsolute": {
+     "x": 620,
+     "y": 1180.0
+    }
+   },
+   {
+    "data": {
+     "code": "function main({ t_a1, t_a2, t_b1, t_b2p, title_in, fact_json, clean_level, clean_level_big, clean_angle, clean_sensitive }) {\n  const strip = (t) => String(t || '').replace(/<think>[\\s\\S]*?<\\/think>/g, '').trim();\n  const parseJSON = (t) => {\n    const s = strip(t).replace(/```json|```/g, '');\n    const m = s.match(/\\{[\\s\\S]*\\}/);\n    if (!m) return {};\n    try { return JSON.parse(m[0]); } catch (e) { return {}; }\n  };\n  const DISPLAY = {\n    A1_1:'A1.1',A1_2:'A1.2',A1_3:'A1.3',\n    A2_1:'A2.1',A2_2:'A2.2',A2_3:'A2.3',\n    B1_1:'B1.1',B1_2:'B1.2',B1_3:'B1.3',\n    B2P_1:'B2+.1',B2P_2:'B2+.2',B2P_3:'B2+.3'\n  };\n  const BIGOF = {\n    A1_1:'A1',A1_2:'A1',A1_3:'A1',\n    A2_1:'A2',A2_2:'A2',A2_3:'A2',\n    B1_1:'B1',B1_2:'B1',B1_3:'B1',\n    B2P_1:'B2+',B2P_2:'B2+',B2P_3:'B2+'\n  };\n  const GROUP_KEYS = [['A1_1','A1_2','A1_3'],['A2_1','A2_2','A2_3'],['B1_1','B1_2','B1_3'],['B2P_1','B2P_2','B2P_3']];\n  const RAW = { A1_1: t_a1, A2_1: t_a2, B1_1: t_b1, B2P_1: t_b2p };\n  const ALL = [];\n  GROUP_KEYS.forEach((g) => g.forEach((k) => ALL.push(k)));\n\n  const paras = {}, words = {}, factMaps = {}, raw_missing = [];\n  GROUP_KEYS.forEach((g) => {\n    const o = parseJSON(RAW[g[0]]);\n    if (!Object.keys(o).length) raw_missing.push(DISPLAY[g[0]].slice(0, 2));\n    g.forEach((k) => {\n      const arr = (Array.isArray(o[k]) ? o[k] : []).map((p) => String(p || '').trim()).filter(Boolean);\n      paras[k] = arr;\n      const w = (o.words && Array.isArray(o.words[k])) ? o.words[k] : [];\n      words[k] = w.map((x) => String(x).trim()).filter(Boolean);\n      if (o.fact_map && Array.isArray(o.fact_map[k])) factMaps[k] = o.fact_map[k];\n      else if (o.fact_map && Array.isArray(o.fact_map[k.replace('P_', '+_')])) factMaps[k] = o.fact_map[k.replace('P_', '+_')];\n    });\n  });\n\n  const title = (function () {\n    const t = String(title_in || '').split(/\\r?\\n/).map((x) => x.trim()).filter(Boolean)[0] || '';\n    return t.replace(/^#+\\s*/, '').replace(/^Title:\\s*/i, '').replace(/^[\"'\\u201c\\u201d\\u2018\\u2019]+|[\"'\\u201c\\u201d\\u2018\\u2019.]+$/g, '').trim() || 'Graded Reading';\n  })();\n\n  const articles = {}, plain = {};\n  ALL.forEach((k) => {\n    const vocab = (words[k] || []).join('\\n');\n    plain[k] = (paras[k] || []).join('\\n\\n');\n    articles[k] = '# ' + title + '\\n\\n' + plain[k] + (vocab ? '\\n\\nWords and Expressions\\n' + vocab : '');\n  });\n  const quiz_source = ALL.map((k) => '=== ' + k + ' ===\\n' + (plain[k] || '(EMPTY)')).join('\\n\\n');\n\n  const fact = parseJSON(fact_json);\n  const factList = Array.isArray(fact.facts) ? fact.facts : [];\n  const fact_count = factList.length;\n  const normalizeMap = (raw, n) => {\n    const out = [];\n    for (let i = 0; i < n; i++) {\n      const ids = Array.isArray(raw && raw[i]) ? raw[i] : [];\n      const clean = ids.map((x) => parseInt(x, 10)).filter((x) => x >= 1 && x <= fact_count);\n      out.push(clean.sort((a, b) => a - b));\n    }\n    return out;\n  };\n  let fact_map = null, unused_facts = [], map_warn = [];\n  try {\n    if (fact_count > 0) {\n      fact_map = {};\n      const raw_map = {};\n      ALL.forEach((k) => { raw_map[k] = normalizeMap(factMaps[k], (paras[k] || []).length); });\n      /* 组内三档「段落一一对应」，事实卡绑定本应完全一致。\n         模型偶有分歧，以组内第一个非空映射为准统一，并留下告警供人工确认。 */\n      const size = (m) => (m || []).reduce((s, ids) => s + (ids ? ids.length : 0), 0);\n      GROUP_KEYS.forEach((g) => {\n        let ref = null;\n        for (let i = 0; i < g.length; i++) { if (size(raw_map[g[i]]) > 0) { ref = raw_map[g[i]]; break; } }\n        if (!ref) ref = raw_map[g[0]];\n        g.forEach((k) => {\n          fact_map[k] = ref;\n          if (size(raw_map[k]) > 0 && JSON.stringify(raw_map[k]) !== JSON.stringify(ref)) {\n            map_warn.push(g[0].slice(0, 2) + ' 组内 fact_map 不一致（已统一按 ' + DISPLAY[g[0]] + '）');\n          }\n        });\n      });\n      const used = {};\n      ALL.forEach((k) => fact_map[k].forEach((ids) => ids.forEach((n) => { used[n] = 1; })));\n      for (let i = 1; i <= fact_count; i++) { if (!used[i]) unused_facts.push(i); }\n    }\n  } catch (e) { fact_map = null; unused_facts = []; }\n\n  const lengths = {};\n  ALL.forEach((k) => {\n    const t = plain[k] || '';\n    lengths[k] = { display: DISPLAY[k], big: BIGOF[k], words: (t.match(/[A-Za-z0-9'-]+/g) || []).length, paras: (paras[k] || []).length };\n  });\n\n  const identity = {\n    theme: fact.summary || '', angle: clean_angle || '', level: clean_level || '', level_big: clean_level_big || '',\n    sensitive: clean_sensitive || '', shelf: '30天', fit: '泛听/精读',\n    provenance: (fact.sources || []).join('; ') || '用户提供素材',\n    generated_at: new Date().toISOString(), model: 'deepseek-v4-pro', reviewer: '待人工审核'\n  };\n\n  /* ── 过渡期兼容别名：老前端只认 article_a2/b1/b2 与 paras_a2/b1/b2，\n        取各档中间子档（A2.2 / B1.2 / B2+.2）顶上，前端切档后即可移除 ── */\n  const LEG = { a2: 'A2_2', b1: 'B1_2', b2: 'B2P_2' };\n  const legacy = {};\n  Object.keys(LEG).forEach((k) => {\n    legacy['article_' + k] = articles[LEG[k]] || '';\n    legacy['paras_' + k] = JSON.stringify(paras[LEG[k]] || []);\n  });\n\n  return {\n    title: title,\n    articles_json: JSON.stringify(articles),\n    paras_json: JSON.stringify(paras),\n    words_json: JSON.stringify(words),\n    quiz_source: quiz_source,\n    levels_meta: JSON.stringify(lengths),\n    fact_map: fact_map ? JSON.stringify(fact_map) : '',\n    unused_facts: JSON.stringify(unused_facts),\n    fact_count: fact_count,\n    map_warn: map_warn.join('；'),\n    raw_missing: raw_missing.join('/'),\n    para_count: JSON.stringify(Object.keys(lengths).reduce((a, k) => { a[k] = lengths[k].paras; return a; }, {})),\n    identity_json: JSON.stringify(identity, null, 2),\n    summary: fact.summary || '',\n    facts_json: JSON.stringify(fact.facts || [], null, 2),\n    article_a2: legacy.article_a2, article_b1: legacy.article_b1, article_b2: legacy.article_b2,\n    paras_a2: legacy.paras_a2, paras_b1: legacy.paras_b1, paras_b2: legacy.paras_b2\n  };\n}",
+     "desc": "聚合四个大档共 12 子档，输出 articles/paras/levels_meta 与身份记录",
+     "code_language": "javascript",
+     "outputs": {
+      "title": {
+       "children": null,
+       "type": "string"
+      },
+      "articles_json": {
+       "children": null,
+       "type": "string"
+      },
+      "paras_json": {
+       "children": null,
+       "type": "string"
+      },
+      "words_json": {
+       "children": null,
+       "type": "string"
+      },
+      "quiz_source": {
+       "children": null,
+       "type": "string"
+      },
+      "levels_meta": {
+       "children": null,
+       "type": "string"
+      },
+      "fact_map": {
+       "children": null,
+       "type": "string"
+      },
+      "unused_facts": {
+       "children": null,
+       "type": "string"
+      },
+      "fact_count": {
+       "children": null,
+       "type": "number"
+      },
+      "map_warn": {
+       "children": null,
+       "type": "string"
+      },
+      "raw_missing": {
+       "children": null,
+       "type": "string"
+      },
+      "para_count": {
+       "children": null,
+       "type": "string"
+      },
+      "identity_json": {
+       "children": null,
+       "type": "string"
+      },
+      "summary": {
+       "children": null,
+       "type": "string"
+      },
+      "facts_json": {
+       "children": null,
+       "type": "string"
+      },
+      "article_a2": {
+       "children": null,
+       "type": "string"
+      },
+      "article_b1": {
+       "children": null,
+       "type": "string"
+      },
+      "article_b2": {
+       "children": null,
+       "type": "string"
+      },
+      "paras_a2": {
+       "children": null,
+       "type": "string"
+      },
+      "paras_b1": {
+       "children": null,
+       "type": "string"
+      },
+      "paras_b2": {
+       "children": null,
+       "type": "string"
+      }
+     },
+     "selected": false,
+     "title": "⑤ 聚合+身份记录",
+     "type": "code",
+     "variables": [
+      {
+       "variable": "t_a1",
+       "value_selector": [
+        "nodeGenA1",
+        "text"
+       ]
+      },
+      {
+       "variable": "t_a2",
+       "value_selector": [
+        "nodeGenA2",
+        "text"
+       ]
+      },
+      {
+       "variable": "t_b1",
+       "value_selector": [
+        "nodeGenB1",
+        "text"
+       ]
+      },
+      {
+       "variable": "t_b2p",
+       "value_selector": [
+        "nodeGenB2p",
+        "text"
+       ]
+      },
+      {
+       "variable": "title_in",
+       "value_selector": [
+        "nodeTitle",
+        "text"
+       ]
+      },
+      {
+       "variable": "fact_json",
+       "value_selector": [
+        "nodeClean",
+        "facts_raw"
+       ]
+      },
+      {
+       "variable": "clean_level",
+       "value_selector": [
+        "nodeClean",
+        "level"
+       ]
+      },
+      {
+       "variable": "clean_level_big",
+       "value_selector": [
+        "nodeClean",
+        "level_big"
+       ]
+      },
+      {
+       "variable": "clean_angle",
+       "value_selector": [
+        "nodeClean",
+        "angle"
+       ]
+      },
+      {
+       "variable": "clean_sensitive",
+       "value_selector": [
+        "nodeClean",
+        "sensitive"
+       ]
+      }
+     ]
+    },
+    "height": 22,
+    "id": "nodeAgg",
+    "position": {
+     "x": 1860,
+     "y": 780.0
+    },
+    "type": "code",
+    "width": 150,
+    "zIndex": 0,
+    "positionAbsolute": {
+     "x": 1860,
+     "y": 780.0
+    }
+   },
+   {
+    "data": {
+     "answer": "",
+     "context": {
+      "enabled": false,
+      "variable_selector": []
+     },
+     "desc": "按新标准四类题型（语言/文本/逻辑/认知）逐档出题，含解析与 B2+.3 背景导读",
+     "model": {
+      "completion_params": {
+       "max_tokens": 12000,
+       "temperature": 0.6,
+       "enable_thinking": false
+      },
+      "mode": "chat",
+      "name": "deepseek-ai/DeepSeek-V4-Flash",
+      "provider": "langgenius/siliconflow/siliconflow"
+     },
+     "prompt_template": [
+      {
+       "role": "system",
+       "text": "You are an English reading assessment designer. For EACH of the 12 sub-levels below, write exactly 3 exercises based ONLY on that sub-level's article.\n\n[Question types - four categories]\n- \"language\": tests vocabulary / grammar itself - word meaning in context, reference (what does \"it\" refer to), guessing meaning from context.\n- \"text\": tests information in the passage - locating details, sequence, main idea, cross-paragraph integration.\n- \"logic\": tests reasoning and argument structure - single-step cause/effect, one-step inference, telling a claim apart from its support.\n- \"cognitive\": tests stance and hidden premises - the author's attitude, mapping where each side stands, implicit assumptions. It must NOT ask \"what does the passage say\".\n\n[Mandatory type mix per sub-level - exactly 3 questions each]\nA1_1: language 2, text 1               (NO logic, NO cognitive)\nA1_2: language 1, text 2               (NO logic, NO cognitive)\nA1_3: language 1, text 1, logic 1      (logic = single-step cause/effect explicitly signposted in the text)\nA2_1: language 1, text 2\nA2_2: language 1, text 1, logic 1\nA2_3: language 1, text 1, logic 1      (logic requires one inference step - the answer is NOT stated verbatim)\nB1_1: language 1, text 1, logic 1\nB1_2: language 1, logic 1, cognitive 1 (cognitive appears for the first time - ask about the author's attitude)\nB1_3: text 1, logic 1, cognitive 1     (NO language question at this level)\nB2P_1: text 1, logic 2\nB2P_2: logic 1, cognitive 2\nB2P_3: logic 1, cognitive 2\n\n[Difficulty scaling - the question wording must match the sub-level's own article]\n- A1.x / A2.x: very short stems, high-frequency words, distractors clearly wrong.\n- B1.x: stems may contain one subordinate clause; distractors moderately confusing.\n- B2+.x: may rely on synonym replacement, hedging and inference; distractors need careful discrimination. At B2+.3 the options differ in the QUALITY of interpretation rather than being simply right/wrong.\n\n[Explanation - mandatory for every question]\n\"explain\" must be written in CHINESE, 1-3 sentences, saying why the key is correct AND why the single most tempting distractor is wrong. At B2+.3 the explanation is more important than the option itself, so make it genuinely explanatory.\n\n[B2+.3 background guide - mandatory]\nAlso produce a Chinese \"背景导读\" for B2P_3. It is NOT a vocabulary note. It must state the prior knowledge a reader has to already have in order to read that piece: the debate it sits inside, the key concepts it assumes, and the cultural context it takes for granted.\n\n[Output format: STRICT JSON only - one JSON object, no markdown code block, no explanation, no extra text]\n{\"levels\":{\"A1_1\":[{\"type\":\"language\",\"q\":\"...\",\"options\":[\"A\",\"B\",\"C\",\"D\"],\"answer\":0,\"explain\":\"...\"},{\"type\":\"text\",\"q\":\"...\",\"options\":[\"A\",\"B\",\"C\",\"D\"],\"answer\":1,\"explain\":\"...\"},{\"type\":\"language\",\"q\":\"...\",\"options\":[\"A\",\"B\",\"C\",\"D\"],\"answer\":2,\"explain\":\"...\"}],\"A1_2\":[...],\"A1_3\":[...],\"A2_1\":[...],\"A2_2\":[...],\"A2_3\":[...],\"B1_1\":[...],\"B1_2\":[...],\"B1_3\":[...],\"B2P_1\":[...],\"B2P_2\":[...],\"B2P_3\":[...]},\"guide\":{\"B2P_3\":\"...\"}}\n\nRules for the JSON:\n- \"answer\" is the zero-based index of the correct option.\n- \"type\" must be exactly one of: language, text, logic, cognitive.\n- Question stems and options must be entirely in ENGLISH. Only \"explain\" and the guide are in Chinese.\n- JSON keys use an underscore instead of a dot or plus sign: A1_1 means A1.1, B2P_1 means B2+.1.\n- All 12 level keys must be present, each with exactly 3 questions in the mandated type mix."
+      },
+      {
+       "role": "user",
+       "text": "The 12 graded articles follow. Each block starts with === LEVEL_KEY ===.\n\n{{#nodeAgg.quiz_source#}}\n\nWrite exactly 3 exercises for each of the 12 sub-levels, in the mandated type mix, plus the Chinese background guide for B2P_3. Output strict JSON only."
+      }
+     ],
+     "selected": false,
+     "title": "⑥ 练习题生成（12 档 × 3 题）",
+     "type": "llm"
+    },
+    "height": 22,
+    "id": "nodeQuiz",
+    "position": {
+     "x": 1240,
+     "y": 1000.0
+    },
+    "positionAbsolute": {
+     "x": 1240,
+     "y": 1000.0
+    },
+    "type": "llm",
+    "width": 150,
+    "zIndex": 0
+   },
+   {
+    "id": "nodeValidate",
+    "position": {
+     "x": 1240,
+     "y": 780.0
+    },
+    "data": {
+     "type": "code",
+     "title": "⑦ 8 项校验 × 12 档",
+     "desc": "逐档校验长度/句长/蓝思(估算)/敏感/事实/语言纯净/身份/署名，共 96 项",
+     "selected": false,
+     "code": "function main({ articles_json, plain_json, factcard, identity }) {\n  const SPEC = {\n    A1_1: [60, 90, -1000, 200, 5, 7], A1_2: [90, 120, 200, 300, 7, 9], A1_3: [120, 160, 300, 400, 8, 10],\n    A2_1: [160, 200, 400, 500, 10, 12], A2_2: [200, 250, 500, 580, 11, 13], A2_3: [250, 300, 580, 650, 12, 14],\n    B1_1: [300, 380, 650, 720, 13, 15], B1_2: [380, 450, 720, 800, 15, 17], B1_3: [450, 550, 800, 880, 16, 18],\n    B2P_1: [550, 700, 880, 1000, 18, 21], B2P_2: [700, 900, 1000, 1120, 20, 23], B2P_3: [900, 1200, 1120, 1300, 22, 26]\n  };\n  const LABEL = {\n    A1_1: 'A1.1', A1_2: 'A1.2', A1_3: 'A1.3', A2_1: 'A2.1', A2_2: 'A2.2', A2_3: 'A2.3',\n    B1_1: 'B1.1', B1_2: 'B1.2', B1_3: 'B1.3', B2P_1: 'B2+.1', B2P_2: 'B2+.2', B2P_3: 'B2+.3'\n  };\n  const ALL = ['A1_1','A1_2','A1_3','A2_1','A2_2','A2_3','B1_1','B1_2','B1_3','B2P_1','B2P_2','B2P_3'];\n  const words = (t) => (String(t || '').match(/[A-Za-z0-9'-]+/g) || []).length;\n  const JS = (t, d) => { try { const v = JSON.parse(t || ''); return (v && typeof v === 'object') ? v : d; } catch (e) { return d; } };\n  const body = JS(plain_json, {});\n  const full = JS(articles_json, {});\n\n  /* 蓝思估算：est = 45×平均句长 + 1500×长词占比(≥7字符) − 350\n     系数由 12 档真实生成文本对目标区间做最小二乘标定得到（RMSE ≈ 45L，覆盖 100–1300L）。\n     仍非 MetaMetrics 官方值，仅作档位一致性参考。 */\n  const estLexile = (t) => {\n    const ws = String(t || '').match(/[A-Za-z'-]+/g) || [];\n    if (!ws.length) return 0;\n    const n = ws.length;\n    const lng = ws.filter((w) => w.length >= 7).length;\n    const st = Math.max(1, (String(t).match(/[.!?]+/g) || []).length);\n    return Math.round(45 * (n / st) + 1500 * (lng / n) - 350);\n  };\n\n  const validate = (key, article) => {\n    const checks = [], fails = [];\n    const [lo, hi, lxlo, lxhi, slo, shi] = SPEC[key];\n    const wc = words(article);\n    if (wc < lo * 0.75 || wc > hi * 1.35) {\n      fails.push('长度校验: 词数 ' + wc + '，' + LABEL[key] + ' 应为 ' + lo + '-' + hi);\n      checks.push({ name: '长度校验', status: 'fail', detail: wc + ' 词' });\n    } else {\n      const okIn = (wc >= lo * 0.95 && wc <= hi * 1.1);\n      checks.push({ name: '长度校验', status: okIn ? 'pass' : 'warn', detail: wc + ' 词（' + lo + '-' + hi + '）' });\n    }\n    const st = Math.max(1, (String(article || '').match(/[.!?]+/g) || []).length);\n    const msl = wc / st;\n    if (msl < slo * 0.75 || msl > shi * 1.3) {\n      fails.push('句长校验: 平均句长 ' + msl.toFixed(1) + ' 词，' + LABEL[key] + ' 应为 ' + slo + '-' + shi);\n      checks.push({ name: '句长校验', status: 'fail', detail: msl.toFixed(1) + ' 词/句' });\n    } else {\n      const okIn = (msl >= slo * 0.9 && msl <= shi * 1.1);\n      checks.push({ name: '句长校验', status: okIn ? 'pass' : 'warn', detail: msl.toFixed(1) + ' 词/句（' + slo + '-' + shi + '）' });\n    }\n    const lex = estLexile(article);\n    const pLo = (lxlo > 0 ? lxlo * 0.80 : lxlo) - 80, pHi = lxhi * 1.20 + 80;\n    if (lex < pLo || lex > pHi) {\n      fails.push('蓝思校验: 估算 ' + lex + 'L，' + LABEL[key] + ' 应为 ' + (lxlo > 0 ? lxlo + '-' + lxhi : 'BR-' + lxhi) + 'L');\n      checks.push({ name: '蓝思校验', status: 'fail', detail: '估算 ' + lex + 'L' });\n    } else {\n      const okIn = (lxlo <= 0 || lex >= lxlo * 0.90) && lex <= lxhi * 1.10;\n      checks.push({ name: '蓝思校验', status: okIn ? 'pass' : 'warn', detail: '估算 ' + lex + 'L（' + (lxlo > 0 ? lxlo + '-' + lxhi : 'BR-' + lxhi) + 'L）' });\n    }\n    const sensWords = ['分裂', '血腥', '赌博', '毒品', '色情', '种族歧视', '遇难者隐私'];\n    const hits = sensWords.filter((w) => String(article || '').includes(w));\n    if (hits.length) {\n      fails.push('敏感排查: 命中 ' + hits.join('/'));\n      checks.push({ name: '敏感排查', status: 'fail', detail: hits.join('/') });\n    } else {\n      checks.push({ name: '敏感排查', status: 'pass', detail: '' });\n    }\n    let factNums = [];\n    try { factNums = (JSON.stringify(JSON.parse(factcard || '{}')).match(/\\d[\\d,.]*%?/g) || []).slice(0, 6); } catch (e) { }\n    const missNums = factNums.filter((n) => !String(article || '').includes(n));\n    if (factNums.length && missNums.length === factNums.length) {\n      fails.push('事实一致性: 事实卡关键数字未出现');\n      checks.push({ name: '事实一致性', status: 'fail', detail: '' });\n    } else {\n      checks.push({ name: '事实一致性', status: 'pass', detail: factNums.length ? (factNums.length - missNums.length) + '/' + factNums.length + ' 数字命中' : '' });\n    }\n    const placeholders = /(TBD|TODO|\\{f\\d+\\}|XXX|\\(EMPTY\\))/i.test(String(article || ''));\n    const zh = (String(article || '').match(/[\\u4e00-\\u9fff]/g) || []).length;\n    if (placeholders || zh > 5) {\n      fails.push('语言纯净度: ' + (placeholders ? '含占位符' : '正文含中文 ' + zh + ' 字'));\n      checks.push({ name: '语言纯净度', status: 'fail', detail: placeholders ? '占位符' : '中文字符 ' + zh });\n    } else {\n      checks.push({ name: '语言纯净度', status: 'pass', detail: '' });\n    }\n    let idKeys = [];\n    try { idKeys = Object.keys(JSON.parse(identity || '{}')); } catch (e) { }\n    const need = ['theme', 'angle', 'shelf', 'fit', 'provenance'];\n    const miss = need.filter((k) => idKeys.indexOf(k) < 0);\n    if (miss.length) {\n      fails.push('身份完整性: 缺少 ' + miss.join('/'));\n      checks.push({ name: '身份完整性', status: 'fail', detail: miss.join('/') });\n    } else {\n      checks.push({ name: '身份完整性', status: 'pass', detail: '' });\n    }\n    checks.push({ name: '合规署名', status: 'pass', detail: '人工审核标记由发布环节补充' });\n    return {\n      level: LABEL[key], level_key: key, word_count: wc, word_range: lo + '-' + hi,\n      msl: Math.round(msl * 10) / 10, msl_range: slo + '-' + shi,\n      lexile_est: lex, lexile_range: (lxlo > 0 ? lxlo + '-' + lxhi : 'BR-' + lxhi),\n      has_body: !!(body[key] && String(body[key]).trim()),\n      score: checks.filter((c) => c.status === 'pass').length,\n      pass: fails.length === 0, checks: checks, fail_reasons: fails\n    };\n  };\n\n  const results = ALL.map((k) => validate(k, body[k]));\n  const legKeys = { a2: 'A2_2', b1: 'B1_2', b2: 'B2P_2' };\n  const legacy = Object.keys(legKeys).map((k) => {\n    const r = results.filter((x) => x.level_key === legKeys[k])[0];\n    if (!r) return null;\n    const c = JSON.parse(JSON.stringify(r)); c.level = k.toUpperCase(); c.level_key_legacy = legKeys[k]; return c;\n  }).filter(Boolean);\n  const overall = {\n    total_checks: ALL.length * 8,\n    total_pass: results.reduce((s, r) => s + r.score, 0),\n    all_pass: results.every((r) => r.pass),\n    levels: ALL.length,\n    lexile_note: '蓝思为按平均句长 + 长词占比 + 平均词长估算，非 MetaMetrics 官方值，仅作档位一致性参考',\n    results: results,\n    results_legacy: legacy\n  };\n  return {\n    validation_json: JSON.stringify(overall),\n    validation_pass: String(overall.all_pass),\n    validation_score: overall.total_pass + '/' + overall.total_checks\n  };\n}",
+     "code_language": "javascript",
+     "variables": [
+      {
+       "variable": "articles_json",
+       "value_selector": [
+        "nodeAgg",
+        "articles_json"
+       ]
+      },
+      {
+       "variable": "plain_json",
+       "value_selector": [
+        "nodeAgg",
+        "paras_json"
+       ]
+      },
+      {
+       "variable": "factcard",
+       "value_selector": [
+        "nodeClean",
+        "facts_raw"
+       ]
+      },
+      {
+       "variable": "identity",
+       "value_selector": [
+        "nodeAgg",
+        "identity_json"
+       ]
+      }
+     ],
+     "outputs": {
+      "validation_json": {
+       "children": null,
+       "type": "string"
+      },
+      "validation_pass": {
+       "children": null,
+       "type": "string"
+      },
+      "validation_score": {
+       "children": null,
+       "type": "string"
+      }
+     },
+     "error_strategy": "fail-branch"
+    },
+    "type": "code",
+    "width": 150,
+    "height": 22,
+    "zIndex": 0,
+    "positionAbsolute": {
+     "x": 1240,
+     "y": 780.0
+    }
+   },
+   {
+    "data": {
+     "desc": "输出 12 子档文章 / 段落 / 题目 / 校验 / 身份记录",
+     "outputs": [
+      {
+       "value_selector": [
+        "nodeAgg",
+        "title"
+       ],
+       "variable": "title"
+      },
+      {
+       "value_selector": [
+        "nodeAgg",
+        "articles_json"
+       ],
+       "variable": "articles_json"
+      },
+      {
+       "value_selector": [
+        "nodeAgg",
+        "paras_json"
+       ],
+       "variable": "paras_json"
+      },
+      {
+       "value_selector": [
+        "nodeAgg",
+        "words_json"
+       ],
+       "variable": "words_json"
+      },
+      {
+       "value_selector": [
+        "nodeAgg",
+        "levels_meta"
+       ],
+       "variable": "levels_meta"
+      },
+      {
+       "value_selector": [
+        "nodeAgg",
+        "para_count"
+       ],
+       "variable": "para_count"
+      },
+      {
+       "value_selector": [
+        "nodeAgg",
+        "fact_map"
+       ],
+       "variable": "fact_map"
+      },
+      {
+       "value_selector": [
+        "nodeAgg",
+        "unused_facts"
+       ],
+       "variable": "unused_facts"
+      },
+      {
+       "value_selector": [
+        "nodeAgg",
+        "fact_count"
+       ],
+       "variable": "fact_count"
+      },
+      {
+       "value_selector": [
+        "nodeAgg",
+        "map_warn"
+       ],
+       "variable": "map_warn"
+      },
+      {
+       "value_selector": [
+        "nodeAgg",
+        "identity_json"
+       ],
+       "variable": "identity_json"
+      },
+      {
+       "value_selector": [
+        "nodeAgg",
+        "summary"
+       ],
+       "variable": "summary"
+      },
+      {
+       "value_selector": [
+        "nodeAgg",
+        "facts_json"
+       ],
+       "variable": "facts_json"
+      },
+      {
+       "value_selector": [
+        "nodeAgg",
+        "article_a2"
+       ],
+       "variable": "article_a2"
+      },
+      {
+       "value_selector": [
+        "nodeAgg",
+        "article_b1"
+       ],
+       "variable": "article_b1"
+      },
+      {
+       "value_selector": [
+        "nodeAgg",
+        "article_b2"
+       ],
+       "variable": "article_b2"
+      },
+      {
+       "value_selector": [
+        "nodeAgg",
+        "paras_a2"
+       ],
+       "variable": "paras_a2"
+      },
+      {
+       "value_selector": [
+        "nodeAgg",
+        "paras_b1"
+       ],
+       "variable": "paras_b1"
+      },
+      {
+       "value_selector": [
+        "nodeAgg",
+        "paras_b2"
+       ],
+       "variable": "paras_b2"
+      },
+      {
+       "value_selector": [
+        "nodeQuiz",
+        "text"
+       ],
+       "variable": "quiz_json"
+      },
+      {
+       "value_selector": [
+        "nodeValidate",
+        "validation_json"
+       ],
+       "variable": "validation_json"
+      },
+      {
+       "value_selector": [
+        "nodeValidate",
+        "validation_pass"
+       ],
+       "variable": "validation_pass"
+      },
+      {
+       "value_selector": [
+        "nodeValidate",
+        "validation_score"
+       ],
+       "variable": "validation_score"
+      },
+      {
+       "value_selector": [
+        "nodeClean",
+        "level"
+       ],
+       "variable": "level"
+      },
+      {
+       "value_selector": [
+        "nodeClean",
+        "level_big"
+       ],
+       "variable": "level_big"
+      },
+      {
+       "value_selector": [
+        "nodeClean",
+        "sens_level"
+       ],
+       "variable": "sens_level"
+      },
+      {
+       "value_selector": [
+        "nodeClean",
+        "sens_reason"
+       ],
+       "variable": "sens_reason"
+      },
+      {
+       "value_selector": [
+        "nodeClean",
+        "facts_text"
+       ],
+       "variable": "facts_text"
+      },
+      {
+       "value_selector": [
+        "nodeClean",
+        "angle"
+       ],
+       "variable": "angle"
+      },
+      {
+       "value_selector": [
+        "nodeClean",
+        "facts_raw"
+       ],
+       "variable": "facts_raw"
+      }
+     ],
+     "selected": false,
+     "title": "结束",
+     "type": "end"
+    },
+    "height": 22,
+    "id": "nodeEnd",
+    "position": {
+     "x": 1560,
+     "y": 900.0
+    },
+    "type": "end",
+    "width": 150,
+    "zIndex": 0,
+    "positionAbsolute": {
+     "x": 1560,
+     "y": 900.0
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-nodeStart-nodeFact-source",
+    "source": "nodeStart",
+    "target": "nodeFact",
+    "type": "custom",
+    "sourceHandle": "source",
+    "targetHandle": "target",
+    "zIndex": 0,
+    "data": {
+     "sourceType": "start",
+     "targetType": "llm",
+     "sourceHandle": "1",
+     "targetHandle": "2",
+     "isInIteration": false,
+     "isInLoop": false
+    }
+   },
+   {
+    "id": "e-nodeFact-nodeQRule-source",
+    "source": "nodeFact",
+    "target": "nodeQRule",
+    "type": "custom",
+    "sourceHandle": "source",
+    "targetHandle": "target",
+    "zIndex": 0,
+    "data": {
+     "sourceType": "llm",
+     "targetType": "code",
+     "sourceHandle": "1",
+     "targetHandle": "2",
+     "isInIteration": false,
+     "isInLoop": false
+    }
+   },
+   {
+    "id": "e-nodeStart-nodeQRule-source",
+    "source": "nodeStart",
+    "target": "nodeQRule",
+    "type": "custom",
+    "sourceHandle": "source",
+    "targetHandle": "target",
+    "zIndex": 0,
+    "data": {
+     "sourceType": "start",
+     "targetType": "code",
+     "sourceHandle": "1",
+     "targetHandle": "2",
+     "isInIteration": false,
+     "isInLoop": false
+    }
+   },
+   {
+    "id": "e-nodeQRule-nodeKBSens-source",
+    "source": "nodeQRule",
+    "target": "nodeKBSens",
+    "type": "custom",
+    "sourceHandle": "source",
+    "targetHandle": "target",
+    "zIndex": 0,
+    "data": {
+     "sourceType": "code",
+     "targetType": "knowledge-retrieval",
+     "sourceHandle": "1",
+     "targetHandle": "2",
+     "isInIteration": false,
+     "isInLoop": false
+    }
+   },
+   {
+    "id": "e-nodeKBSens-nodeCheck-source",
+    "source": "nodeKBSens",
+    "target": "nodeCheck",
+    "type": "custom",
+    "sourceHandle": "source",
+    "targetHandle": "target",
+    "zIndex": 0,
+    "data": {
+     "sourceType": "knowledge-retrieval",
+     "targetType": "llm",
+     "sourceHandle": "1",
+     "targetHandle": "2",
+     "isInIteration": false,
+     "isInLoop": false
+    }
+   },
+   {
+    "id": "e-nodeCheck-nodeQGrade-source",
+    "source": "nodeCheck",
+    "target": "nodeQGrade",
+    "type": "custom",
+    "sourceHandle": "source",
+    "targetHandle": "target",
+    "zIndex": 0,
+    "data": {
+     "sourceType": "llm",
+     "targetType": "code",
+     "sourceHandle": "1",
+     "targetHandle": "2",
+     "isInIteration": false,
+     "isInLoop": false
+    }
+   },
+   {
+    "id": "e-nodeStart-nodeQGrade-source",
+    "source": "nodeStart",
+    "target": "nodeQGrade",
+    "type": "custom",
+    "sourceHandle": "source",
+    "targetHandle": "target",
+    "zIndex": 0,
+    "data": {
+     "sourceType": "start",
+     "targetType": "code",
+     "sourceHandle": "1",
+     "targetHandle": "2",
+     "isInIteration": false,
+     "isInLoop": false
+    }
+   },
+   {
+    "id": "e-nodeQGrade-nodeKBGrade-source",
+    "source": "nodeQGrade",
+    "target": "nodeKBGrade",
+    "type": "custom",
+    "sourceHandle": "source",
+    "targetHandle": "target",
+    "zIndex": 0,
+    "data": {
+     "sourceType": "code",
+     "targetType": "knowledge-retrieval",
+     "sourceHandle": "1",
+     "targetHandle": "2",
+     "isInIteration": false,
+     "isInLoop": false
+    }
+   },
+   {
+    "id": "e-nodeKBGrade-nodeGrade-source",
+    "source": "nodeKBGrade",
+    "target": "nodeGrade",
+    "type": "custom",
+    "sourceHandle": "source",
+    "targetHandle": "target",
+    "zIndex": 0,
+    "data": {
+     "sourceType": "knowledge-retrieval",
+     "targetType": "llm",
+     "sourceHandle": "1",
+     "targetHandle": "2",
+     "isInIteration": false,
+     "isInLoop": false
+    }
+   },
+   {
+    "id": "e-nodeGrade-nodeClean-source",
+    "source": "nodeGrade",
+    "target": "nodeClean",
+    "type": "custom",
+    "sourceHandle": "source",
+    "targetHandle": "target",
+    "zIndex": 0,
+    "data": {
+     "sourceType": "llm",
+     "targetType": "code",
+     "sourceHandle": "1",
+     "targetHandle": "2",
+     "isInIteration": false,
+     "isInLoop": false
+    }
+   },
+   {
+    "id": "e-nodeClean-nodeGate-source",
+    "source": "nodeClean",
+    "target": "nodeGate",
+    "type": "custom",
+    "sourceHandle": "source",
+    "targetHandle": "target",
+    "zIndex": 0,
+    "data": {
+     "sourceType": "code",
+     "targetType": "if-else",
+     "sourceHandle": "1",
+     "targetHandle": "2",
+     "isInIteration": false,
+     "isInLoop": false
+    }
+   },
+   {
+    "id": "e-nodeGate-nodeExcluded-true",
+    "source": "nodeGate",
+    "target": "nodeExcluded",
+    "type": "custom",
+    "sourceHandle": "true",
+    "targetHandle": "target",
+    "zIndex": 0,
+    "data": {
+     "sourceType": "if-else",
+     "targetType": "end",
+     "sourceHandle": "1",
+     "targetHandle": "2",
+     "isInIteration": false,
+     "isInLoop": false
+    }
+   },
+   {
+    "id": "e-nodeGate-nodeStyle-false",
+    "source": "nodeGate",
+    "target": "nodeStyle",
+    "type": "custom",
+    "sourceHandle": "false",
+    "targetHandle": "target",
+    "zIndex": 0,
+    "data": {
+     "sourceType": "if-else",
+     "targetType": "code",
+     "sourceHandle": "1",
+     "targetHandle": "2",
+     "isInIteration": false,
+     "isInLoop": false
+    }
+   },
+   {
+    "id": "e-nodeStart-nodeStyle-source",
+    "source": "nodeStart",
+    "target": "nodeStyle",
+    "type": "custom",
+    "sourceHandle": "source",
+    "targetHandle": "target",
+    "zIndex": 0,
+    "data": {
+     "sourceType": "start",
+     "targetType": "code",
+     "sourceHandle": "1",
+     "targetHandle": "2",
+     "isInIteration": false,
+     "isInLoop": false
+    }
+   },
+   {
+    "id": "e-nodeStyle-nodeTitle-source",
+    "source": "nodeStyle",
+    "target": "nodeTitle",
+    "type": "custom",
+    "sourceHandle": "source",
+    "targetHandle": "target",
+    "zIndex": 0,
+    "data": {
+     "sourceType": "code",
+     "targetType": "llm",
+     "sourceHandle": "1",
+     "targetHandle": "2",
+     "isInIteration": false,
+     "isInLoop": false
+    }
+   },
+   {
+    "id": "e-nodeTitle-nodeGenA1-source",
+    "source": "nodeTitle",
+    "target": "nodeGenA1",
+    "type": "custom",
+    "sourceHandle": "source",
+    "targetHandle": "target",
+    "zIndex": 0,
+    "data": {
+     "sourceType": "llm",
+     "targetType": "llm",
+     "sourceHandle": "1",
+     "targetHandle": "2",
+     "isInIteration": false,
+     "isInLoop": false
+    }
+   },
+   {
+    "id": "e-nodeTitle-nodeGenA2-source",
+    "source": "nodeTitle",
+    "target": "nodeGenA2",
+    "type": "custom",
+    "sourceHandle": "source",
+    "targetHandle": "target",
+    "zIndex": 0,
+    "data": {
+     "sourceType": "llm",
+     "targetType": "llm",
+     "sourceHandle": "1",
+     "targetHandle": "2",
+     "isInIteration": false,
+     "isInLoop": false
+    }
+   },
+   {
+    "id": "e-nodeTitle-nodeGenB1-source",
+    "source": "nodeTitle",
+    "target": "nodeGenB1",
+    "type": "custom",
+    "sourceHandle": "source",
+    "targetHandle": "target",
+    "zIndex": 0,
+    "data": {
+     "sourceType": "llm",
+     "targetType": "llm",
+     "sourceHandle": "1",
+     "targetHandle": "2",
+     "isInIteration": false,
+     "isInLoop": false
+    }
+   },
+   {
+    "id": "e-nodeTitle-nodeGenB2p-source",
+    "source": "nodeTitle",
+    "target": "nodeGenB2p",
+    "type": "custom",
+    "sourceHandle": "source",
+    "targetHandle": "target",
+    "zIndex": 0,
+    "data": {
+     "sourceType": "llm",
+     "targetType": "llm",
+     "sourceHandle": "1",
+     "targetHandle": "2",
+     "isInIteration": false,
+     "isInLoop": false
+    }
+   },
+   {
+    "id": "e-nodeGenA1-nodeAgg-source",
+    "source": "nodeGenA1",
+    "target": "nodeAgg",
+    "type": "custom",
+    "sourceHandle": "source",
+    "targetHandle": "target",
+    "zIndex": 0,
+    "data": {
+     "sourceType": "llm",
+     "targetType": "code",
+     "sourceHandle": "1",
+     "targetHandle": "2",
+     "isInIteration": false,
+     "isInLoop": false
+    }
+   },
+   {
+    "id": "e-nodeGenA2-nodeAgg-source",
+    "source": "nodeGenA2",
+    "target": "nodeAgg",
+    "type": "custom",
+    "sourceHandle": "source",
+    "targetHandle": "target",
+    "zIndex": 0,
+    "data": {
+     "sourceType": "llm",
+     "targetType": "code",
+     "sourceHandle": "1",
+     "targetHandle": "2",
+     "isInIteration": false,
+     "isInLoop": false
+    }
+   },
+   {
+    "id": "e-nodeGenB1-nodeAgg-source",
+    "source": "nodeGenB1",
+    "target": "nodeAgg",
+    "type": "custom",
+    "sourceHandle": "source",
+    "targetHandle": "target",
+    "zIndex": 0,
+    "data": {
+     "sourceType": "llm",
+     "targetType": "code",
+     "sourceHandle": "1",
+     "targetHandle": "2",
+     "isInIteration": false,
+     "isInLoop": false
+    }
+   },
+   {
+    "id": "e-nodeGenB2p-nodeAgg-source",
+    "source": "nodeGenB2p",
+    "target": "nodeAgg",
+    "type": "custom",
+    "sourceHandle": "source",
+    "targetHandle": "target",
+    "zIndex": 0,
+    "data": {
+     "sourceType": "llm",
+     "targetType": "code",
+     "sourceHandle": "1",
+     "targetHandle": "2",
+     "isInIteration": false,
+     "isInLoop": false
+    }
+   },
+   {
+    "id": "e-nodeAgg-nodeQuiz-source",
+    "source": "nodeAgg",
+    "target": "nodeQuiz",
+    "type": "custom",
+    "sourceHandle": "source",
+    "targetHandle": "target",
+    "zIndex": 0,
+    "data": {
+     "sourceType": "code",
+     "targetType": "llm",
+     "sourceHandle": "1",
+     "targetHandle": "2",
+     "isInIteration": false,
+     "isInLoop": false
+    }
+   },
+   {
+    "id": "e-nodeAgg-nodeValidate-source",
+    "source": "nodeAgg",
+    "target": "nodeValidate",
+    "type": "custom",
+    "sourceHandle": "source",
+    "targetHandle": "target",
+    "zIndex": 0,
+    "data": {
+     "sourceType": "code",
+     "targetType": "code",
+     "sourceHandle": "1",
+     "targetHandle": "2",
+     "isInIteration": false,
+     "isInLoop": false
+    }
+   },
+   {
+    "id": "e-nodeQuiz-nodeEnd-source",
+    "source": "nodeQuiz",
+    "target": "nodeEnd",
+    "type": "custom",
+    "sourceHandle": "source",
+    "targetHandle": "target",
+    "zIndex": 0,
+    "data": {
+     "sourceType": "llm",
+     "targetType": "end",
+     "sourceHandle": "1",
+     "targetHandle": "2",
+     "isInIteration": false,
+     "isInLoop": false
+    }
+   },
+   {
+    "id": "e-nodeValidate-nodeEnd-source",
+    "source": "nodeValidate",
+    "target": "nodeEnd",
+    "type": "custom",
+    "sourceHandle": "source",
+    "targetHandle": "target",
+    "zIndex": 0,
+    "data": {
+     "sourceType": "code",
+     "targetType": "end",
+     "sourceHandle": "1",
+     "targetHandle": "2",
+     "isInIteration": false,
+     "isInLoop": false
+    }
+   }
+  ],
+  "viewport": {
+   "x": 0,
+   "y": 0,
+   "zoom": 0.7
+  }
+ },
+ "features": {
+  "opening_statement": "",
+  "suggested_questions": [],
+  "suggested_questions_after_answer": {
+   "enabled": false
+  },
+  "text_to_speech": {
+   "enabled": false,
+   "voice": "",
+   "language": ""
+  },
+  "speech_to_text": {
+   "enabled": false
+  },
+  "retriever_resource": {
+   "enabled": false
+  },
+  "sensitive_word_avoidance": {
+   "enabled": false
+  },
+  "file_upload": {
+   "image": {
+    "enabled": false,
+    "number_limits": 3,
+    "transfer_methods": [
+     "local_file",
+     "remote_url"
+    ]
+   },
+   "enabled": false,
+   "allowed_file_types": [
+    "image"
+   ],
+   "allowed_file_extensions": [
+    ".JPG",
+    ".JPEG",
+    ".PNG",
+    ".GIF",
+    ".WEBP",
+    ".SVG"
+   ],
+   "allowed_file_upload_methods": [
+    "local_file",
+    "remote_url"
+   ],
+   "number_limits": 3,
+   "fileUploadConfig": {
+    "file_size_limit": 15,
+    "knowledge_file_size_limit": 15,
+    "batch_count_limit": 5,
+    "file_upload_limit": 50,
+    "image_file_size_limit": 10,
+    "video_file_size_limit": 100,
+    "audio_file_size_limit": 50,
+    "workflow_file_upload_limit": 10,
+    "image_file_batch_limit": 10,
+    "single_chunk_attachment_limit": 10,
+    "attachment_image_file_size_limit": 2
+   }
+  }
+ },
+ "conversation_variables": []
+}
