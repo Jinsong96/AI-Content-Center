@@ -143,9 +143,12 @@ def gen_sys(big, keys):
         extra = ("\n- 本组三个子档的篇幅必须拉出梯度且各自**双向达标**：B2+.1 约 620 词、B2+.2 约 800 词、"
                  "B2+.3 控制在 900–1200 词之间。既不要三个都写到 800 词左右就收尾，"
                  "**也不要把 B2+.3 写成 1500 词以上**——上限同样是不合格项。"
-                 "\n- ⚠️ **实测本组系统性偏短**：B2+.1 仅 589 词、B2+.2 仅 658 词（目标 700–900）、"
-                 "B2+.3 仅 758 词（目标 900–1200），三档全部掉到区间下限之外。"
-                 "**请按标称值 620 / 800 / 1050 写足**，逐段把内容补够，不要提前收尾。")
+                 "\n- ⚠️ **本组是本工作流最容易整体偏短的组，且实测反复复现**："
+                 "B2+.1 只有 466–543 词、B2+.2 只有 584–600 词、B2+.3 只有 646–648 词"
+                 "（目标 550–700 / 700–900 / 900–1200），**三档全部掉到区间下限之外**。"
+                 "\n- **把区间按段数折算成每段硬指标**（本组固定 8 段）："
+                 "B2+.1 每段 69–88 词、B2+.2 每段 88–112 词、**B2+.3 每段 113–150 词**。"
+                 "**每一段都按这个下限起笔，写不到下限就不许进入下一段**；三档写完全部回头核对总词数。")
     elif big == "B1":
         extra = ("\n- 本组三个子档篇幅梯度为 **340 / 410 / 500 词**，这是下限概念："
                  "B1.1 不得少于 310 词、B1.2 不得少于 390 词、B1.3 不得少于 460 词。"
@@ -178,11 +181,29 @@ def gen_sys(big, keys):
 【本组三个子档的硬性规格】（逐项达标，任一项显著偏离即视为不合格）
 %s%s
 
-【必须自查的两条硬指标】
-① **正文字数**：以规格里的「目标 N 词」为靶心，必须落在硬区间内——**低于下限或超过上限都不合格**。
-  实测最容易犯的错是**超写三成以上**，所以写完先数总词数，超了就删段落细节，不够就补，**定稿再进下一档**。
-② **平均句长 = 正文总词数 ÷ 句子数**，必须落在规格区间内。
-写完每一档后，请自己数一遍总词数与句子数，与规格核对后再输出下一档。
+【必须自查的三条硬指标（篇幅是分级的一半，与语言难度同等重要）】
+① **正文字数**：以规格里的「目标 N 词」为靶心，**必须落在硬区间内**——低于下限或超过上限都不合格。
+  ⚠️ **实测的失败方向是「写到下限附近就收尾」，不是超写**。所以你的动作应该是：
+  **先按「写作标尺」给出的每段词数把每一段铺满，再数总词数；不够就补，超了才删。**
+  **宁可靠近区间中点，也不要贴着下限；绝不允许低于下限。**
+② **每段句数**：按写作标尺给出的「约 M 句」写足。**篇幅不足几乎都是因为每段少写了一两句**，
+  而不是句子写得太短——先保证每段句数达标，再回头调句长。
+③ **平均句长 = 正文总词数 ÷ 句子数**，必须落在规格区间内。
+写完每一档后，请自己数一遍总词数、句子数与段数，与规格核对后再输出下一档。
+
+【素材不足时怎么办（关键，直接决定达标率）】
+- 若给定事实卡不足以支撑本档下限词数，**优先保证下限**：允许做
+  **不引入新数字、新人名、新机构、新事件的合理背景扩写**——
+  比如解释成因、打类比、举读者的日常场景、描述一般性影响。
+- **绝对不得编造**具体的百分比、年份、机构名、人名、地名——事实一致性是硬校验。
+- 但**不允许以「怕编造」为理由把文章写短**：写不到下限同样判不合格。
+
+【素材过多时怎么办（同样关键）】
+- 素材很长时，**低段位不得跟着膨胀**：A1.x / A2.x 只取与本档认知半径匹配的一两个要点，
+  其余细节**宁可不写**，也必须守住本档上限。
+- **篇幅梯度必须严格递增**：A1.1 短于 A1.2 短于 A1.3，A2.1 短于 A2.2 短于 A2.3，
+  B1.1 短于 B1.2 短于 B1.3，B2+.1 短于 B2+.2 短于 B2+.3。
+  **不允许出现后一档比前一档短。**
 
 【段落总纲】
 - 这是供英语学习者阅读的完整文章，不是摘要。请围绕事实充分展开：补充背景、成因、过程、细节、影响等。
@@ -328,20 +349,60 @@ GEN_AGG_CODE = r"""function main({ t_a1, t_a2, t_b1, t_b2p, title_in, fact_json,
     B1_1:'B1',B1_2:'B1',B1_3:'B1',
     B2P_1:'B2+',B2P_2:'B2+',B2P_3:'B2+'
   };
+  /* 规格段数（与 Python 侧 LEVELS[*]['paras'] 保持一致）。
+     下游契约要求「组内三档段落级一一对应」，所以段数是硬结构，必须在这里兜住。 */
+  const PARAS = {
+    A1_1:4,A1_2:4,A1_3:4,
+    A2_1:5,A2_2:5,A2_3:5,
+    B1_1:6,B1_2:6,B1_3:6,
+    B2P_1:8,B2P_2:8,B2P_3:8
+  };
+  /* 生词表行形如 "flood — 洪水" / "runoff: 径流"，单行、短、以「英文词 + 分隔符 + 中文」开头。
+     实测模型偶有把生词表当成正文段落追加到数组末尾（B1 三档段数 11 / 规格 6），
+     一旦透传就会污染 paras_json / para_count / levels_meta，必须在这里剔除。 */
+  const isVocabLine = (p) => {
+    const s = String(p || '').trim();
+    if (!s || s.length > 60) return false;
+    if (/[\n\r]/.test(s)) return false;
+    return /^[A-Za-z][A-Za-z' \-\.]*\s*[:：—–-]{1,2}\s*[\u4e00-\u9fff]/.test(s);
+  };
+  /* 兜底网：正文段落不应出现成串中文（阈值与校验节点一致）。
+     放它进来只会让「语言纯净度」判 fail，所以在聚合层就先挡掉，并留下告警。 */
+  const isDirtyPara = (p) => ((String(p || '').match(/[\u4e00-\u9fff]/g) || []).length > 5);
   const GROUP_KEYS = [['A1_1','A1_2','A1_3'],['A2_1','A2_2','A2_3'],['B1_1','B1_2','B1_3'],['B2P_1','B2P_2','B2P_3']];
   const RAW = { A1_1: t_a1, A2_1: t_a2, B1_1: t_b1, B2P_1: t_b2p };
   const ALL = [];
   GROUP_KEYS.forEach((g) => g.forEach((k) => ALL.push(k)));
 
-  const paras = {}, words = {}, factMaps = {}, raw_missing = [];
+  const paras = {}, words = {}, factMaps = {}, raw_missing = [], para_warn = [];
   GROUP_KEYS.forEach((g) => {
     const o = parseJSON(RAW[g[0]]);
     if (!Object.keys(o).length) raw_missing.push(DISPLAY[g[0]].slice(0, 2));
     g.forEach((k) => {
-      const arr = (Array.isArray(o[k]) ? o[k] : []).map((p) => String(p || '').trim()).filter(Boolean);
+      const raw = (Array.isArray(o[k]) ? o[k] : []).map((p) => String(p || '').trim()).filter(Boolean);
+      /* 捞出被误当段落的生词表行——它本来该在 o.words[k] 里 */
+      const salvaged = raw.filter(isVocabLine);
+      let arr = raw.filter((p) => !isVocabLine(p) && !isDirtyPara(p));
+      const dropped = raw.length - arr.length;
+      const want = PARAS[k] || arr.length;
+      let cut = 0;
+      if (arr.length > want) { cut = arr.length - want; arr = arr.slice(0, want); }
+      if (dropped || cut) {
+        /* 注意：告警条目之间用「；」拼接，所以条目内部不能再出现「；」，否则后端切不干净 */
+        para_warn.push(DISPLAY[k] + ' 段数 ' + raw.length + ' → ' + arr.length
+          + '（规格 ' + want + '，剔除生词表/杂质 ' + dropped + ' 段，截断 ' + cut + ' 段）');
+      } else if (arr.length < want) {
+        para_warn.push(DISPLAY[k] + ' 段数不足 ' + arr.length + ' 段（规格 ' + want + '），无法补齐，已原样保留');
+      }
       paras[k] = arr;
-      const w = (o.words && Array.isArray(o.words[k])) ? o.words[k] : [];
-      words[k] = w.map((x) => String(x).trim()).filter(Boolean);
+      /* 生词表：优先用模型给的 words；若为空而正文里捞到了，就救回来，避免丢数据 */
+      let w = (o.words && Array.isArray(o.words[k])) ? o.words[k] : [];
+      w = w.map((x) => String(x).trim()).filter(Boolean);
+      if (!w.length && salvaged.length) {
+        w = salvaged;
+        para_warn.push(DISPLAY[k] + ' 生词表原本混在正文里，已救回 words 字段（' + w.length + ' 条）');
+      }
+      words[k] = w;
       if (o.fact_map && Array.isArray(o.fact_map[k])) factMaps[k] = o.fact_map[k];
       else if (o.fact_map && Array.isArray(o.fact_map[k.replace('P_', '+_')])) factMaps[k] = o.fact_map[k.replace('P_', '+_')];
     });
@@ -430,7 +491,7 @@ GEN_AGG_CODE = r"""function main({ t_a1, t_a2, t_b1, t_b2p, title_in, fact_json,
     fact_map: fact_map ? JSON.stringify(fact_map) : '',
     unused_facts: JSON.stringify(unused_facts),
     fact_count: fact_count,
-    map_warn: map_warn.join('；'),
+    map_warn: map_warn.concat(para_warn).join('；'),
     raw_missing: raw_missing.join('/'),
     para_count: JSON.stringify(Object.keys(lengths).reduce((a, k) => { a[k] = lengths[k].paras; return a; }, {})),
     identity_json: JSON.stringify(identity, null, 2),
@@ -520,8 +581,16 @@ GEN_VALIDATE_CODE = r"""function main({ articles_json, plain_json, factcard, ide
     const placeholders = /(TBD|TODO|\{f\d+\}|XXX|\(EMPTY\))/i.test(String(article || ''));
     const zh = (String(article || '').match(/[\u4e00-\u9fff]/g) || []).length;
     if (placeholders || zh > 5) {
-      fails.push('语言纯净度: ' + (placeholders ? '含占位符' : '正文含中文 ' + zh + ' 字'));
-      checks.push({ name: '语言纯净度', status: 'fail', detail: placeholders ? '占位符' : '中文字符 ' + zh });
+      /* 文案要能区分两种截然不同的成因，否则人工审核会被误导：
+         (a) 残留占位符；(b) 生词表被当成段落混进了正文数组（实测过，见 docs/11）。
+         附上命中片段，审核一眼就能判断是哪一种。 */
+      const zhLines = String(article || '').match(/[^\n]*[\u4e00-\u9fff][^\n]*/g) || [];
+      const snippet = zhLines.slice(0, 3).map((s) => s.trim().slice(0, 36)).join(' ｜ ');
+      fails.push('语言纯净度: ' + (placeholders
+        ? '含占位符'
+        : '正文段落疑似混入生词表/中文 ' + zh + ' 字 → ' + snippet));
+      checks.push({ name: '语言纯净度', status: 'fail',
+        detail: placeholders ? '占位符' : '疑似生词表混入：' + snippet });
     } else {
       checks.push({ name: '语言纯净度', status: 'pass', detail: '' });
     }
