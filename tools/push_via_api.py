@@ -28,6 +28,7 @@ import os
 import sys
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from pathlib import Path
 
@@ -77,12 +78,17 @@ def main() -> int:
     data = local_path.read_bytes()
     print(f'>> 推送 {remote_path}  ({len(data)} bytes, base64≈{len(data) * 4 // 3} bytes)')
 
+    # ⚠️ 仓库里有大量中文文件名（docs/06-工程化交接_前端现状审计.md 等）。
+    #    直接用未编码的路径拼 URL 会抛 UnicodeEncodeError，导致中文名文件**一个都推不上去**。
+    #    quote(safe='/') 保留目录分隔符，只编码非 ASCII 与特殊字符。
+    api_url = API + urllib.parse.quote(remote_path, safe='/')
+
     # GET 元信息同样要重试：大文件的响应体（base64 后 ≈1.33×原文件）常触发
     # http.client.IncompleteRead，只重试 PUT 会让推送在大文件上直接失败。
     sha = None
     for attempt in range(1, 5):
         try:
-            req = urllib.request.Request(API + remote_path + f'?ref={BRANCH}', headers=head)
+            req = urllib.request.Request(api_url + f'?ref={BRANCH}', headers=head)
             meta = json.load(urllib.request.urlopen(req, timeout=120))
             sha = meta['sha']
             print(f'   远端当前 sha: {sha[:12]}  size={meta["size"]}')
@@ -109,7 +115,7 @@ def main() -> int:
 
     for attempt in range(1, 5):
         try:
-            req = urllib.request.Request(API + remote_path, data=body, headers=head, method='PUT')
+            req = urllib.request.Request(api_url, data=body, headers=head, method='PUT')
             res = json.load(urllib.request.urlopen(req, timeout=180))
             print(f'   ✓ 第 {attempt} 次成功  commit={res["commit"]["sha"][:12]}  '
                   f'new_sha={res["content"]["sha"][:12]}')
