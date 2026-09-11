@@ -1,0 +1,56 @@
+{
+  "material_title_zh": "气候变化正在转移非洲疟疾热点区域",
+  "material_title_en": "Climate change is shifting malaria hot spots in Africa",
+  "source": "Science News",
+  "beat_count": 8,
+  "beats": [
+    {
+      "id": 1,
+      "point": "疟疾是全球重大公共卫生问题，一项新研究显示气候变化正在让非洲的疟疾分布地图整体移动，从西部和中部非洲转向东部与南部非洲",
+      "anchors_core": ["Africa", "malaria"],
+      "anchors_adv": ["Nature", "West and Central Africa", "eastern and southern"]
+    },
+    {
+      "id": 2,
+      "point": "机制：气温升高让西部和中部非洲对携带疟疾的蚊子更不利，而东部和南部非洲变得更有利；研究者原话是疟疾传播和蚊子生命周期对温度非常敏感",
+      "anchors_core": ["mosquito", "heat"],
+      "anchors_adv": ["Romaric Odoulami", "University of Cape Town", "sensitive to temperature"]
+    },
+    {
+      "id": 3,
+      "point": "疟疾的历史分布与关键温度阈值：历史上疟疾最集中于西非和中部非洲（尼日利亚、刚果民主共和国）；实验室研究显示传播在 25 摄氏度达到峰值，低于 19 度或高于 34 度都会明显下降",
+      "anchors_core": ["Nigeria", "25 degrees"],
+      "anchors_adv": ["Plasmodium", "Anopheles", "Democratic Republic of the Congo", "19 degrees", "34 degrees"]
+    },
+    {
+      "id": 4,
+      "point": "研究方法：研究者用撒哈拉以南非洲跨越一个多世纪的血样数据集，建立了一个把儿童疟疾感染率与气温、降水联系起来的计算机模型，并与一个不含气候变化的假设模型做对比",
+      "anchors_core": ["blood samples", "over a century"],
+      "anchors_adv": ["sub-Saharan Africa", "precipitation", "computer model"]
+    },
+    {
+      "id": 5,
+      "point": "总体结果：1901 年到 2014 年间，气候变化可能让撒哈拉以南非洲的疟疾传播净增加约 0.5%，相当于每一千名儿童多出 1 例",
+      "anchors_core": ["1 in 1,000 children"],
+      "anchors_adv": ["1901", "2014", "0.5 percent", "net increase"]
+    },
+    {
+      "id": 6,
+      "point": "地区差异：在埃塞俄比亚高原，疟疾传播每千名儿童增加了 8 例；而在西非部分地区，传播率反而下降了 1 到 2 个百分点，相当于每千名儿童少了约 4 例",
+      "anchors_core": ["Ethiopia", "West Africa", "more", "fewer"],
+      "anchors_adv": ["8 cases per 1,000", "1 to 2 percent", "4 fewer cases", "highlands"]
+    },
+    {
+      "id": 7,
+      "point": "未来预测：按照中等升温情景（全球升温 2.7 摄氏度），研究者预测未来 85 年撒哈拉以南非洲的疟疾传播率会下降 2%",
+      "anchors_core": ["85 years", "2 percent"],
+      "anchors_adv": ["2.7 degrees", "intermediate warming scenario"]
+    },
+    {
+      "id": 8,
+      "point": "防控的作用大于气候变化，且专家呼吁行动：蚊帐、杀虫剂处理、预防疟疾的药物等防控手段的影响超过气候变化本身；应向预计传播增加的地区扩展这些措施，非洲不能坐等排放大国行动",
+      "anchors_core": ["bed nets", "medicines"],
+      "anchors_adv": ["Cyril Caminade", "Abdus Salam International Centre for Theoretical Physics", "insecticide", "control efforts"]
+    }
+  ]
+}
