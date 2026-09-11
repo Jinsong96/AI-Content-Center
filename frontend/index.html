@@ -2337,12 +2337,47 @@ async function runGeneration(){
     if(!AIWF_GEN.appKey) throw new Error(L(
       "AI 未运行：服务端未配置 DIFY_WF_GEN 密钥。请在部署平台（Railway → Variables）填入后重新部署。",
       "AI not running: DIFY_WF_GEN key missing on server. Add it in Railway → Variables and redeploy."));
+    /* 用流式（SSE）而不是 blocking —— Dify 网关对 blocking 约 120s 硬超时，
+       12 子档生成实测 77s 已贴近该阈值（更早的渠道 145s 时实测直接 504 静默失败）。
+       流式既避开超时，又能顺带给出逐节点进度。 */
     const resp = await fetch(AIWF_GEN.apiBase + "/workflows/run", {
       method: "POST",
       headers: { "Authorization": "Bearer " + AIWF_GEN.appKey, "Content-Type": "application/json" },
-      body: JSON.stringify({ inputs: wfInputs, response_mode: "blocking", user: AIWF_GEN.user }),
+      body: JSON.stringify({ inputs: wfInputs, response_mode: "streaming", user: AIWF_GEN.user }),
     });
-    const data = await resp.json();
+    if(!resp.ok || !resp.body){
+      let emsg = "HTTP " + resp.status;
+      try { const et = await resp.text(); if(et) emsg += " · " + et.slice(0, 300); } catch(e2) {}
+      throw new Error(emsg);
+    }
+    let wfData = null, wfErr = null, nodeDone = 0;
+    const rd = resp.body.getReader(), dec = new TextDecoder();
+    let sbuf = "";
+    for(;;){
+      const chunk = await rd.read();
+      if(chunk.done) break;
+      sbuf += dec.decode(chunk.value, { stream: true });
+      const parts = sbuf.split("\n\n"); sbuf = parts.pop();
+      for(const part of parts){
+        const lines = part.split("\n");
+        for(const line of lines){
+          if(line.indexOf("data: ") !== 0) continue;
+          let ev; try { ev = JSON.parse(line.slice(6)); } catch(e3) { continue; }
+          if(ev.event === "node_finished"){
+            nodeDone++;
+            const st2 = $("#liveStat");
+            if(st2) st2.textContent = L("正在生成 12 子档文章…（已完成 " + nodeDone + " 个节点）", "Generating 12 sub-levels… (" + nodeDone + " nodes done)");
+          } else if(ev.event === "workflow_finished"){
+            wfData = ev.data || null;
+          } else if(ev.event === "error"){
+            wfErr = (ev.data && (ev.data.message || ev.message)) || "stream error";
+          }
+        }
+      }
+    }
+    const data = wfData
+      ? { data: wfData }
+      : { data: { status: "failed", error: wfErr || L("流式响应中断：未收到 workflow_finished，请重试", "Stream ended without workflow_finished — please retry") } };
     const stt = data && data.data && data.data.status;
     if(stt === "succeeded" || (data && data.data && data.data.outputs)){
       state.live.run = data; state.live.status = "done";
