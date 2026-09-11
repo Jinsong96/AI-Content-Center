@@ -1798,8 +1798,14 @@ def gen_tts_batch(articles, accents=("us", "uk")):
     t0 = time.time()
     jobs, out = [], {}
     levels = []
-    for lv in ("A2", "B1", "B2"):
+    # 12 子档体系（2026-09-10 起）：按传入 articles 的**实际档位键**生成，
+    # ⚠️ 不能再硬编码 ("A2","B1","B2") —— 前端现在传的是「当前大档的 3 个子档」
+    #    （如 A1_1/A1_2/A1_3 或 B2P_1/B2P_2/B2P_3），硬编码会导致一个都匹配不上、
+    #    **静默生成 0 条音频**。键兼容下划线式（A1_1/B2P_1）与点式（A1.1/B2+.1）。
+    for lv in (articles or {}).keys():
         txt = (articles or {}).get(lv) or ""
+        if isinstance(txt, (list, tuple)):
+            txt = " ".join(str(x) for x in txt)
         if not txt:
             continue
         levels.append(lv)
