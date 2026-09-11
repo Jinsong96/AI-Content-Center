@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """ReadPal 12 子档分级标准 —— Dify 工作流重建
-读 /tmp/dify_backup/{fact,gen}.graph.json → 输出 {fact,gen}.new.json
+读 <BK>/{fact,gen}.graph.json → 输出 <BK>/{fact,gen}.new.json（BK 默认 = 仓库 dify_graphs/）
 """
 import json, copy, os, re
 
@@ -142,7 +142,10 @@ def gen_sys(big, keys):
     if big == "B2+":
         extra = ("\n- 本组三个子档的篇幅必须拉出梯度且各自**双向达标**：B2+.1 约 620 词、B2+.2 约 800 词、"
                  "B2+.3 控制在 900–1200 词之间。既不要三个都写到 800 词左右就收尾，"
-                 "**也不要把 B2+.3 写成 1500 词以上**——上限同样是不合格项。")
+                 "**也不要把 B2+.3 写成 1500 词以上**——上限同样是不合格项。"
+                 "\n- ⚠️ **实测本组系统性偏短**：B2+.1 仅 589 词、B2+.2 仅 658 词（目标 700–900）、"
+                 "B2+.3 仅 758 词（目标 900–1200），三档全部掉到区间下限之外。"
+                 "**请按标称值 620 / 800 / 1050 写足**，逐段把内容补够，不要提前收尾。")
     elif big == "B1":
         extra = ("\n- 本组三个子档篇幅梯度为 **340 / 410 / 500 词**，这是下限概念："
                  "B1.1 不得少于 310 词、B1.2 不得少于 390 词、B1.3 不得少于 460 词。"
@@ -150,15 +153,22 @@ def gen_sys(big, keys):
                  "\n- **本组最容易整体失分的地方是「写得像 A2」**：实测曾出现 B1.1 只写 275 词、"
                  "平均句长 11 词/句（规格 13–15），估算蓝思只有 377L，远低于 650L 下限，直接判不合格。"
                  "所以 B1.1 也必须用足中级句法与抽象名词（method / issue / benefit / pressure 一类），"
-                 "**先把每句平均写到 13 个词以上，再让总词数达标**。")
+                 "**先把每句平均写到 13 个词以上，再让总词数达标**。"
+                 "\n- ⚠️ **反向也要防（实测硬失败点）**：B1.2 / B1.3 出现过平均句长 21–24 词/句"
+                 "（规格 15–17），估算蓝思冲到 1027L / 1172L，超出本档上限直接判不合格。"
+                 "**定稿前把超过 22 词的句子拆成两句**；本档的难度升级靠「词汇层级 + 从句类型」，"
+                 "**不要靠无限加长单个句子**。")
     elif big == "A2":
-        extra = ("\n- 本组是初级档：句子要短（按写作标尺控制），但**字数必须达标**，"
-                 "靠「多写几句」而不是「把句子写长」来凑。"
+        extra = ("\n- 本组是初级档：句子**不能冗长，但必须落在平均 10–12 词/句**，"
+                 "低于 9 词/句同样判不合格（实测出现过 8.3 词/句）。"
+                 "字数靠「句数够多」而不是「把句子写长」来达标。"
                  "\n- 篇幅梯度为 **180 / 225 / 275 词**：A2.1 不得少于 170 词、A2.2 不得少于 210 词、"
                  "A2.3 不得少于 260 词——实测三档都只贴着区间下限，请按标称值写。"
-                 "\n- 词汇不能一味求简单：从 A2.1 起就要出现 7 个字母以上的常用词"
-                 "（important / different / interesting / because 一类），"
-                 "否则估算蓝思会掉到 300L 以下，与本档位不符。")
+                 "\n- 词汇不能一味求简单：从 A2.1 起每段至少出现 3 个 7 字母以上的常用词"
+                 "（important / different / interesting / together / because 一类），"
+                 "否则平均词长偏低会让蓝思掉到 300L 以下。"
+                 "\n- ⚠️ **实测本组蓝思系统性偏低 120–150L**（A2.1 只有 277L / 目标 400–500L），"
+                 "**蓝思是硬约束**：请主动提高长词密度与句内信息量，不要为了「简单」把文章写得过于单薄。")
     elif big == "A1":
         extra = ("\n- 本组是入门档，**句子必须短**（这是本组最核心的特征，也是校验最容易不合格的地方）。"
                  "A1.1 全篇只有 60–90 词、约 12 句，千万不要写长——"
@@ -1170,13 +1180,13 @@ def validate_graph(d, name):
 
 if __name__ == '__main__':
     gj = build_gen()
-    json.dump(gj, open('/tmp/dify_backup/gen.new.json', 'w', encoding='utf-8'), ensure_ascii=False, indent=1)
+    json.dump(gj, open(os.path.join(BK, 'gen.new.json'), 'w', encoding='utf-8'), ensure_ascii=False, indent=1)
     print('gen.new.json: %d nodes / %d edges' % (len(gj['graph']['nodes']), len(gj['graph']['edges'])))
     for n in gj['graph']['nodes']:
         print('   ', n['id'], '|', n['data'].get('title'))
 
     fj = build_fact()
-    json.dump(fj, open('/tmp/dify_backup/fact.new.json', 'w', encoding='utf-8'), ensure_ascii=False, indent=1)
+    json.dump(fj, open(os.path.join(BK, 'fact.new.json'), 'w', encoding='utf-8'), ensure_ascii=False, indent=1)
     print('fact.new.json: %d nodes / %d edges' % (len(fj['graph']['nodes']), len(fj['graph']['edges'])))
     for n in fj['graph']['nodes']:
         print('   ', n['id'], '|', n['data'].get('title'))
