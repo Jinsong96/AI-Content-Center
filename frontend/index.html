@@ -405,7 +405,7 @@ body{font-family:var(--font);color:var(--text);background:var(--bg);overflow:hid
 .qcard .qact{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .qcard .qans{font-size:11.5px;color:var(--sub);line-height:1.5}
 .qcard .qans b{color:#F79009}
-/* 三档练习题对照（行=题号，列=A2/B1/B2，与段落对齐网格同构） */
+/* 子档练习题对照（行=题号，列=本大档 3 子档，与段落对齐网格同构） */
 .quizalign{margin-top:16px}
 .quizalign .qalign-hbar{display:grid;grid-template-columns:44px 1fr 1fr 1fr;gap:10px;margin-bottom:4px;align-items:stretch}
 .quizalign .qalign-hbar .qspacer{}
@@ -808,6 +808,20 @@ body{font-family:var(--font);color:var(--text);background:var(--bg);overflow:hid
 @media (max-width:1050px){#body{grid-template-columns:220px 1fr}.wrap{padding:22px 20px 50px}.dashcols,.histgrid,.sigcols{grid-template-columns:1fr}}
 
 /* ============ S9-S11 段落切分 / 对齐 / 调校 ============ */
+.bigbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;background:#fff;border:1px solid var(--border);border-radius:11px;padding:8px 12px;margin:0 0 14px;box-shadow:var(--shadow)}
+.bigbar-l{font-size:11px;font-weight:700;color:var(--muted);letter-spacing:.04em}
+.bigbar-r{margin-left:auto;font-size:11px;color:var(--muted)}
+.bigtab{display:flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--border);border-radius:9px;cursor:pointer;background:#fff;transition:.15s}
+.bigtab b{font-size:13px;font-weight:800}
+.bigtab span{font-size:11px;color:var(--muted)}
+.bigtab:hover{border-color:#FFDFCF;background:#FFF9F5}
+.bigtab.sel{background:var(--pri-t);border-color:#FFD1BF}
+.bigtab.sel b{color:var(--pri)}
+.guidecard{background:#fff;border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin:14px 0;box-shadow:var(--shadow)}
+.guidecard-h{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.guidecard-h .gtag{background:#FFF0EB;color:var(--pri);font-size:11px;font-weight:800;padding:3px 9px;border-radius:7px}
+.guidecard-h b{font-size:13px}
+.guidecard-b{font-size:12.5px;line-height:1.9;color:#344054;white-space:pre-wrap}
 .plvlbar{display:flex;gap:10px;margin:0 0 18px;flex-wrap:wrap}
 .plvl-pill{flex:1;min-width:170px;display:flex;align-items:center;gap:9px;background:#fff;border:1px solid var(--border);border-radius:11px;padding:11px 14px;box-shadow:var(--shadow);animation:pop .4s both}
 .plvl-pill .dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
@@ -834,7 +848,7 @@ body{font-family:var(--font);color:var(--text);background:var(--bg);overflow:hid
 .pedit-hint{font-size:11.5px;color:var(--sub);display:flex;align-items:center;gap:7px;margin:0 0 16px;background:var(--pri-t);border:1px dashed #FFD1BF;border-radius:9px;padding:9px 13px}
 @media (max-width:900px){.pcols,.alignrow{grid-template-columns:1fr}}
 .reviewparas{margin-top:20px;padding-top:18px;border-top:1px solid var(--border)}
-/* 文章库 · 查看原文页（三档对照独立页，不占 step 编号） */
+/* 文章库 · 查看原文页（分档对照独立页，不占 step 编号） */
 .svbar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 16px;margin:0 0 14px;background:#FFF7ED;border:1px solid #FDD9A8;border-radius:12px;flex-wrap:wrap}
 .svbar-l{display:flex;flex-direction:column;gap:5px;min-width:0}
 .svbar-t{font-size:15px;font-weight:800;color:var(--text);line-height:1.35}
@@ -920,7 +934,7 @@ body{font-family:var(--font);color:var(--text);background:var(--bg);overflow:hid
 .mat-pagination{display:flex;align-items:center;justify-content:center;gap:8px;margin:12px 0;font-size:12px;color:var(--sub)}
 .empty-state{padding:44px;text-align:center;color:var(--muted);font-size:13px}
 
-/* 文章库 · 人工审核上下文条（从文章库进入三档审核时显示在页顶） */
+/* 文章库 · 人工审核上下文条（从文章库进入分档审核时显示在页顶） */
 .rvbar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 14px;margin:0 0 12px;background:#FFF7ED;border:1px solid #FDD9A8;border-radius:10px}
 .rvbar-l{display:flex;align-items:center;gap:12px;flex-wrap:wrap;min-width:0}
 .rvbar-tag{flex:0 0 auto;font-size:10.5px;font-weight:700;padding:3px 9px;border-radius:99px;background:#F79009;color:#fff}
@@ -995,7 +1009,7 @@ const STAGES = [
   // ===== PHASE 2: 内容生产（教研老师）=====
   {no:"06", phase:2, t:"事实抽取",     tEn:"Fact Extraction",  s:"AI fact extraction"},
   {no:"07", phase:2, t:"分级标准",     tEn:"KB & CEFR Specs",    s:"Versioned KB"},
-  {no:"08", phase:2, t:"内容生成",     tEn:"Graded Generation",  s:"A2/B1/B2 by outline"},
+  {no:"08", phase:2, t:"内容生成",     tEn:"Graded Generation",  s:"A1.1–B2+.3 by outline"},
   {no:"09", phase:2, t:"AI 校验",      tEn:"AI Validate",    s:"V1-V13 + record"},
   {no:"10", phase:2, t:"段落校对",     tEn:"Paragraph Proofread", s:"Auto-split + human proofread"},
   // ===== PHASE 3: 审核（审核老师）=====
@@ -1137,37 +1151,119 @@ function matchTopics(text){
   return order.map(k => scoreMap[k]).sort((a,b) => b.score - a.score);
 }
 /* 角度/格式的智能推断（用于没有预设 tags 的素材） */
+/* 体裁收敛为四类（唯一真源）：记叙文 / 说明文 / 应用文 / 议论文 */
+const GENRES = {
+  narrative:     { zh:"记叙文", en:"Narrative" },
+  expository:    { zh:"说明文", en:"Expository" },
+  practical:     { zh:"应用文", en:"Practical" },
+  argumentative: { zh:"议论文", en:"Argumentative" },
+};
+function genreFmt(g){ return { fmt: GENRES[g].zh, fmtEn: GENRES[g].en }; }
 function defaultAngleFmt(cat, tag){
   /* 新体系有 74 个内容标签，逐个维护「角度 + 体裁」成本过高且易腐坏。
-     这里按 6 个类别给默认值，仅对少数体裁指向明确的标签做覆盖。 */
-  if(tag === "演讲名篇")  return { angle:"名篇演讲与表达技巧", angleEn:"Famous speeches", fmt:"演讲 · 赏析", fmtEn:"Speech" };
-  if(tag === "诗歌散文")  return { angle:"诗意语言与情感赏析", angleEn:"Poetry appreciation", fmt:"文学 · 赏析", fmtEn:"Appreciation" };
-  if(tag === "经典名著")  return { angle:"名著选段与背景解读", angleEn:"Classic excerpt explainer", fmt:"名著 · 导读", fmtEn:"Reading guide" };
-  if(tag === "童话寓言")  return { angle:"寓言寓意与语言赏析", angleEn:"Fable & moral", fmt:"故事 · 赏析", fmtEn:"Appreciation" };
-  if(tag === "科普冷知识") return { angle:"冷知识背后的原理", angleEn:"Science trivia explained", fmt:"科普 · 说明文", fmtEn:"Explainer" };
-  if(tag === "科学史话")  return { angle:"科学发现的历史脉络", angleEn:"History of science", fmt:"科学史 · 叙事", fmtEn:"Feature" };
-  if(tag === "人物故事")  return { angle:"人物经历与成长启示", angleEn:"Personal story", fmt:"人物 · 叙事", fmtEn:"Feature" };
-  if(tag === "创业故事")  return { angle:"创业逻辑与关键决策", angleEn:"Startup decisions", fmt:"商业 · 叙事", fmtEn:"Feature" };
-  if(tag === "学习方法")  return { angle:"高效学习方法拆解", angleEn:"Study method breakdown", fmt:"教学 · 说明文", fmtEn:"Explainer" };
-  if(tag === "职场生存")  return { angle:"职场情境与应对策略", angleEn:"Workplace tactics", fmt:"职场 · 解读", fmtEn:"Explainer" };
-  if(cat === "world")    return { angle:"全球热点与社会观察", angleEn:"Global affairs observation", fmt:"新闻 · 报道", fmtEn:"Feature" };
-  if(cat === "science")  return { angle:"科技前沿与影响解读", angleEn:"Science & tech frontier", fmt:"科技 · 报道", fmtEn:"Feature" };
-  if(cat === "culture")  return { angle:"文化现象与背后故事", angleEn:"Cultural trends & stories", fmt:"文化 · 报道", fmtEn:"Feature" };
-  if(cat === "business") return { angle:"商业逻辑与趋势解读", angleEn:"Business logic & trends", fmt:"商业 · 报道", fmtEn:"Feature" };
-  if(cat === "growth")   return { angle:"成长方法与心理解析", angleEn:"Growth & psychology", fmt:"成长 · 说明文", fmtEn:"Explainer" };
-  if(cat === "story")    return { angle:"故事情节与语言赏析", angleEn:"Story & language", fmt:"故事 · 赏析", fmtEn:"Appreciation" };
-  return { angle:"中国文化故事", angleEn:"China's Story", fmt:"文化解读 · 说明文", fmtEn:"Explainer" };
+     这里按 6 个类别给默认值，仅对少数体裁指向明确的标签做覆盖；
+     体裁一律落到 GENRES 的四类之一，不再自造文体名。 */
+  if(tag === "演讲名篇")  return Object.assign({ angle:"名篇演讲与表达技巧", angleEn:"Famous speeches" }, genreFmt("argumentative"));
+  if(tag === "诗歌散文")  return Object.assign({ angle:"诗意语言与情感赏析", angleEn:"Poetry appreciation" }, genreFmt("narrative"));
+  if(tag === "经典名著")  return Object.assign({ angle:"名著选段与背景解读", angleEn:"Classic excerpt explainer" }, genreFmt("narrative"));
+  if(tag === "童话寓言")  return Object.assign({ angle:"寓言寓意与语言赏析", angleEn:"Fable & moral" }, genreFmt("narrative"));
+  if(tag === "科普冷知识") return Object.assign({ angle:"冷知识背后的原理", angleEn:"Science trivia explained" }, genreFmt("expository"));
+  if(tag === "科学史话")  return Object.assign({ angle:"科学发现的历史脉络", angleEn:"History of science" }, genreFmt("narrative"));
+  if(tag === "人物故事")  return Object.assign({ angle:"人物经历与成长启示", angleEn:"Personal story" }, genreFmt("narrative"));
+  if(tag === "创业故事")  return Object.assign({ angle:"创业逻辑与关键决策", angleEn:"Startup decisions" }, genreFmt("narrative"));
+  if(tag === "学习方法")  return Object.assign({ angle:"高效学习方法拆解", angleEn:"Study method breakdown" }, genreFmt("practical"));
+  if(tag === "职场生存")  return Object.assign({ angle:"职场情境与应对策略", angleEn:"Workplace tactics" }, genreFmt("practical"));
+  if(cat === "world")    return Object.assign({ angle:"全球热点与社会观察", angleEn:"Global affairs observation" }, genreFmt("narrative"));
+  if(cat === "science")  return Object.assign({ angle:"科技前沿与影响解读", angleEn:"Science & tech frontier" }, genreFmt("expository"));
+  if(cat === "culture")  return Object.assign({ angle:"文化现象与背后故事", angleEn:"Cultural trends & stories" }, genreFmt("narrative"));
+  if(cat === "business") return Object.assign({ angle:"商业逻辑与趋势解读", angleEn:"Business logic & trends" }, genreFmt("expository"));
+  if(cat === "growth")   return Object.assign({ angle:"成长方法与心理解析", angleEn:"Growth & psychology" }, genreFmt("expository"));
+  if(cat === "story")    return Object.assign({ angle:"故事情节与语言赏析", angleEn:"Story & language" }, genreFmt("narrative"));
+  return Object.assign({ angle:"中国文化故事", angleEn:"China's Story" }, genreFmt("expository"));
 }
 
 
+/* ==================== 中央档位注册表（4 大档 / 12 子档 · 唯一真源） ====================
+   Dify 返回的 JSON key 是下划线式（A1_1 / B2P_1），展示名是点式（A1.1 / B2+.1）。
+   任何档位字符串都必须先经 nkKey / nkDisp 归一化，禁止再在各处写死 A2/B1/B2。 */
+const BIG_GROUPS = [
+  { big:"A1",  zh:"入门",   en:"Beginner" },
+  { big:"A2",  zh:"初级",   en:"Elementary" },
+  { big:"B1",  zh:"中级",   en:"Intermediate" },
+  { big:"B2+", zh:"中高级", en:"Upper-int." },
+];
+const LEVELS12 = [
+  { key:"A1_1", d:"A1.1", big:"A1" }, { key:"A1_2", d:"A1.2", big:"A1" }, { key:"A1_3", d:"A1.3", big:"A1" },
+  { key:"A2_1", d:"A2.1", big:"A2" }, { key:"A2_2", d:"A2.2", big:"A2" }, { key:"A2_3", d:"A2.3", big:"A2" },
+  { key:"B1_1", d:"B1.1", big:"B1" }, { key:"B1_2", d:"B1.2", big:"B1" }, { key:"B1_3", d:"B1.3", big:"B1" },
+  { key:"B2P_1", d:"B2+.1", big:"B2+" }, { key:"B2P_2", d:"B2+.2", big:"B2+" }, { key:"B2P_3", d:"B2+.3", big:"B2+" },
+];
+const LEVEL_BY_KEY = {}; LEVELS12.forEach(function(l){ LEVEL_BY_KEY[l.key] = l; });
+/* 任意写法 → 规范 key：A1.1 / A1-1 / A1_1 / B2+.1 / B2P_1 / b2p3 → A1_1 / B2P_1 */
+function nkKey(s){
+  let t = String(s == null ? "" : s).trim().toUpperCase().split(" ").join("");
+  if(!t) return "";
+  t = t.split("B2+").join("B2P");
+  t = t.replace(/[._·／/-]/g, "_").replace(/_+/g, "_").replace(/^_|_$/g, "");
+  const m = t.match(/^(A1|A2|B1|B2P)_?([123])$/);
+  return m ? (m[1] + "_" + m[2]) : t;
+}
+/* 任意写法 → 点式展示名（A1.1 / B2+.1） */
+function nkDisp(s){
+  const l = LEVEL_BY_KEY[nkKey(s)];
+  return l ? l.d : String(s == null ? "" : s).trim();
+}
+/* 展示名：优先用服务端 levels_meta.display，否则回退本地点式名 */
+function dispOf(k){
+  const m = state.meta12 && state.meta12[k];
+  return (m && m.display) ? m.display : nkDisp(k);
+}
+/* 某大档的 3 个子档 key */
+function subKeys(big){ return LEVELS12.filter(function(l){ return l.big === big; }).map(function(l){ return l.key; }); }
+/* 某 key 所属大档（兼容旧的三档写法 A2/B1/B2） */
+function bigOf(key){
+  const k = nkKey(key);
+  const l = LEVEL_BY_KEY[k];
+  if(l) return l.big;
+  if(k === "B2" || k === "B2P") return "B2+";
+  if(BIG_GROUPS.some(function(g){ return g.big === k; })) return k;
+  return null;
+}
+/* 当前展示的大档（state.big 未设时按 state.lvl 推导） */
+function curBig(){ return state.big || bigOf(state.lvl) || BIG_GROUPS[0].big; }
+/* 超纲词上限按大档区分 */
+function offCap(lvl){ const b = bigOf(lvl) || BIG_GROUPS[0].big; return b === "A1" ? "1%" : b === "A2" ? "2%" : b === "B1" ? "3%" : "4%"; }
+/* 大档切换条：一次渲染只出一个（避免同页重复） */
+let _bigBarUsed = false;
+function bigBarHTML(){
+  _bigBarUsed = true;
+  const cur = curBig();
+  return '<div class="bigbar"><span class="bigbar-l">' + L("大档","Group") + '</span>' +
+    BIG_GROUPS.map(function(g){ return '<div class="bigtab' + (cur === g.big ? ' sel' : '') + '" onclick="setBig(\'' + g.big + '\')"><b>' + g.big + '</b><span>' + L(g.zh, g.en) + '</span></div>'; }).join("") +
+    '<span class="bigbar-r">' + L("12 子档 · A1.1–B2+.3","12 sub-levels · A1.1–B2+.3") + '</span></div>';
+}
+function bigBarOnce(){ return _bigBarUsed ? "" : bigBarHTML(); }
+/* 切换大档：三栏仅显示该大档的 3 个子档；当前档不在新大档内则落到其第一个子档 */
+function setBig(g){
+  if(!BIG_GROUPS.some(function(x){ return x.big === g; })) return;
+  state.big = g;
+  if(bigOf(state.lvl) !== g) state.lvl = subKeys(g)[0];
+  state.lvlManual = true;
+  render();
+}
+
 const SPECS = {
-  A2:{name:"A2 · 初级 / Starter",words:"Top 2,000",avg:"8–12 词/句",max:"≤16 词",tense:"一般现在/过去/将来",lex:"400–600L",len:"120–250 词",clauses:"仅 that 宾语从句",gloss:"5–8 词条",
-      en:{words:"Top 2,000",avg:"8–12 words/sentence",max:"≤16 words",tense:"Simple present / past / future",lex:"400–600L",len:"120–250 words",clauses:"that-clauses only",gloss:"5–8 items"}},
-  B1:{name:"B1 · 中级 / Intermediate",words:"Top 4,000",avg:"12–18 词/句",max:"≤25 词",tense:"+ 被动/现在完成",lex:"600–850L",len:"150–300 词",clauses:"+ which/who 从句",gloss:"8–12 词条",
-      en:{words:"Top 4,000",avg:"12–18 words/sentence",max:"≤25 words",tense:"+ passive / present perfect",lex:"600–850L",len:"150–300 words",clauses:"+ which / who clauses",gloss:"8–12 items"}},
-  B2:{name:"B2 · 中高级 / Upper-int.",words:"Top 8,000",avg:"18–25 词/句",max:"≤35 词",tense:"+ 虚拟/间接引语",lex:"850–1050L",len:"180–350 词",clauses:"+ 名词性从句/分词",gloss:"12–18 词条",
-      en:{words:"Top 8,000",avg:"18–25 words/sentence",max:"≤35 words",tense:"+ subjunctive / reported speech",lex:"850–1050L",len:"180–350 words",clauses:"+ noun clauses / participles",gloss:"12–18 items"}},
+  A1:{name:"A1 · 入门 / Starter",words:"Top 800",avg:"5–8 词/句",max:"≤10 词",tense:"一般现在时",lex:"100–300L",len:"60–120 词",clauses:"简单句为主",gloss:"3–5 词条",
+      en:{words:"Top 800",avg:"5–8 words/sentence",max:"≤10 words",tense:"Simple present",lex:"100–300L",len:"60–120 words",clauses:"Simple sentences",gloss:"3–5 items"}},
+  A2:{name:"A2 · 初级 / Elementary",words:"Top 1,500",avg:"8–12 词/句",max:"≤16 词",tense:"一般现在/过去/将来",lex:"300–500L",len:"120–250 词",clauses:"仅 that 宾语从句",gloss:"5–8 词条",
+      en:{words:"Top 1,500",avg:"8–12 words/sentence",max:"≤16 words",tense:"Simple present / past / future",lex:"300–500L",len:"120–250 words",clauses:"that-clauses only",gloss:"5–8 items"}},
+  B1:{name:"B1 · 中级 / Intermediate",words:"Top 3,000",avg:"12–18 词/句",max:"≤25 词",tense:"+ 被动/现在完成",lex:"500–700L",len:"180–320 词",clauses:"+ which/who 从句",gloss:"8–12 词条",
+      en:{words:"Top 3,000",avg:"12–18 words/sentence",max:"≤25 words",tense:"+ passive / present perfect",lex:"500–700L",len:"180–320 words",clauses:"+ which / who clauses",gloss:"8–12 items"}},
+  "B2+":{name:"B2+ · 中高级 / Upper-int.",words:"Top 6,000",avg:"18–25 词/句",max:"≤35 词",tense:"+ 虚拟/间接引语",lex:"700–1000L",len:"260–420 词",clauses:"+ 名词性从句/分词",gloss:"12–18 词条",
+      en:{words:"Top 6,000",avg:"18–25 words/sentence",max:"≤35 words",tense:"+ subjunctive / reported speech",lex:"700–1000L",len:"260–420 words",clauses:"+ noun clauses / participles",gloss:"12–18 items"}},
 };
+/* 某档位（子档 key，或大档名）适用的规格 */
+function specOf(lvl){ return SPECS[bigOf(lvl) || lvl] || SPECS[BIG_GROUPS[0].big]; }
 
 /* store aligned paragraphs: {a2,b1,b2,idx,aligned} */
 let GEN = {};   /* 真实生成稿（AI 工作流 applyLive 填充；未运行时为空） */
@@ -1240,7 +1336,7 @@ function coverHTML(){
     <div class="cv-badge">${L("AI 生成封面","AI-GENERATED COVER")}</div>
     ${liveUrl ? `<button class="cv-save" onclick="saveCover()">${L("保存封面图","Save cover")}</button>` : ""}
     <div class="cv-in">
-      <div class="cv-tags"><span class="cv-tag">${L(g.cover.tag.zh,g.cover.tag.en)}</span><span class="cv-tag">CEFR ${state.lvl}</span></div>
+      <div class="cv-tags"><span class="cv-tag">${L(g.cover.tag.zh,g.cover.tag.en)}</span><span class="cv-tag">CEFR ${nkDisp(state.lvl)}</span></div>
     </div>
   </div>`;
 }
@@ -1418,9 +1514,9 @@ function audioBarHTML(){
         <button class="ab-btn ${state.audioAccent==='uk'&&hasUk?'on':''}" onclick="playAudio('uk')" ${hasUk?'':'disabled'}>▶ ${L("英音","British")} </button>
       </div>`
     : `<div class="ab-accent"><span class="ab-label">${L("音频文件","Audio files")}</span>
-        <button class="ab-btn" onclick="genArticleAudio()" ${state.audioGenerating?'disabled':''}>${state.audioGenerating ? L("生成中…","Generating…") : L("生成音频（三档 × 英音/美音）","Generate audio (3 levels × UK/US)")}</button>
+        <button class="ab-btn" onclick="genArticleAudio()" ${state.audioGenerating?'disabled':''}>${state.audioGenerating ? L("生成中…","Generating…") : L("生成音频（本大档 3 子档 × 英音/美音）","Generate audio (3 sub-levels × UK/US)")}</button>
       </div>`;
-  return `<div class="audiobar"><h6> ${L("文章朗读","Read-aloud")}（${state.lvl}）</h6>
+  return `<div class="audiobar"><h6> ${L("文章朗读","Read-aloud")}（${nkDisp(state.lvl)}）</h6>
     <div class="ab-accent"><span class="ab-label">${L("在线朗读（浏览器）","Live read-aloud (browser)")}</span>
       <button class="ab-btn" onclick="speakAccent('gb')">${L("英音","British")} </button>
       <button class="ab-btn" onclick="speakAccent('us')">${L("美音","American")} </button>
@@ -1432,10 +1528,10 @@ function audioBarHTML(){
 let accentSpeaking = false;
 /* 生成的音频文件（MP3）：{A2:{us:url, uk:url}, ...}；题目：{A2:[4题], ...} */
 
-/* 调后端生成三档 × 英音/美音 音频文件（硅基流动 TTS；后续可换微软 Azure） */
+/* 调后端生成本大档 3 子档 × 英音/美音 音频文件（硅基流动 TTS；后续可换微软 Azure） */
 async function genArticleAudio(){
   const arts = {};
-  ["A2","B1","B2"].forEach(k => {
+  subKeys(curBig()).forEach(k => {
     const g = GEN[k];
     if(g && g.paras && g.paras.length){
       arts[k] = (g.title ? g.title + ". " : "") + g.paras.map(p => (Array.isArray(p) ? p.join(" ") : p)).join(" ");
@@ -1522,7 +1618,7 @@ function audioStatusInfo(a, id){
   if(mt && mt.status === "failed"){
     return { cls:"fail", text:" " + L("生成失败","Failed"), tip:(mt.error || L("后端未返回音频","No audio returned")) };
   }
-  if(n >= 6) return { cls:"ok", text:" 6/6", tip:L("三档 × 英音/美音 全部就绪","3 levels × UK/US ready") };
+  if(n >= 6) return { cls:"ok", text:" 6/6", tip:L("本大档 3 子档 × 英音/美音 全部就绪","3 sub-levels × UK/US ready") };
   if(n > 0) return { cls:"part", text:" " + n + "/6", tip:L("仅部分生成成功","Partially generated") };
   if(mt) return { cls:"fail", text:" " + L("生成失败","Failed"), tip:(mt.error || "") };
   return { cls:"none", text:" " + L("未生成","Not generated"), tip:L("入库时未生成音频","Not generated when banked") };
@@ -1567,17 +1663,19 @@ function speakAccent(accent){
 
 
 /* ============ 练习题（阅读理解 2 + literacy 2，每档各 4 题）============ */
+/* ============ 练习题（每子档 3 题，题型 4 类循环梯度）============ */
 const QUIZ_TYPE_LABEL = {
-  reading: { zh:"阅读理解", en:"Reading" },
-  vocab:   { zh:"词汇",     en:"Vocabulary" },
-  culture: { zh:"文化背景", en:"Culture" },
+  language:  { zh:"语言基础", en:"Language" },
+  text:      { zh:"文本理解", en:"Text" },
+  logic:     { zh:"逻辑推理", en:"Logic" },
+  cognitive: { zh:"认知思辨", en:"Cognitive" },
 };
 function quizHTML(lv){
   const list = state.quiz[lv || state.lvl] || [];
   if(!list.length) return "";
   const lvKey = lv || state.lvl;
   const cards = list.map((q, i) => {
-    const tl = QUIZ_TYPE_LABEL[q.type] || QUIZ_TYPE_LABEL.reading;
+    const tl = QUIZ_TYPE_LABEL[q.type] || QUIZ_TYPE_LABEL.text;
     const shown = !!state.quizShow[lvKey + "-" + i];
     const opts = (q.options || []).map((o, oi) => {
       const isAns = (oi === q.answer);
@@ -1610,7 +1708,7 @@ function quizCellHTML(lv, i){
     return `<div class="qcell empty"><div class="qcard qplaceholder"><div class="qtext" style="color:var(--muted);font-weight:500;text-align:center">— ${L("本节无题","no question")} —</div></div></div>`;
   }
   const shown = !!state.quizShow[lv + "-" + i];
-  const tl = QUIZ_TYPE_LABEL[q.type] || QUIZ_TYPE_LABEL.reading;
+  const tl = QUIZ_TYPE_LABEL[q.type] || QUIZ_TYPE_LABEL.text;
   const opts = (q.options || []).map((o, oi) => {
     const cls = shown ? (oi === q.answer ? "qopt ans" : "qopt") : "qopt";
     return `<div class="${cls}"><b>${"ABCD"[oi] || (oi+1)}.</b> ${esc(o)}</div>`;
@@ -1625,20 +1723,28 @@ function quizCellHTML(lv, i){
     </div>
   </div></div>`;
 }
-/* 三档练习题对照：行=题号，列=A2/B1/B2，与上方段落对齐网格同构，便于跨档比较 */
+/* 子档练习题对照：行=题号，列=本大档 3 子档，与上方段落对齐网格同构，便于跨档比较 */
+/* 本大档 3 子档练习题对照：行=题号，列=子档，与上方段落对齐网格同构，便于跨档比较 */
 function quizAlignedHTML(){
-  const lvls=["A2","B1","B2"];
+  const lvls=subKeys(curBig());
   if(!lvls.some(k=>(state.quiz[k]||[]).length)) return "";
   const maxQ = Math.max(...lvls.map(k=>(state.quiz[k]||[]).length));
   const m = LVL_META;
-  let h = `<div class="quizalign">`;
-  h += `<div class="qalign-hbar"><div class="qspacer"></div>` + lvls.map(k=>`<div class="plvl-pill" style="border-color:${m[k].color}55"><span class="dot" style="background:${m[k].color}"></span><b>${k}</b><span>${L(m[k].zh, m[k].en)}</span></div>`).join("") + `</div>`;
-  h += `<div class="qalign-hint">${L("三档练习题按题型对齐对照（同一行即同一题型），便于跨档位比较难度梯度与措辞差异。","Three levels aligned by question type — same row = same type — for easy cross-level comparison of difficulty and wording.")}</div>`;
+  let h = bigBarOnce();
+  h += `<div class="quizalign">`;
+  h += `<div class="qalign-hbar"><div class="qspacer"></div>` + lvls.map(k=>`<div class="plvl-pill" style="border-color:${m[k].color}55"><span class="dot" style="background:${m[k].color}"></span><b>${nkDisp(k)}</b><span>${L(m[k].zh, m[k].en)}</span></div>`).join("") + `</div>`;
+  h += `<div class="qalign-hint">${L("本大档 3 子档练习题按题型对齐对照（同一行即同一题型），便于跨档位比较难度梯度与措辞差异。","The three sub-levels of this group are aligned by question type — same row = same type — for easy cross-level comparison of difficulty and wording.")}</div>`;
   for(let i=0;i<maxQ;i++){
     h += `<div class="qalignrow"><div class="qrow-no">#${i+1}</div>` + lvls.map(k=>quizCellHTML(k,i)).join("") + `</div>`;
   }
   h += `</div>`;
   return h;
+}
+/* B2+.3 中文背景导读：仅 B2+ 大档下展示（Dify 只在 quiz_json.guide.B2P_3 给这一段） */
+function guideCardHTML(){
+  const g = state.guide && state.guide.B2P_3;
+  if(!g || curBig() !== "B2+") return "";
+  return `<div class="guidecard"><div class="guidecard-h"><span class="gtag">${L("背景导读","Background Guide")}</span><b>${L("B2+.3 中文背景导读","B2+.3 background guide")}</b></div><div class="guidecard-b">${esc(g)}</div></div>`;
 }
 
 let VALS = [];
@@ -1658,7 +1764,7 @@ function identityRecord(){
     {zh: (h?("热点 "+h.cn):(label||"授权素材")), en: (h?("Trend: "+h.topic):(label||"material"))},
     {zh: (url?("原文链接"):("素材原文")), en: (url?"Source link":"Source text")},
     {zh: "事实卡 ×"+facts.length, en: facts.length+" fact cards"},
-    {zh: "生成稿 "+state.lvl, en: "Draft "+state.lvl},
+    {zh: "生成稿 "+nkDisp(state.lvl), en: "Draft "+nkDisp(state.lvl)},
     {zh: "审核 · 教研", en: "Reviewer: teaching staff"},
     {zh: "文章库", en: "Article bank"},
   ];
@@ -1695,7 +1801,7 @@ const KPIS = [
   [{zh:"单篇成本",en:"Cost / article"},"≤¥8"],
 ];
 
-const state = {route:null, hot:undefined, hotTheme:null, hotSubTheme:null, realHot:null, realHots:null, realScanning:false, bridgeOk:null, style:"default", lvl:"B1", lvlManual:false, extracted:false, validated:false, reviewed:false, srcForm:null, customHots:null, topicSel:null, factsCache:null, trendsDegraded:false, trendsErrors:null, audio:{}, audioMeta:null, audioGenerating:false, audioPromise:null, audioAccent:"us", quiz:{}, quizShow:{}, factMap:null, unusedFacts:[], scanFirst:null, scanElapsed:0,
+const state = {route:null, hot:undefined, hotTheme:null, hotSubTheme:null, realHot:null, realHots:null, realScanning:false, bridgeOk:null, style:"default", lvl:"B1_2", lvlManual:false, big:"B1", guide:{}, words12:null, meta12:null, extracted:false, validated:false, reviewed:false, srcForm:null, customHots:null, topicSel:null, factsCache:null, trendsDegraded:false, trendsErrors:null, audio:{}, audioMeta:null, audioGenerating:false, audioPromise:null, audioAccent:"us", quiz:{}, quizShow:{}, factMap:null, unusedFacts:[], scanFirst:null, scanElapsed:0,
   tagContent:[], tagFree:[], tagFreeCands:[], tagFreeInput:"", tagCognitive:"全年龄",
   tagOpenCats:{}, tagAIContent:[], tagAIReason:"", tagMeta:null, tagWarn:"", tagExtracting:false, tagTitleOnly:false, taxoLoaded:false, reviewingId:null};
 /* ==================== 当前选中素材（统一访问热点 / 自有版权 / 公版书三种入口） ==================== */
@@ -2065,7 +2171,7 @@ function liveFacts(){
    fact_map 由 Dify nodeGenAll 输出：{"A2":[[1,2],[3],...],"B1":[...],"B2":[...]}
    内层数组长度 = 段落数，元素为 1-based 的事实卡编号（对应 facts_text 顺序）。 */
 function liveFactMap(){
-  if(state.factMap && (state.factMap.A2 || state.factMap.B1 || state.factMap.B2)) return state.factMap;
+  if(state.factMap && Object.keys(state.factMap).length) return state.factMap;
   return null;
 }
 /* 某档第 pi 段（0-based）引用的事实卡编号数组 */
@@ -2084,7 +2190,7 @@ function unusedFactIds(){
   if(Array.isArray(state.unusedFacts) && state.unusedFacts.length) return state.unusedFacts.map(n=>parseInt(n,10));
   if(!fm) return [];
   const used = new Set();
-  ["A2","B1","B2"].forEach(k => (Array.isArray(fm[k]) ? fm[k] : []).forEach(ids => (ids||[]).forEach(n => used.add(parseInt(n,10)))));
+  LEVELS12.forEach(function(l){ const k = l.key; (Array.isArray(fm[k]) ? fm[k] : []).forEach(ids => (ids||[]).forEach(n => used.add(parseInt(n,10)))); });
   const out = [];
   for(let i = 1; i <= lf.length; i++) if(!used.has(i)) out.push(i);
   return out;
@@ -2093,9 +2199,9 @@ function unusedFactIds(){
 function factCitedBy(fi){
   const fm = liveFactMap(); if(!fm) return "";
   const ps = [];
-  ["A2","B1","B2"].forEach(k => (Array.isArray(fm[k]) ? fm[k] : []).forEach((ids, i) => {
+  LEVELS12.forEach(function(l){ const k = l.key; (Array.isArray(fm[k]) ? fm[k] : []).forEach(function(ids, i){
     if((ids||[]).map(n=>parseInt(n,10)).includes(fi) && !ps.includes(i+1)) ps.push(i+1);
-  }));
+  }); });
   return ps.length ? "P" + ps.join("/P") : "";
 }
 /* 段落正文下方的事实卡引用标签 */
@@ -2206,7 +2312,7 @@ async function startLiveRun(material, label, book){
   applyLive();
   render();
 }
-/* 内容生成：用已抽取的事实卡喂「生成专用」工作流，产出三档文章 + 练习题 + 校验（~40s）。
+/* 内容生成：用已抽取的事实卡喂「生成专用」工作流，产出 12 子档文章 + 练习题 + 校验（~77s）。
    与事实抽取分开调用，各自有各自的预计用时，避免用户在事实抽取环节干等 1 分钟。 */
 async function runGeneration(){
   const fc = state.factsCache;
@@ -2220,8 +2326,8 @@ async function runGeneration(){
   state.live.status = "running"; state.live.t0 = Date.now(); state.live.elapsed = 0;
   state.audio = {}; state.audioMeta = null; state.audioPromise = null; state.audioGenerating = false;
   renderLiveChip();
-  const st = $("#liveStat"); if(st) st.textContent = L("正在生成 A2/B1/B2 三档文章…（约 40 秒）", "Generating A2/B1/B2… (~40s)");
-  /* 必须立即重渲染：否则页面主体停留在「生成三档文章」按钮上，用户只看到左上角小 chip，
+  const st = $("#liveStat"); if(st) st.textContent = L("正在生成 12 子档文章…（约 77 秒）", "Generating 12 sub-levels… (~77s)");
+  /* 必须立即重渲染：否则页面主体停留在「生成文章」按钮上，用户只看到左上角小 chip，
      以为卡住了。渲染后由 setInterval 的 refreshRunViz 每秒更新已用时。 */
   render();
   try {
@@ -2304,7 +2410,7 @@ function mdParas(t){
   return blocks.map(b => b.replace(/^#\s+.+$/gm, "").trim()).filter(Boolean);
 }
 function alignParas(arts){
-  const keys=["A2","B1","B2"];
+  const keys=LEVELS12.map(function(l){ return l.key; });
   const split={};
   let N=0;
   keys.forEach(k=>{const p=mdParas(arts[k]);split[k]=p;if(p.length>N)N=p.length;});
@@ -2318,66 +2424,80 @@ function alignParas(arts){
   }});
   return split;
 }
-/* 读 AI 分级结果（AI 推荐档位）：用户未手动切档时，设为默认展示档位 */
+/* 读 AI 分级结果：解析 12 子档输出建立 GEN[12]；老字段仅作降级兜底（主路径必须走 articles_json） */
 function applyLive(){
   const o = liveOut(); if(!o || isExcludedStatus(o.status)) return;
   /* 缓存抽取好的事实，供后续换风格时直连「生成专用」工作流（跳过事实抽取/排查/分级） */
   if(o.summary && o.facts_text){
-    state.factsCache = { summary: o.summary, facts_text: o.facts_text, angle: o.angle, level: o.level, facts_raw: o.facts_raw || o.fact_json || "" };
+    state.factsCache = { summary: o.summary, facts_text: o.facts_text, angle: o.angle, level: nkDisp(o.level) || o.level, facts_raw: o.facts_raw || o.fact_json || "" };
   }
-  /* 解析练习题（quiz_json：每档 4 题 = 2 阅读理解 + 2 literacy[词汇/文化背景]） */
-  if(o.quiz_json){
-    try {
-      const qj = JSON.parse(o.quiz_json);
-      if(qj && typeof qj === "object" && (qj.A2 || qj.B1 || qj.B2)){
-        state.quiz = qj;
-        state.quizShow = {};
-      }
-    } catch(e) { /* 题目解析失败不影响主流程 */ }
+  const jp = function(v){ try { const x = (typeof v === "string") ? JSON.parse(v) : v; return (x && typeof x === "object") ? x : null; } catch(e){ return null; } };
+  /* 关键归一化：Dify 的 JSON key 是下划线式（A1_1 / B2P_1），统一转成规范 key */
+  const nkObj = function(src){ const out = {}; if(src && !Array.isArray(src)) Object.keys(src).forEach(function(k){ const kk = nkKey(k); if(LEVEL_BY_KEY[kk]) out[kk] = src[k]; }); return out; };
+  const A12 = nkObj(jp(o.articles_json));
+  const P12 = nkObj(jp(o.paras_json));
+  const W12 = nkObj(jp(o.words_json));
+  const M12 = nkObj(jp(o.levels_meta));
+  const FM12 = nkObj(jp(o.fact_map));
+  const qj = jp(o.quiz_json);
+  state.words12 = W12; state.meta12 = M12;
+  /* 降级兜底：无 articles_json 时退回过渡期别名 article_a2/b1/b2 → A2.2 / B1.2 / B2+.2 */
+  if(!Object.keys(A12).length){
+    [["A2_2", o.article_a2], ["B1_2", o.article_b1], ["B2P_2", o.article_b2]].forEach(function(pair){
+      if(pair[1]) A12[pair[0]] = pair[1];
+    });
+    [["A2_2", o.paras_a2], ["B1_2", o.paras_b1], ["B2P_2", o.paras_b2]].forEach(function(pair){
+      let arr = pair[1];
+      if(typeof arr === "string"){ try { arr = JSON.parse(arr); } catch(e){ arr = null; } }
+      if(Array.isArray(arr) && arr.length) P12[pair[0]] = arr;
+    });
   }
-  /* 解析段落↔事实卡绑定（fact_map），失败不影响主流程 */
-  if(o.fact_map){
-    try {
-      const fm = JSON.parse(o.fact_map);
-      if(fm && typeof fm === "object"){ state.factMap = fm; state.unusedFacts = []; }
-    } catch(e) { /* 绑定解析失败不影响主流程 */ }
-  }
+  /* 段落↔事实卡绑定（fact_map，12 键），失败不影响主流程 */
+  if(Object.keys(FM12).length) state.factMap = FM12;
   if(o.unused_facts && (!state.unusedFacts || !state.unusedFacts.length)){
     try {
       const uf = JSON.parse(o.unused_facts);
-      if(Array.isArray(uf)) state.unusedFacts = uf.map(n=>parseInt(n,10)).filter(n=>n>=1);
-    } catch(e) { /* 同上 */ }
+      if(Array.isArray(uf)) state.unusedFacts = uf.map(function(n){ return parseInt(n, 10); }).filter(function(n){ return n >= 1; });
+    } catch(e){ /* 同上 */ }
   }
+  /* 练习题（quiz_json.levels，12 键归一化）+ B2+.3 背景导读（quiz_json.guide） */
+  if(qj){
+    const lvq = nkObj(qj.levels);
+    if(Object.keys(lvq).length){ state.quiz = lvq; state.quizShow = {}; }
+    const gdq = nkObj(qj.guide);
+    if(Object.keys(gdq).length) state.guide = gdq;
+  }
+  /* 校验结果：results[].level 是点式（A1.1），按 nkKey 归一化后建索引 */
   const vj = liveVJ();
-  if(o.level && ["A2","B1","B2"].includes(o.level)){
-    state.live.recommendedLevel = o.level;
-    if(!state.lvlManual) state.lvl = o.level;
+  const vmap = {};
+  if(vj && Array.isArray(vj.results)) vj.results.forEach(function(r){ if(r && r.level) vmap[nkKey(r.level)] = r; });
+  /* AI 推荐档位（level 点式 / level_big 大档都兼容）；用户手动切过档则不覆盖 */
+  const recKey = nkKey(o.level);
+  if(LEVEL_BY_KEY[recKey]){
+    state.live.recommendedLevel = nkDisp(recKey);
+    if(!state.lvlManual) state.lvl = recKey;
+  } else if(o.level_big){
+    const bk = bigOf(o.level_big);
+    if(bk && !state.lvlManual) state.lvl = subKeys(bk)[0];
   }
-  const arts = { A2: o.article_a2, B1: o.article_b1, B2: o.article_b2 };
+  if(!LEVEL_BY_KEY[state.lvl]) state.lvl = "B1_2";
+  if(!BIG_GROUPS.some(function(g){ return g.big === state.big; })) state.big = bigOf(state.lvl) || BIG_GROUPS[0].big;
   /* 事实抽取专用工作流只返回事实卡，没有文章字段 —— 此处跳过建 GEN，
      由「内容生成」环节的 runGeneration 产出文章后再走下面的逻辑。 */
-  if(!o.article_a2 && !o.article_b1 && !o.article_b2) return;
-  /* 优先用 Dify 工作流 nodeAlign（⑥+ 段落对齐）返回的对齐结果；未运行旧版工作流时本地兜底 */
-  let alignedParas = null;
-  try {
-    const pk = { A2: o.paras_a2, B1: o.paras_b1, B2: o.paras_b2 };
-    const parsed = {}; let ok = true;
-    Object.keys(pk).forEach(k => {
-      const v = JSON.parse(pk[k]);
-      if (!Array.isArray(v) || !v.length) ok = false; else parsed[k] = v;
-    });
-    if (ok) alignedParas = parsed;
-  } catch(e) { alignedParas = null; }
-  if (!alignedParas) alignedParas = alignParas(arts);
-  const wcOf = t => (String(t || "").match(/[A-Za-z][A-Za-z''-]*/g) || []).length;
-  const sentOf = t => Math.max(1, (String(t || "").split(/[.!?]+(?:\s|$)/).filter(s => s.trim().length > 2).length));
-  Object.keys(arts).forEach(k => {
-    const raw = String(arts[k] || "");
-    const paras = alignedParas[k];
-    const firstLine = String(raw).split(/\r?\n/).map(l => l.trim()).find(Boolean) || "";
-    const title = firstLine.replace(/^#+\s*/, "").replace(/^Title:\s*/i, "").trim() || o.title || "Untitled";
+  if(!Object.keys(A12).length && !Object.keys(P12).length) return;
+  const dest = Object.keys(A12).length ? Object.keys(A12) : Object.keys(P12);
+  const wcOf = function(t){ return (String(t || "").match(/[A-Za-z][A-Za-z''-]*/g) || []).length; };
+  const sentOf = function(t){ return Math.max(1, String(t || "").split(/[.!?]+/).filter(function(s){ return s.trim().length > 2; }).length); };
+  GEN = {};
+  dest.forEach(function(k){
+    const raw = String(A12[k] || "");
+    let paras = Array.isArray(P12[k]) ? P12[k].slice() : null;
+    if(!paras || !paras.length) paras = mdParas(raw);
+    if(!paras.length) return;
+    const firstLine = raw.split(String.fromCharCode(10)).map(function(l){ return l.trim(); }).find(Boolean) || "";
+    const title = firstLine.replace(/^#+ */, "").replace(/^Title: */i, "").trim() || o.title || "Untitled";
     const wc = wcOf(raw), sc = sentOf(raw);
-    const r = vj && vj.results ? vj.results.find(x => x.level === k) : null;
+    const r = vmap[k];
     const score = r ? r.score : null;
     const metrics = [
       [{ zh: (score != null ? "校验 " + score + "/8" : "—"), en: (score != null ? score + "/8 checks" : "—") }, score != null ? Math.round(score / 8 * 100) : 30],
@@ -2385,23 +2505,25 @@ function applyLive(){
       [{ zh: state.live.elapsed + " s（全流程）", en: state.live.elapsed + " s (workflow)" }, 55],
       [{ zh: wc + " 词", en: wc + " words" }, Math.min(100, Math.round(wc / 4))],
     ];
-    const used = r ? r.checks.map(c => (c.status === "pass" ? "✓" : c.status === "warn" ? "!" : "✕") + " " + c.name + (c.detail ? " · " + c.detail : "")) : [L("（校验数据待运行后填充）", "(run workflow to populate)")];
+    const used = (r && Array.isArray(r.checks))
+      ? r.checks.map(function(c){ return (c.status === "pass" ? "✓" : c.status === "warn" ? "!" : "✕") + " " + c.name + (c.detail ? " · " + c.detail : ""); })
+      : [L("（校验数据待运行后填充）", "(run workflow to populate)")];
     GEN[k] = {
       title: title,
-      by: "Graded rewrite · CEFR " + k + " · " + wc + " words · AI LIVE",
+      by: "Graded rewrite · CEFR " + nkDisp(k) + " · " + wc + " words · AI LIVE",
       cover: { tag: { zh: "中国故事 · " + (state.live.book || "授权素材"), en: "China's Story" },
                line: title.toUpperCase().slice(0, 42),
                sub: { zh: state.live.label || "", en: state.live.label || "" } },
-      paras: paras.map(p => [p]), metrics: metrics, used: used,
+      paras: paras.map(function(p){ return [p]; }), metrics: metrics, used: used,
     };
   });
-  if(vj && vj.results){
+  if(vj && Array.isArray(vj.results)){
     const names = [];
-    vj.results.forEach(r => r.checks.forEach(c => { if(!names.includes(c.name)) names.push(c.name); }));
-    VALS = names.map((n, i) => {
-      const st = vj.results.map(r => ((r.checks.find(c => c.name === n) || {}).status) || "pass");
+    vj.results.forEach(function(r){ (r.checks || []).forEach(function(c){ if(!names.includes(c.name)) names.push(c.name); }); });
+    VALS = names.map(function(n, i){
+      const st = vj.results.map(function(r){ return ((r.checks || []).find(function(c){ return c.name === n; }) || {}).status || "pass"; });
       const worst = st.includes("fail") ? "warn" : st.includes("warn") ? "warn" : "pass";
-      const detail = vj.results.map((r, ix) => r.level + " " + (st[ix] === "pass" ? "✓" : st[ix] === "warn" ? "!" : "✕")).join(" · ");
+      const detail = vj.results.map(function(r, ix){ return nkDisp(r.level) + " " + (st[ix] === "pass" ? "✓" : st[ix] === "warn" ? "!" : "✕"); }).join(" · ");
       return ["V" + (i + 1), { zh: n, en: n }, worst, detail];
     });
   }
@@ -2523,7 +2645,7 @@ function seUseMaterial(){
 
 /* ---- 各环节预计用时（拆分后每个环节是独立调用，各显示各的）---- */
 const FACT_EST = 10;   // 事实抽取（含敏感排查+分级）实测 ~5-11s
-const GEN_EST = 60;    // 内容生成（含练习题+校验）实测 ~40-60s
+const GEN_EST = 90;    // 内容生成（含练习题+校验）实测 ~77s，留余量
 
 let RUN_SUB = "";
 function s6LiveInner(sub, key, simple){
@@ -2992,8 +3114,8 @@ function sePanelHTML(){
       <b style="font-size:15px">${L("公版书素材源 · 内置测试书目","Public-domain source · built-in sample titles")}</b>
       <span class="tint" style="background:#FFF0EB;color:#D04418">${L("公有领域","Public domain")}</span>
     </div>
-    <p style="color:var(--sub);margin:0 0 12px;font-size:13px">${L("已内置 <b>两本公有领域英文书</b>作为测试素材（章节正文离线内置，点开即选，稳定可用）：<b>点书 → 展开章节 → 点章节即选中</b>，底部点击「进入敏感排除并运行工作流」直接生成 A2/B1/B2 三档文章。",
-      "Two public-domain English titles are built in as test materials (chapter text is embedded offline — click and it just works): <b>book → chapters → click a chapter to select</b>, then hit the button below to run the workflow and generate A2/B1/B2.")}</p>
+    <p style="color:var(--sub);margin:0 0 12px;font-size:13px">${L("已内置 <b>两本公有领域英文书</b>作为测试素材（章节正文离线内置，点开即选，稳定可用）：<b>点书 → 展开章节 → 点章节即选中</b>，底部点击「进入敏感排除并运行工作流」直接生成 12 子档文章。",
+      "Two public-domain English titles are built in as test materials (chapter text is embedded offline — click and it just works): <b>book → chapters → click a chapter to select</b>, then hit the button below to run the workflow and generate 12 sub-levels.")}</p>
     <div id="seBooks" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px">
       ${SE_BOOKS.map((b,i)=>`<div class="srccard" style="padding:12px;cursor:pointer" onclick="sePickBook(${i})">
         <div style="font-weight:700;font-size:13.5px;line-height:1.4">${esc(b.title)}</div>
@@ -3014,8 +3136,8 @@ function bankPanelHTML(){
       <b style="font-size:15px">${L("自有素材库 · 《用英文讲好中国故事》","Licensed bank · The \"Telling China\'s Story\" series")}</b>
       <span class="tint" style="background:#FFF9F5;color:#D04418">${L("已完成授权 · 无需事实抽取","Licensed · no fact extraction")}</span>
     </div>
-    <p style="color:var(--sub);margin:0 0 12px;font-size:13px">${L("从已入库的原书素材中<b>直接点选一篇</b>：点击章节即选中，底部点击「进入敏感排除并运行工作流」一键生成 A2/B1/B2 三档文章。按辑归类，和素材库知识库一致。",
-      "Click a chapter straight from the licensed bank to select it, then hit the button below to run the workflow and generate A2/B1/B2. Grouped by volume, matching the knowledge base.")}</p>
+    <p style="color:var(--sub);margin:0 0 12px;font-size:13px">${L("从已入库的原书素材中<b>直接点选一篇</b>：点击章节即选中，底部点击「进入敏感排除并运行工作流」一键生成 12 子档文章。按辑归类，和素材库知识库一致。",
+      "Click a chapter straight from the licensed bank to select it, then hit the button below to run the workflow and generate 12 sub-levels. Grouped by volume, matching the knowledge base.")}</p>
     <div id="bankGroups"></div>
   </div>`;
 }
@@ -3610,7 +3732,7 @@ function renderHots(){
     });
   }
 }
-/* 选中真实热点：把文章原文喂给 AI 实时引擎，真实走敏感排查 + 三档生成 */
+/* 选中真实热点：把文章原文喂给 AI 实时引擎，真实走敏感排查 + 12 子档生成 */
 function pickHot(i){
   const h = HOTS[i]; if(!h || !h.summary) return;
   state.hotTopic = h.topic;
@@ -3875,7 +3997,7 @@ function extract(){
 
 /* ---------- Stage 6 ---------- */
 function s5(){
-  const sp = SPECS[state.lvl];
+  const sp = specOf(state.lvl);
   return head("07", L("知识库与分级标准","KB & CEFR Specs"), "Seven libraries · versioned snapshots") +
     artWorkflowBar() +
   `<p class="lede">${L("教研知识库（KB1–KB7）是生成与审核的唯一标准来源，代码不硬编码任何教研标准；每篇文章固化引用知识库版本快照，可复现、可审计。",
@@ -3887,10 +4009,10 @@ function s5(){
     <div class="kbitem"><div class="n">KB4</div><h5>${L("中国文化术语库","CN-term glossary")}</h5><p>≥300 ${L("条标准译法","standard renderings")}</p></div>
     <div class="kbitem"><div class="n">KB5</div><h5>${L("敏感规范库","Sensitivity rules")}</h5><p>S0–S3</p></div>
   </div>
-  <div class="lvlpick">${Object.keys(SPECS).map(k=>`<div class="lvl ${state.lvl===k?"sel":""}" onclick="setlvl('${k}')"><b>${k}</b><span>${SPECS[k].name.split(" · ")[1]}</span></div>`).join("")}</div>
-  ${state.live && state.live.recommendedLevel ? `<div class="note" style="margin-top:10px">${L("AI 分级推荐档位","AI recommended level")}: <b>${state.live.recommendedLevel}</b> · ${state.lvlManual ? L("你已手动切换为 "+state.lvl+"","you manually switched to "+state.lvl) : L("已设为默认展示档位（基于知识库分级标准判定）","set as default (judged by KB grading standards)")}</div>` : ""}
+  <div class="lvlpick">${BIG_GROUPS.map(g=>`<div class="lvl ${curBig()===g.big?"sel":""}" onclick="setBig('${g.big}')"><b>${g.big}</b><span>${L(g.zh,g.en)}</span></div>`).join("")}</div>
+  ${state.live && state.live.recommendedLevel ? `<div class="note" style="margin-top:10px">${L("AI 分级推荐档位","AI recommended level")}: <b>${state.live.recommendedLevel}</b> · ${state.lvlManual ? L("你已手动切换为 "+nkDisp(state.lvl)+"","you manually switched to "+nkDisp(state.lvl)) : L("已设为默认展示档位（基于知识库分级标准判定）","set as default (judged by KB grading standards)")}</div>` : ""}
   <div class="specgrid">
-    <div class="spec"><h6>${L("词汇 VOCABULARY","VOCABULARY")}</h6><div class="row"><span>${L("词表范围","Wordlist")}</span><b>${L(sp.words,sp.en.words)}</b></div><div class="row"><span>${L("生词表词条","Vocabulary items")}</span><b>${L(sp.gloss,sp.en.gloss)}</b></div><div class="row"><span>${L("超纲词上限","Off-list cap")}</span><b>${state.lvl==="A2"?"2%":state.lvl==="B1"?"3%":"4%"}</b></div></div>
+    <div class="spec"><h6>${L("词汇 VOCABULARY","VOCABULARY")}</h6><div class="row"><span>${L("词表范围","Wordlist")}</span><b>${L(sp.words,sp.en.words)}</b></div><div class="row"><span>${L("生词表词条","Vocabulary items")}</span><b>${L(sp.gloss,sp.en.gloss)}</b></div><div class="row"><span>${L("超纲词上限","Off-list cap")}</span><b>${offCap(state.lvl)}</b></div></div>
     <div class="spec"><h6>${L("句法 SYNTAX","SYNTAX")}</h6><div class="row"><span>${L("平均句长","Avg sentence")}</span><b>${L(sp.avg,sp.en.avg)}</b></div><div class="row"><span>${L("最长句","Max sentence")}</span><b>${L(sp.max,sp.en.max)}</b></div><div class="row"><span>${L("从句限制","Clauses")}</span><b style="font-size:10.5px">${L(sp.clauses,sp.en.clauses)}</b></div></div>
     <div class="spec"><h6>${L("文本 TEXT","TEXT")}</h6><div class="row"><span>${L("时态范围","Tenses")}</span><b style="font-size:10.5px">${L(sp.tense,sp.en.tense)}</b></div><div class="row"><span>${L("蓝思值区间","Lexile band")}</span><b>${L(sp.lex,sp.en.lex)}</b></div><div class="row"><span>${L("正文篇幅","Length")}</span><b>${L(sp.len,sp.en.len)}</b></div></div>
   </div>
@@ -3938,8 +4060,8 @@ function s6(){
       const pct = Math.min(100, Math.round((+state.live.elapsed || 0) / denom * 100));
       const runTxt = extracting
         ? L("正在抽取事实卡 · 预计 5–10 秒，完成后自动接续生成","Extracting fact cards · ~5–10s, then auto-generates")
-        : L("正在生成 A2 / B1 / B2 三档文章 · 预计 40–60 秒，完成后自动刷新","Generating A2/B1/B2 · ~40–60s, auto-refreshes on completion");
-      return head("08", L("内容生成","Graded Generation"), "Same facts · three difficulty levels") +
+        : L("正在生成 12 子档文章 · 预计约 77 秒，完成后自动刷新","Generating 12 sub-levels · ~77s, auto-refreshes on completion");
+      return head("08", L("内容生成","Graded Generation"), "Same facts · 12 sub-levels") +
     artWorkflowBar() +
         `<div class="genrun" id="s6run" style="margin:16px 0">
           <div class="gr-head">
@@ -3953,58 +4075,59 @@ function s6(){
     }
     const factsReady = !!(state.factsCache && state.factsCache.summary);
     if(factsReady){
-      return head("08", L("内容生成","Graded Generation"), "Same facts · three difficulty levels") +
+      return head("08", L("内容生成","Graded Generation"), "Same facts · 12 sub-levels") +
     artWorkflowBar() +
         styleBarHTML() +
-        `<div class="note" style="padding:40px;text-align:center;margin:16px 0"><p style="margin:0 0 14px">${L("事实卡已抽取完成，尚未生成文章。点击下方按钮，用这套事实卡生成 A2/B1/B2 三档文章（约 40–60 秒）。","Facts extracted — articles not generated yet. Click to generate A2/B1/B2 from these facts (~40–60s).")}</p><button class="btn" onclick="runGeneration()">${L("生成三档文章","Generate articles")}</button></div>` + wfStrip();
+        `<div class="note" style="padding:40px;text-align:center;margin:16px 0"><p style="margin:0 0 14px">${L("事实卡已抽取完成，尚未生成文章。点击下方按钮，用这套事实卡生成 12 子档文章（约 77 秒）。","Facts extracted — articles not generated yet. Click to generate 12 sub-levels from these facts (~77s).")}</p><button class="btn" onclick="runGeneration()">${L("生成文章","Generate articles")}</button></div>` + wfStrip();
     }
     const pending = state.live.status === "pending" && state.live.material;
     if(pending){
-      return head("08", L("内容生成","Graded Generation"), "Same facts · three difficulty levels") +
+      return head("08", L("内容生成","Graded Generation"), "Same facts · 12 sub-levels") +
     artWorkflowBar() +
         styleBarHTML() +
-        `<div class="note" style="padding:40px;text-align:center;margin:16px 0"><p style="margin:0 0 14px">${L("素材「"+esc(state.live.label||"")+"」已就绪，尚未抽取事实。点击下方按钮，自动完成「抽取事实卡 → 生成三档文章」（约 45–70 秒）。","Material \""+esc(state.live.label||"")+"\" is ready but facts haven't been extracted. Click below — it will extract facts then auto-generate the A2/B1/B2 articles (~45–70s).")}</p><button class="btn" onclick="extractThenGen()">${L("抽取并生成","Extract & generate")}</button></div>` + wfStrip();
+        `<div class="note" style="padding:40px;text-align:center;margin:16px 0"><p style="margin:0 0 14px">${L("素材「"+esc(state.live.label||"")+"」已就绪，尚未抽取事实。点击下方按钮，自动完成「抽取事实卡 → 生成文章」（约 90 秒）。","Material \""+esc(state.live.label||"")+"\" is ready but facts haven't been extracted. Click below — it will extract facts then auto-generate the 12 sub-level articles (~90s).")}</p><button class="btn" onclick="extractThenGen()">${L("抽取并生成","Extract & generate")}</button></div>` + wfStrip();
     }
     if(state.live.status === "error"){
-      return head("08", L("内容生成","Graded Generation"), "Same facts · three difficulty levels") +
+      return head("08", L("内容生成","Graded Generation"), "Same facts · 12 sub-levels") +
     artWorkflowBar() +
         styleBarHTML() +
         `<div class="note warn-note" style="padding:40px;text-align:center;margin:16px 0"><p style="margin:0 0 14px">${L("上次工作流运行失败：","Last run failed: ")}${esc(state.live.err || "")}</p><button class="btn" onclick="extractThenGen()">${L("重试（抽取并生成）","Retry (extract & generate)")}</button></div>` + wfStrip();
     }
-    return head("08", L("内容生成","Graded Generation"), "Same facts · three difficulty levels") +
+    return head("08", L("内容生成","Graded Generation"), "Same facts · 12 sub-levels") +
     artWorkflowBar() +
-      `<div class="note" style="padding:48px;text-align:center;margin:16px 0">${L("尚未选择素材。请先到 01 素材选择页选择素材并运行工作流，此处将展示真实生成的三档文章。","No material selected yet. Go to step 01 to pick a material and run the workflow first.")}</div>` + wfStrip();
+      `<div class="note" style="padding:48px;text-align:center;margin:16px 0">${L("尚未选择素材。请先到 01 素材选择页选择素材并运行工作流，此处将展示真实生成的 12 子档文章。","No material selected yet. Go to step 01 to pick a material and run the workflow first.")}</div>` + wfStrip();
   }
-  const cap = state.lvl==="A2"?"2%":state.lvl==="B1"?"3%":"4%";
+  const cap = offCap(state.lvl);
   const lf = liveFacts();
   const factTrace = factTraceHTML();
-  return head("08", L("内容生成","Graded Generation"), "Same facts · three difficulty levels") +
+  return head("08", L("内容生成","Graded Generation"), "Same facts · 12 sub-levels") +
     artWorkflowBar() +
   `<p class="lede">${L("同一套事实卡，按所选 CEFR 等级的语言规格重新生成——<b>事实不变，只变语言难度</b>。切换等级体验同一故事的三种难度：",
     "One set of fact cards, regenerated per CEFR level — <b>facts unchanged, only language difficulty</b>. Switch levels to compare:")}</p>
   ${styleBarHTML()}
   ${liveReady() ? `<div class="note" style="margin-bottom:12px"><b>${L("LIVE：","LIVE: ")}</b>${L("以下内容由 AI 工作流真实生成（","Generated for real by the AI workflow (")+state.live.elapsed+L("秒）。素材：","s). Material: ")+esc(state.live.label||"custom")}</div>` : (running ? `<div class="note" style="margin-bottom:12px;display:flex;align-items:center;gap:10px"><div class="spin"></div><span>${L("正在按所选风格重新生成…","Regenerating in selected style…")}</span> <span data-r="mini-time">${state.live.elapsed}s</span></div>` : "")}
-  <div class="gentabs">${Object.keys(GEN).map(k=>`<div class="gentab ${state.lvl===k?"sel":""}" onclick="setlvl('${k}')">${k} · ${SPECS[k].name.split(" · ")[1]}</div>`).join("")}</div>
+  ${bigBarOnce()}
+  <div class="gentabs">${subKeys(curBig()).filter(k=>GEN[k]).map(k=>`<div class="gentab ${state.lvl===k?"sel":""}" onclick="setlvl('${k}')">${nkDisp(k)}</div>`).join("")}</div>
   <div class="genlayout">
     <div class="genpaper">${coverHTML()}<h3 id="gtitle"></h3><div class="byline" id="gby"></div><div class="body" id="gbody"></div>${liveReady() ? audioBarHTML() : ""}${liveReady() ? quizHTML(state.lvl) : ""}${running ? `<div class="genloading"><div class="spin"></div><div class="gl-txt">${L("正在重新生成…","Regenerating…")}</div><div class="gl-time"><span data-r="mini-time">${state.live.elapsed}s</span></div></div>` : ""}</div>
     <div class="genside">
       <div class="metric"><div class="k">${liveReady() ? L("AI 校验得分（本档 8 项）","AI checks (this level, 8)") : L("超纲词率（上限 "+cap+"）","Off-list rate (cap "+cap+")")}</div><div class="v" id="m0"></div><div class="bar"><i id="mb0"></i></div></div>
-      <div class="metric"><div class="k">${liveReady() ? L("平均句长 · 实测","Avg sentence · measured") : L("平均句长 · 目标 ","Avg sentence · target ")+L(SPECS[state.lvl].avg, SPECS[state.lvl].en.avg)}</div><div class="v" id="m1"></div><div class="bar"><i id="mb1"></i></div></div>
-      <div class="metric"><div class="k">${liveReady() ? L("真实生成耗时 · 全流程","Live run time · full workflow") : L("蓝思值 · 区间 ","Lexile · band ")+L(SPECS[state.lvl].lex, SPECS[state.lvl].en.lex)}</div><div class="v" id="m2"></div><div class="bar"><i id="mb2"></i></div></div>
-      <div class="metric"><div class="k">${liveReady() ? L("篇幅 · 实测词数","Length · measured words") : L("篇幅 · 目标 ","Length · target ")+L(SPECS[state.lvl].len, SPECS[state.lvl].en.len)}</div><div class="v" id="m3"></div><div class="bar"><i id="mb3"></i></div></div>
+      <div class="metric"><div class="k">${liveReady() ? L("平均句长 · 实测","Avg sentence · measured") : L("平均句长 · 目标 ","Avg sentence · target ")+L(specOf(state.lvl).avg, specOf(state.lvl).en.avg)}</div><div class="v" id="m1"></div><div class="bar"><i id="mb1"></i></div></div>
+      <div class="metric"><div class="k">${liveReady() ? L("真实生成耗时 · 全流程","Live run time · full workflow") : L("蓝思值 · 区间 ","Lexile · band ")+L(specOf(state.lvl).lex, specOf(state.lvl).en.lex)}</div><div class="v" id="m2"></div><div class="bar"><i id="mb2"></i></div></div>
+      <div class="metric"><div class="k">${liveReady() ? L("篇幅 · 实测词数","Length · measured words") : L("篇幅 · 目标 ","Length · target ")+L(specOf(state.lvl).len, specOf(state.lvl).en.len)}</div><div class="v" id="m3"></div><div class="bar"><i id="mb3"></i></div></div>
       <div class="factused"><h6>${L("事实卡引用（段落级溯源）","Fact-card citations (per paragraph)")}</h6>${factTrace}</div>
     </div>
   </div>
   ${nextBtn("进入 AI 校验","Validate & record")}` + wfStrip();
 }
-/* 教研/审核接手已就绪素材时，直接运行工作流生成三档文章 */
+/* 教研/审核接手已就绪素材时，直接运行工作流生成文章 */
 function runWorkflowNow(){
   const m = state.live && state.live.material;
   if(!m || m.length < 40){ toast(L("请先选择素材","Pick a material first")); return; }
   if(state.live.status === "running"){ toast(L("工作流运行中，请稍候…","Workflow running, please wait…")); return; }
   runGeneration();
 }
-/* 07 内容生成页「抽取并生成」：先跑事实抽取专用工作流，成功且未被排除时自动接续生成三档文章（免二次点击） */
+/* 07 内容生成页「抽取并生成」：先跑事实抽取专用工作流，成功且未被排除时自动接续生成文章（免二次点击） */
 async function extractThenGen(){
   const m = state.live && state.live.material;
   if(!m || m.length < 40){ toast(L("请先选择素材","Pick a material first")); return; }
@@ -4049,7 +4172,7 @@ function typewriter(){
 
 /* ---------- Stage 8 ---------- */
 function s7(){
-  return head("09", L("AI 校验与身份记录","Validation & Identity"), "8 checks × 3 levels · provenance chain") +
+  return head("09", L("AI 校验与身份记录","Validation & Identity"), "8 checks × 12 sub-levels · provenance chain") +
     artWorkflowBar() +
   `${liveReady() ? `<div class="note" style="margin-bottom:12px"><b>${L("LIVE：","LIVE: ")}</b>${L("下方校验结果来自 AI 工作流真实运行（","Validation below comes from the real AI run (")}${state.live.elapsed}s）。</div>` : ""}
   <p class="lede">${L("生成稿必须 100% 通过<b>阻断级规则</b>才能进入人工审核（规则通道数字精确比对 + 模型通道 NLI 语义比对双保险）。校验通过后自动生成<b>身份记录</b>：AI 生成标识与全链路溯源信息随稿流转，合规可审计。",
@@ -4100,7 +4223,7 @@ function showVSum(){
   if(liveReady() && vj){
     big = (vj.total_pass||0) + "/" + (vj.total_checks||24);
     const warns = (vj.results||[]).flatMap(r => (r.fail_reasons||[]));
-    txt = `<b>${L("AI 真实校验：","AI LIVE validation: ")}${big} ${L("项通过","checks passed")}${warns.length ? " · " + L("告警项：","warnings: ") + esc(warns.join("；").slice(0,120)) : " · " + L("全部通过","all passed")}</b>——${L("数据来自 AI 工作流 8 项校验节点（×3 档位），真实运行 ","From the workflow's 8-check validator (×3 levels). Run time ")}${state.live.elapsed}s。`;
+    txt = `<b>${L("AI 真实校验：","AI LIVE validation: ")}${big} ${L("项通过","checks passed")}${warns.length ? " · " + L("告警项：","warnings: ") + esc(warns.join("；").slice(0,120)) : " · " + L("全部通过","all passed")}</b>——${L("数据来自 AI 工作流 8 项校验节点（×12 档位），真实运行 ","From the workflow's 8-check validator (×12 sub-levels). Run time ")}${state.live.elapsed}s。`;
   }
   s.innerHTML=`<div class="big">${big}</div><div class="txt">${txt}</div>`;
   s.style.animation="pop .5s both";
@@ -4131,15 +4254,16 @@ function showIdentity(){
 /* ---------- Stage 9 ---------- */
 function s12(){
   const parasHTML = alignedViewHTML(false);
-  const parasBlock = parasHTML ? `<div class="reviewparas"><div class="pane-h">${L("逐段原文 · 三档对齐（全文完整展示）","Segment originals · 3-level aligned, full text")}</div>${parasHTML}</div>` : `<div class="note pri-note">${L("尚未有生成文章，您可以直接点击","No article generated yet — click ")}<a href="#" onclick="go(0);return false;" style="color:#E65425;font-weight:700;text-decoration:underline;cursor:pointer">${L("素材选择","Material Selection")}</a>${L("，进行内容生成工作流。"," to run the content generation workflow.")}</div>`;
+  const parasBlock = parasHTML ? `<div class="reviewparas"><div class="pane-h">${L("逐段原文 · 本大档 3 子档对齐（全文完整展示）","Segment originals · 3 sub-levels aligned, full text")}</div>${parasHTML}</div>` : `<div class="note pri-note">${L("尚未有生成文章，您可以直接点击","No article generated yet — click ")}<a href="#" onclick="go(0);return false;" style="color:#E65425;font-weight:700;text-decoration:underline;cursor:pointer">${L("素材选择","Material Selection")}</a>${L("，进行内容生成工作流。"," to run the content generation workflow.")}</div>`;
   return head("11", L("逐段审核","Segment Review"), "Per-segment check") +
     artWorkflowBar() +
     reviewContextHTML() +
-  `<p class="lede">${L("逐段审核三档生成文章：下方为素材原文与 A2 / B1 / B2 三档对齐段落（全文完整展示），逐段核对语义一致性、分级体感与语言质量。",
-    "Review the three-level article segment by segment: below is the source material and the A2/B1/B2 aligned paragraphs (full text) — check semantic consistency, level fit and language quality per segment.")}</p>
+  `<p class="lede">${L("逐段审核本大档 3 个子档生成文章（A1.1–B2+.3）：下方为素材原文与子档对齐段落（全文完整展示），逐段核对语义一致性、分级体感与语言质量。",
+    "Review the generated articles of this group's three sub-levels (A1.1–B2+.3): below is the source material and the aligned paragraphs (full text) — check semantic consistency, level fit and language quality per segment.")}</p>
   ${materialCardHTML()}
   ${parasBlock}
   ${quizAlignedHTML()}
+  ${guideCardHTML()}
   <div class="verdict">
     <button class="btn" onclick="approve()">✓ ${L("审核通过","Approve")}</button>
     <button class="btn sec" onclick="rejectDemo()">✗ ${L("驳回","Reject")}</button>
@@ -4149,7 +4273,7 @@ async function approve(){
   state.reviewed = true;
   /* 音频由后台异步生成（6 个 TTS）。入库不再等待：文章入库后，音频生成完成时
      backfillBankAudio() 会按 contentId 自动回填进已入库的文章（链路闭环）。 */
-  const hasArt = ["A2","B1","B2"].some(k => GEN[k] && GEN[k].paras && GEN[k].paras.length);
+  const hasArt = subKeys(curBig()).some(k => GEN[k] && GEN[k].paras && GEN[k].paras.length);
   if(hasArt && !Object.keys(state.audio || {}).length && !state.audioPromise){
     genArticleAudio();
   }
@@ -4204,11 +4328,12 @@ function rejectDemo(){
 }
 
 /* Stage 09: 段落对齐（切分 + 对齐合并展示）· 共享组件 */
-const LVL_META = {
-  A2:{zh:"入门 · 短句简词", en:"Beginner · short & simple", color:"#E65425"},
-  B1:{zh:"中级 · 自然表达", en:"Intermediate · natural", color:"#E65425"},
-  B2:{zh:"进阶 · 原味丰富", en:"Upper-int · richer", color:"#E65425"},
-};
+const LVL_META = {};
+LEVELS12.forEach(function(l, i){
+  const g = BIG_GROUPS.find(function(x){ return x.big === l.big; }) || BIG_GROUPS[0];
+  const tz = ["起点","发展","巩固"][i % 3], te = ["Starter","Builder","Consolidator"][i % 3];
+  LVL_META[l.key] = { zh: g.zh + " · " + tz, en: g.en + " · " + te, color: "#E65425" };
+});
 function paraText(k,i){
   const p = GEN[k] && GEN[k].paras ? GEN[k].paras[i] : null;
   if(!p) return "";
@@ -4228,17 +4353,18 @@ function paraCard(k,i,editable){
   const wc = (txt.match(/[A-Za-z][A-Za-z''-]*/g)||[]).length;
   const edit = editable !== false;
   return '<div class="pcard" data-k="'+k+'" data-i="'+i+'">'+
-    '<div class="ph"><span class="pno">'+k+'</span><span class="ptag">'+L("第 "+(i+1)+" 段","Para "+(i+1))+'</span><span class="pword">'+wc+' '+L("词","words")+'</span></div>'+
+    '<div class="ph"><span class="pno">'+dispOf(k)+'</span><span class="ptag">'+L("第 "+(i+1)+" 段","Para "+(i+1))+'</span><span class="pword">'+wc+' '+L("词","words")+'</span></div>'+
     '<div class="pbody"'+(edit?' contenteditable="true" spellcheck="false" oninput="paraEdit(this)"':'')+'>'+esc(txt)+'</div>'+
     factCiteHTML(k,i)+'</div>';
 }
-/* 三档对齐段落视图（切分/对齐/校对/审核环节复用）：全文完整展示，editable=false 只读 */
+/* 本大档 3 子档对齐段落视图（切分/对齐/校对/审核环节复用）：全文完整展示，editable=false 只读 */
 function alignedViewHTML(editable){
-  const lvls=["A2","B1","B2"];
+  const lvls=subKeys(curBig());
   const has = lvls.some(k=>GEN[k]&&GEN[k].paras&&GEN[k].paras.length);
   if(!has) return "";
   const maxP=Math.max(...lvls.map(k=>GEN[k]&&GEN[k].paras?GEN[k].paras.length:0));
-  let h='<div class="plvlbar">'+lvls.map(k=>{const n=GEN[k]&&GEN[k].paras?GEN[k].paras.length:0;const m=LVL_META[k];return '<div class="plvl-pill"><span class="dot" style="background:'+m.color+'"></span><b>'+k+'</b><span>'+n+' '+L("段","paras")+'</span></div>';}).join("")+'</div>';
+  let h=bigBarOnce();
+  h+='<div class="plvlbar">'+lvls.map(k=>{const n=GEN[k]&&GEN[k].paras?GEN[k].paras.length:0;const m=LVL_META[k]||{color:"#E65425"};return '<div class="plvl-pill"><span class="dot" style="background:'+m.color+'"></span><b>'+dispOf(k)+'</b><span>'+n+' '+L("段","paras")+'</span></div>';}).join("")+'</div>';
   h+='<div class="aligngrid">';
   for(let i=0;i<maxP;i++){ h+='<div class="alignrow"><div class="arow-no">#'+(i+1)+'</div>'+lvls.map(k=>paraCard(k,i,editable)).join("")+'</div>'; }
   h+='</div>';
@@ -4246,34 +4372,39 @@ function alignedViewHTML(editable){
 }
 function s9(){
   if(!liveReady()) return head("10",L("段落校对","Paragraph Proofread"),"Auto-split + proofread")+"<div class=note>"+L("请先运行工作流","Run workflow first")+"</div>"+wfStrip();
-  const lvls=["A2","B1","B2"];
+  const lvls=subKeys(curBig());
   const maxP=Math.max(...lvls.map(k=>GEN[k]&&GEN[k].paras?GEN[k].paras.length:0));
   let html=head("10",L("段落校对","Paragraph Proofread"),L("AI 自动切分 + 人工校对 · 同一编号即同一语义段落，可直接编辑","Auto-split + human proofread · same number = same meaning, editable"));
   html+=artWorkflowBar();
-  html+='<p class="lede">'+L("AI 已自动切分并对齐三档段落，请在下方逐段校读并修正——点击任意段落文字即可编辑，修改自动保存。","AI has auto-split and aligned the three levels — proofread and fix each paragraph below; click any text to edit, changes auto-save.")+'</p>';
+  html+=bigBarOnce();
+  html+='<p class="lede">'+L("AI 已自动切分并对齐本大档 3 个子档的段落，请在下方逐段校读并修正——点击任意段落文字即可编辑，修改自动保存。","AI has auto-split and aligned the three sub-levels of this group — proofread and fix each paragraph below; click any text to edit, changes auto-save.")+'</p>';
   html+='<div class="pedit-hint"> '+L("所有段落已完整展示，点击任意段落文字即可编辑修改。","All paragraphs shown in full — click any text to edit.")+'</div>';
-  html+='<div class="plvlbar">'+lvls.map(k=>{const n=GEN[k]&&GEN[k].paras?GEN[k].paras.length:0;const m=LVL_META[k];return '<div class="plvl-pill"><span class="dot" style="background:'+m.color+'"></span><b>'+k+'</b><span>'+n+' '+L("段","paras")+'</span></div>';}).join("")+'</div>';
+  html+='<div class="plvlbar">'+lvls.map(k=>{const n=GEN[k]&&GEN[k].paras?GEN[k].paras.length:0;const m=LVL_META[k]||{color:"#E65425"};return '<div class="plvl-pill"><span class="dot" style="background:'+m.color+'"></span><b>'+dispOf(k)+'</b><span>'+n+' '+L("段","paras")+'</span></div>';}).join("")+'</div>';
   html+='<div class="aligngrid">';
   for(let i=0;i<maxP;i++){ html+='<div class="alignrow"><div class="arow-no">#'+(i+1)+'</div>'+lvls.map(k=>paraCard(k,i,true)).join("")+'</div>'; }
   html+='</div>';
   html+='<div class="note">'+L("AI 切分 + 人工校对 = 双重保障，确保用户切换难度时体验无缝。","AI split + human proofreading = double guarantee for seamless difficulty switching.")+'</div>';
   html+=quizAlignedHTML();
+  html+=guideCardHTML();
   html+=saveArticleBankBar(); return html;
 }
 
 /* Stage 10: Manual Proofreading */
 function s10(){
   if(!liveReady()) return head("10",L("人工校对","Manual Proofreading"),"Fine-tune")+"<div class=note>"+L("请先运行工作流","Run workflow first")+"</div>"+wfStrip();
-  const lvls=["A2","B1","B2"];
+  const lvls=subKeys(curBig());
   const maxP=Math.max(...lvls.map(k=>GEN[k]&&GEN[k].paras?GEN[k].paras.length:0));
   let html=head("10",L("人工校对","Manual Proofreading"),L("逐段校对并修正 · 原文完整展示，可直接编辑","Proofread each paragraph · full text shown and editable"));
-  html+='<p class="lede">'+L("校对老师逐段校读三档文章，检查拼写、语法、语义与对齐质量，必要时直接点击段落文字修正；修改自动保存。","Proofread each paragraph across all three levels — check spelling, grammar, meaning and alignment; click any text to fix; changes auto-save.")+'</p>';
+  html+=bigBarOnce();
+  html+='<p class="lede">'+L("校对老师逐段校读本大档 3 个子档文章，检查拼写、语法、语义与对齐质量，必要时直接点击段落文字修正；修改自动保存。","Proofread each paragraph across the three sub-levels of this group — check spelling, grammar, meaning and alignment; click any text to fix; changes auto-save.")+'</p>';
   html+='<div class="pedit-hint"> '+L("所有段落原文已完整展示，点击任意段落文字即可编辑修改。","All paragraphs are shown in full — click any text to edit.")+'</div>';
+  html+='<div class="plvlbar">'+lvls.map(k=>{const n=GEN[k]&&GEN[k].paras?GEN[k].paras.length:0;const m=LVL_META[k]||{color:"#E65425"};return '<div class="plvl-pill"><span class="dot" style="background:'+m.color+'"></span><b>'+dispOf(k)+'</b><span>'+n+' '+L("段","paras")+'</span></div>';}).join("")+'</div>';
   html+='<div class="aligngrid">';
   for(let i=0;i<maxP;i++){ html+='<div class="alignrow"><div class="arow-no">#'+(i+1)+'</div>'+lvls.map(k=>paraCard(k,i,true)).join("")+'</div>'; }
   html+='</div>';
   html+='<div class="note">'+L("AI 切分 + 人工校对 = 双重保障，确保用户切换难度时体验无缝。","AI split + human proofreading = double guarantee for seamless difficulty switching.")+'</div>';
   html+=quizAlignedHTML();
+  html+=guideCardHTML();
   html+=nextBtn("逐段审核","Segment Review")+wfStrip(); return html;
 }
 
@@ -4388,7 +4519,7 @@ function escAttr(s){ return esc(s).replace(/"/g, "&quot;").replace(/'/g, "&#39;"
 /* 统计一篇文章已生成的音频文件数（最多 3 档 × 2 口音 = 6） */
 function bankAudioCount(a){
   let n = 0;
-  ["A2","B1","B2"].forEach(function(k){
+  subKeys(bigOf(a && a.level) || curBig()).forEach(function(k){
     const v = (a && a.audio && a.audio[k]) || {};
     if(v.us) n++;
     if(v.uk) n++;
@@ -4554,9 +4685,9 @@ function buildBankArticle(){
   const ID = identityRecord();
   const facts = curFacts();
   const arts = {}, paras = {};
-  ["A2","B1","B2"].forEach(k => {
-    arts[k] = (o && o["article_" + k.toLowerCase()]) || (GEN[k] ? GEN[k].paras.map(p => p[0]).join("\n\n") : "");
-    paras[k] = GEN[k] ? GEN[k].paras.map(p => p[0]) : [];
+  LEVELS12.forEach(function(l){ const k = l.key;
+    arts[k] = GEN[k] ? GEN[k].paras.map(function(p){ return p[0]; }).join("\n\n") : "";
+    paras[k] = GEN[k] ? GEN[k].paras.map(function(p){ return p[0]; }) : [];
   });
   const title = (GEN[state.lvl] && GEN[state.lvl].title) || (o && o.title) || curMaterialLabel() || "Untitled";
   return {
@@ -4574,6 +4705,7 @@ function buildBankArticle(){
     audio: state.audio || {},
     audioMeta: state.audioMeta || null,
     quiz: state.quiz || {},
+    guide: state.guide || {},
     factMap: state.factMap || null,
     unusedFacts: unusedFactIds(),
     createdAt: Date.now(),
@@ -4621,7 +4753,7 @@ function bankCardHTML(a){
        </div>`
     : "";
   const main = `<div class="bc-main">
-    <div class="bchead"><span class="bcdot" style="background:${lm.color}"></span><div class="bcttl">${esc(a.title)}</div>${audBadge}${syncBadge}<span class="tint">${a.level}</span></div>
+    <div class="bchead"><span class="bcdot" style="background:${lm.color}"></span><div class="bcttl">${esc(a.title)}</div>${audBadge}${syncBadge}<span class="tint">${nkDisp(a.level)}</span></div>
     <div class="bcmeta">${st ? L(st.name, st.en) : esc(a.style)} · ${wc} ${L("词","words")} · ${fmtDate(a.createdAt)} · ${topic}</div>
     <div class="bcactions">
       <button class="btn" onclick="toggleBankArt('${a.id}')">${L("查看","View")}</button>
@@ -4641,11 +4773,11 @@ function reviewDraftFromBank(id){
   state.realHot = null;
   state.hotTopic = (a.material && a.material.label) || a.title;
   state.live = {status:"done", material:(a.material&&a.material.text)||"", label:(a.material&&a.material.label)||a.title, book:"", run:null, err:null, t0:0, elapsed:0};
-  GEN = {
-    A2:{title:a.title, paras:(a.paras&&a.paras.A2||[]).map(t=>[t])},
-    B1:{title:a.title, paras:(a.paras&&a.paras.B1||[]).map(t=>[t])},
-    B2:{title:a.title, paras:(a.paras&&a.paras.B2||[]).map(t=>[t])},
-  };
+  GEN = {};
+  LEVELS12.forEach(function(l){ const k = l.key; GEN[k] = { title: a.title, paras: (((a.paras || {})[k]) || []).map(function(t){ return [t]; }) }; });
+  state.lvl = LEVEL_BY_KEY[nkKey(a.level)] ? nkKey(a.level) : LEVELS12[3].key;
+  state.big = bigOf(state.lvl) || BIG_GROUPS[0].big;
+  state.quiz = a.quiz || {}; state.quizShow = {}; state.guide = a.guide || {};
   state.reviewed = false;
   if(state.user){ go(10); }
 }
@@ -4685,10 +4817,10 @@ function bankArtDetailHTML(a){
   const tip = na
     ? `<div class="bc-aud-tip">${L("音频文件当前由桥接层托管（" + AGENT_REACH_API + "），链接需在该地址可达时才可用；正式对外使用前，请先迁移到对象存储。","Audio files are served by the bridge (" + AGENT_REACH_API + "); links work only where that address is reachable. Migrate them to object storage before going live.")}</div>`
     : "";
-  return tip + audioMetaHTML(a) + ["A2","B1","B2"].map(k => {
+  return tip + audioMetaHTML(a) + subKeys(bigOf(a && a.level) || curBig()).map(function(k){
     const txt = (a.articles && a.articles[k]) || "";
-    const m = LVL_META[k] || {};
-    return `<div class="bc-lvl"><div class="bc-lvl-h"><b>${k}</b><span>${L(m.zh, m.en)}</span></div><div class="bc-lvl-body">${esc(txt)}</div>${bankAudioSectionHTML(a, k)}</div>`;
+    const m = LVL_META[k] || { zh:k, en:k };
+    return `<div class="bc-lvl"><div class="bc-lvl-h"><b>${nkDisp(k)}</b><span>${L(m.zh, m.en)}</span></div><div class="bc-lvl-body">${esc(txt)}</div>${bankAudioSectionHTML(a, k)}</div>`;
   }).join("");
 }
 /* 后端连通状态：连接不上必须明说，否则音频会静默失败、用户无从判断 */
@@ -4904,7 +5036,7 @@ function sArticleBank(){
 
   let html = head("", L("文章库","Article Library"), "All articles · review & track");
 
-  html += `<p class="lede">${L("文章库汇总全部生成文章：顶部为整体概况，下方列表逐条呈现来源、审核状态、文章 ID、生成老师、主题与生成时间。审核老师在列表右侧点「人工审核」进入三档对照审核，通过或驳回后自动返回本页。","The article library lists every generated article: an overview on top, then one row per article with source, review status, article ID, creating teacher, topic and creation time. Reviewers click Manual Review on the right for the A2/B1/B2 alignment check; approve or reject returns to this page.")}</p>`;
+  html += `<p class="lede">${L("文章库汇总全部生成文章：顶部为整体概况，下方列表逐条呈现来源、审核状态、文章 ID、生成老师、主题与生成时间。审核老师在列表右侧点「人工审核」进入分档对照审核，通过或驳回后自动返回本页。","The article library lists every generated article: an overview on top, then one row per article with source, review status, article ID, creating teacher, topic and creation time. Reviewers click Manual Review on the right for the level-aligned check; approve or reject returns to this page.")}</p>`;
 
   /* 统计卡片行 */
   html += `<div class="mat-stats">
@@ -5019,7 +5151,7 @@ function showArticleDetail(id){
      `<button class="btn sec" onclick="closeDrawer();openArticleSource('${escAttr(a.id)}')">${L("查看原文","View source")}</button>` +
      (canReview ? `<button class="btn" onclick="closeDrawer();reviewDraftFromBank('${escAttr(a.id)}')">${L("人工审核","Manual review")}</button>` : ""));
 }
-/* ---------- 人工审核上下文（三档审核页顶部） ---------- */
+/* ---------- 人工审核上下文（分档审核页顶部） ---------- */
 function reviewContextHTML(){
   const a = loadBank().find(x => x.id === state.reviewingId);
   if(!a) return "";
@@ -5037,8 +5169,8 @@ function reviewContextHTML(){
   </div>`;
 }
 function exitReview(){ state.reviewingId = null; go(11); }
-/* ---------- 文章库 · 查看原文（三档对照独立页） ----------
-   从文章详情抽屉点「查看原文」进入：顶部元信息 + 中文素材溯源卡 + A2/B1/B2 三档逐段对照。
+/* ---------- 文章库 · 查看原文（分档对照独立页） ----------
+   从文章详情抽屉点「查看原文」进入：顶部元信息 + 中文素材溯源卡 + 本大档 3 子档逐段对照。
    不占 step 编号，state.view 控制渲染；返回/切换步骤时清掉。 */
 function artParasOf(a, k){
   const p = (a && a.paras && a.paras[k]) || [];
@@ -5050,21 +5182,21 @@ function artParasOf(a, k){
 function srcParaCard(k, text, i){
   const m = LVL_META[k] || { color:"#98A2B3" };
   const dot = `<span style="width:9px;height:9px;border-radius:50%;background:${m.color};display:inline-block;flex-shrink:0"></span>`;
-  if(!text) return `<div class="pcard svempty"><div class="svempty-t">${L("暂无 " + k + " 档内容","No " + k + " version")}</div></div>`;
+  if(!text) return `<div class="pcard svempty"><div class="svempty-t">${L("暂无 " + nkDisp(k) + " 档内容","No " + nkDisp(k) + " version")}</div></div>`;
   return `<div class="pcard">
-      <div class="ph">${dot}<b>${k}</b><span style="margin-left:auto;font-size:10.5px;color:var(--muted)">#${i+1}</span></div>
+      <div class="ph">${dot}<b>${nkDisp(k)}</b><span style="margin-left:auto;font-size:10.5px;color:var(--muted)">#${i+1}</span></div>
       <div style="padding:11px 13px;font-size:12.5px;line-height:1.85;color:#344054;white-space:pre-wrap">${esc(text)}</div>
     </div>`;
 }
 function bankAlignedHTML(a){
-  const lvls = ["A2","B1","B2"];
+  const lvls = subKeys(bigOf(a && a.level) || curBig());
   const cols = {};
   let maxP = 0;
   lvls.forEach(k => { cols[k] = artParasOf(a, k); if(cols[k].length > maxP) maxP = cols[k].length; });
   if(!maxP) return "";
   let h = '<div class="plvlbar">' + lvls.map(k => {
     const m = LVL_META[k] || { color:"#98A2B3" };
-    return `<div class="plvl-pill"><span class="dot" style="background:${m.color}"></span><b>${k}</b><span>${cols[k].length} ${L("段","paras")}</span></div>`;
+    return `<div class="plvl-pill"><span class="dot" style="background:${m.color}"></span><b>${nkDisp(k)}</b><span>${cols[k].length} ${L("段","paras")}</span></div>`;
   }).join("") + '</div>';
   h += '<div class="aligngrid">';
   for(let i = 0; i < maxP; i++){
@@ -5101,8 +5233,8 @@ function sArticleSource(){
   const srcName = (a.material && a.material.source) || L("—","—");
   const srcUrl  = (a.material && a.material.url) || "";
   const aligned = bankAlignedHTML(a);
-  return head("", L("查看原文 · 三档对照","View source · 3 levels"),
-              L("文章库 → 文章详情 → 原文三档对照","Library → detail → 3-level source text"))
+  return head("", L("查看原文 · 分档对照","View source · level-aligned"),
+              L("文章库 → 文章详情 → 原文分档对照","Library → detail → level-aligned source text"))
     + `<div class="svbar">
         <div class="svbar-l">
           <div class="svbar-t">${esc(a.title||"Untitled")}</div>
@@ -5110,7 +5242,7 @@ function sArticleSource(){
             <span>${L("文章 ID","Article ID")} · <code>${esc(a.id||"—")}</code></span>
             <span>${L("来源","Source")} · ${esc(srcName)}</span>
             <span>${L("生成老师","Created by")} · ${esc(roleNameOf(a.createdByRole))}</span>
-            <span>${L("档位","Level")} · ${esc(a.level||"—")}</span>
+            <span>${L("档位","Level")} · ${esc(nkDisp(a.level)||"—")}</span>
           </div>
         </div>
         <div class="svbar-r">
@@ -5127,7 +5259,7 @@ function sArticleSource(){
         <div class="srcmat-src">${L("来源","Source")}：${esc(srcName)}${srcUrl ? ` · <a href="${esc(srcUrl)}" target="_blank" rel="noopener">${L("打开原文链接","Open source link")}</a>` : ""}</div>
       </div>`
     + (aligned
-        ? `<div class="reviewparas"><div class="pane-h">${L("三档正文 · 逐段对照","Article body · 3 levels aligned")}</div>${aligned}</div>`
+        ? `<div class="reviewparas"><div class="pane-h">${L("分档正文 · 逐段对照","Article body · level aligned")}</div>${aligned}</div>`
         : `<div class="empty-state">${L("该文章暂无正文内容","No article body available")}</div>`)
     + `<div class="svfoot"><button class="btn" onclick="closeArticleSource()">${L("返回文章库","Back to library")}</button></div>`;
 }
@@ -5328,6 +5460,7 @@ function pageMat(p){
 
 /* ---------- router ---------- */
 function render(){
+  _bigBarUsed = false;   /* 大档切换条每页只渲染一次 */
   /* 「查看原文」独立视图：不占 step 编号（避免六处同步），优先渲染；
      返回或切换侧边栏步骤时 state.view 会被清掉，不会串台 */
   if(state.view === "srcview"){
@@ -5355,13 +5488,13 @@ function render(){
 }
 function showReadingPreviewFull(){
   const g=GEN[state.lvl]; if(!g||!g.paras) return alert("No content");
-  let cp=0,cl=state.lvl||"B1"; const lv=["A2","B1","B2"];
+  let cp=0,cl=state.lvl||"B1_2"; const lv=subKeys(curBig());
   function r(){
     const P=GEN[cl]&&GEN[cl].paras?GEN[cl].paras:[]; const p=P[cp]||{en:"",zh:""};
     const m=document.getElementById("main"),total=P.length;
     m.innerHTML='<div style="max-width:720px;margin:auto;padding:20px">'+
       '<h2>'+L("阅读预览","Reading Preview")+'</h2>'+
-      '<div style="display:flex;gap:8px;margin:12px 0">'+lv.map(function(x){return '<button onclick="switchLvl(\''+x+'\')" style="padding:6px 16px;border-radius:6px;cursor:pointer;background:'+(cl===x?"#E65425":"#eee")+';color:'+(cl===x?"#fff":"#333")+'">'+x+'</button>';}).join("")+'</div>'+
+      '<div style="display:flex;gap:8px;margin:12px 0">'+lv.map(function(x){return '<button onclick="switchLvl(\''+x+'\')" style="padding:6px 16px;border-radius:6px;cursor:pointer;background:'+(cl===x?"#E65425":"#eee")+';color:'+(cl===x?"#fff":"#333")+'">'+nkDisp(x)+'</button>';}).join("")+'</div>'+
       '<div style="background:#f8f9fa;padding:20px;border-radius:10px;min-height:200px"><p style="font-size:18px;line-height:1.8">'+p.en+'</p></div>' + navBtns(cp,total) + '</div>';
   }
   r();
