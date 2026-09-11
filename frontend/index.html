@@ -1229,6 +1229,8 @@ function bigOf(key){
   if(BIG_GROUPS.some(function(g){ return g.big === k; })) return k;
   return null;
 }
+/* 旧库（三档时期）键兜底：A2_2→A2、B1_2→B1、B2P_2→B2 */
+function legacyKeyOf(k){ const b = bigOf(k); return b === "B2+" ? "B2" : b; }
 /* 当前展示的大档（state.big 未设时按 state.lvl 推导） */
 function curBig(){ return state.big || bigOf(state.lvl) || BIG_GROUPS[0].big; }
 /* 超纲词上限按大档区分 */
@@ -4774,7 +4776,7 @@ function reviewDraftFromBank(id){
   state.hotTopic = (a.material && a.material.label) || a.title;
   state.live = {status:"done", material:(a.material&&a.material.text)||"", label:(a.material&&a.material.label)||a.title, book:"", run:null, err:null, t0:0, elapsed:0};
   GEN = {};
-  LEVELS12.forEach(function(l){ const k = l.key; GEN[k] = { title: a.title, paras: (((a.paras || {})[k]) || []).map(function(t){ return [t]; }) }; });
+  LEVELS12.forEach(function(l){ const k = l.key; GEN[k] = { title: a.title, paras: (((a.paras || {})[k]) || ((a.paras || {})[legacyKeyOf(k)]) || []).map(function(t){ return [t]; }) }; });
   state.lvl = LEVEL_BY_KEY[nkKey(a.level)] ? nkKey(a.level) : LEVELS12[3].key;
   state.big = bigOf(state.lvl) || BIG_GROUPS[0].big;
   state.quiz = a.quiz || {}; state.quizShow = {}; state.guide = a.guide || {};
@@ -4818,7 +4820,7 @@ function bankArtDetailHTML(a){
     ? `<div class="bc-aud-tip">${L("音频文件当前由桥接层托管（" + AGENT_REACH_API + "），链接需在该地址可达时才可用；正式对外使用前，请先迁移到对象存储。","Audio files are served by the bridge (" + AGENT_REACH_API + "); links work only where that address is reachable. Migrate them to object storage before going live.")}</div>`
     : "";
   return tip + audioMetaHTML(a) + subKeys(bigOf(a && a.level) || curBig()).map(function(k){
-    const txt = (a.articles && a.articles[k]) || "";
+    const txt = (a.articles && (a.articles[k] || a.articles[legacyKeyOf(k)])) || "";
     const m = LVL_META[k] || { zh:k, en:k };
     return `<div class="bc-lvl"><div class="bc-lvl-h"><b>${nkDisp(k)}</b><span>${L(m.zh, m.en)}</span></div><div class="bc-lvl-body">${esc(txt)}</div>${bankAudioSectionHTML(a, k)}</div>`;
   }).join("");
@@ -5173,9 +5175,9 @@ function exitReview(){ state.reviewingId = null; go(11); }
    从文章详情抽屉点「查看原文」进入：顶部元信息 + 中文素材溯源卡 + 本大档 3 子档逐段对照。
    不占 step 编号，state.view 控制渲染；返回/切换步骤时清掉。 */
 function artParasOf(a, k){
-  const p = (a && a.paras && a.paras[k]) || [];
+  const p = (a && a.paras && (a.paras[k] || a.paras[legacyKeyOf(k)])) || [];
   if(p && p.length) return p;
-  const t = (a && a.articles && a.articles[k]) || "";
+  const t = (a && a.articles && (a.articles[k] || a.articles[legacyKeyOf(k)])) || "";
   if(!t) return [];
   return t.split(/\n{2,}/).map(x => x.trim()).filter(Boolean);
 }
