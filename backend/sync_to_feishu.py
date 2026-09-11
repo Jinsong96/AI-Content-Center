@@ -20,6 +20,42 @@ STYLE_MAP = {
     "twain": "马克·吐温", "murakami": "村上春树", "luxun": "鲁迅", "shakespeare": "莎士比亚",
 }
 
+# 12 子档体系（2026-09-10 起，唯一真源 = 飞书《APP阅读级别量化表》）。
+# 旧的三档 A2/B1/B2 已作废；飞书单选字段的可选值请按这里的**点式**维护。
+LEVELS12 = ["A1.1", "A1.2", "A1.3", "A2.1", "A2.2", "A2.3",
+            "B1.1", "B1.2", "B1.3", "B2+.1", "B2+.2", "B2+.3"]
+
+
+def _lvl_disp(v):
+    """任意档位写法 → 点式展示名。
+
+    A1_1→A1.1 / B2P_1→B2+.1 / b2+3→B2+.3 / A2→A2.1 / B2→B2+.1 / 无法识别→B1.1
+    （Dify 返回的 JSON key 是下划线式，对外展示用点式，这里统一抹平）
+    """
+    s = str(v or "").strip().upper().replace(" ", "").replace("-", "_").replace(".", "_")
+    s = s.replace("B2PLUS", "B2P").replace("B2+", "B2P")
+    for head in ("A1", "A2", "B1", "B2P"):
+        if s.startswith(head):
+            tail = s[len(head):].lstrip("_")
+            if tail in ("1", "2", "3"):
+                big = "B2+" if head == "B2P" else head
+                return "%s.%s" % (big, tail)
+    if s == "B2":
+        return "B2+.1"
+    if s == "C1":
+        return "B2+.3"
+    return "B1.1"
+
+
+def _art_text(articles, *keys):
+    """按 key 顺序取第一个非空正文；值为字符串或段落数组都兼容。"""
+    for k in keys:
+        v = (articles or {}).get(k)
+        if not v:
+            continue
+        return " ".join(str(x) for x in v) if isinstance(v, (list, tuple)) else str(v)
+    return ""
+
 
 def _tag(art, key):
     tags = (art.get("identity") or {}).get("tags") or []
@@ -67,11 +103,14 @@ def art_to_record(art):
         "语气": _tag(art, "语气") or _tag(art, "Tone"),
         "保鲜期": [_shelf(_tag(art, "保鲜期") or _tag(art, "Shelf life"))],
         "写作风格": _sel(STYLE_MAP.get(style, style), list(STYLE_MAP.values()), "默认"),
-        "CEFR主档": _sel(art.get("level", "B1"), ["A2", "B1", "B2"], "B1"),
+        "CEFR主档": _sel(_lvl_disp(art.get("level")), LEVELS12, "B1.1"),
         "状态": _sel(art.get("status", "待推送"), STATUS_OPTS, "待推送"),
-        "全文A2": articles.get("A2", ""),
-        "全文B1": articles.get("B1", ""),
-        "全文B2": articles.get("B2", ""),
+        # 飞书表仍是「全文A2/B1/B2」三个长文本字段（表结构未改）。
+        # 12 子档下取各档**中间子档**（A2.2 / B1.2 / B2+.2）作代表，
+        # 完整 12 档见下方「段落JSON」/「题目JSON」。
+        "全文A2": _art_text(articles, "A2_2", "A2"),
+        "全文B1": _art_text(articles, "B1_2", "B1"),
+        "全文B2": _art_text(articles, "B2P_2", "B2"),
         "段落JSON": json.dumps(art.get("paras", {}), ensure_ascii=False),
         "题目JSON": json.dumps(art.get("quiz", {}), ensure_ascii=False),
         "音频JSON": json.dumps(art.get("audio", {}), ensure_ascii=False),
