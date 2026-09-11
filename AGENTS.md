@@ -22,6 +22,28 @@
 
 **禁止**：复制 `index.html` 到别处改（会分叉）。所有会话都改仓库里那一份。
 
+### 分级体系（2026-09-10 起 · **唯一真源 = 飞书《APP阅读级别量化表》**）
+
+**4 大档 / 12 子档**，旧的三档标准（A2/B1/B2）**全部作废**：
+
+```
+A1 入门   A1.1 A1.2 A1.3      段落数 4   4/5/6 段
+A2 初级   A2.1 A2.2 A2.3      段落数 5   5/6/7 段
+B1 中级   B1.1 B1.2 B1.3      段落数 6   6/7/8 段
+B2+ 中高级 B2+.1 B2+.2 B2+.3   段落数 8   8/9/10 段
+```
+
+- **两套命名都要处理**：Dify 返回的 JSON key 是**下划线式**（`A1_1` / `B2P_1`），
+  对外展示用**点式**（`A1.1` / `B2+.1`）。前端用 `nkKey()` / `nkDisp()` 归一化，
+  **不要在业务代码里手写档位字符串**。
+- 每档 7 个量化维度：词数 / 蓝思 / 平均句长 / 主题范围 / 语言难度 / 体裁配比 / 题目分布。
+- **蓝思是「生成时的硬约束」**：写进生成提示词 + 由校验节点参与判定（用估算公式，非官方值）。
+- 题目 4 类：`language`（语言基础）/ `text`（文本理解）/ `logic`（逻辑推理）/ `cognitive`（认知思辨），
+  每档 3 题，按档位递进配比；**只有 B2+.3 有中文背景导读**（`quiz_json.guide.B2P_3`）。
+- 前端骨架：`BIG_GROUPS` / `LEVELS12` 是唯一真源（在 `const SPECS` 之前），
+  三栏视图按**当前大档**显示该档 3 个子档，顶部有 `bigBarHTML()` 大档切换条。
+- Dify 知识库「分级标准」已替换为 12 档语料（旧文档已删，备份在 `dify_kb_backup/legacy/`）。
+
 ---
 
 ## 1. 目录结构
@@ -190,6 +212,52 @@ headless Chrome 的 `--window-size=420,820` **不会**得到 420px 视口 ——
 
 ---
 
+### 坑 14：Dify 硅基流动插件的思考开关叫 `enable_thinking`，写 `thinking` 会被**静默丢弃**
+
+把 `completion_params` 写成 `{"thinking": false}` 时，Dify **不报错、不提示**，
+直接丢弃这个键 → 模型按 SF 平台默认**开着思考**跑。
+
+实测（`DeepSeek-V4-Flash`，400 词长文，`max_tokens=1600`）：
+
+| 参数 | 耗时 | completion tokens | reasoning |
+|---|---|---|---|
+| 无参数（SF 默认） | 54.0s | 10641 | 30335 字符 |
+| **`enable_thinking: false`** | **8.0s** | **533** | 0 |
+
+→ 差 **6.75 倍耗时、20 倍 token**。GEN 要出 2.5 万 token，开着思考会拖到十几分钟，
+表现为 **service API 返回 200 但 SSE 连续几分钟零字节**，极易误判成"网络问题/Dify 卡住"。
+
+查参数名的正确姿势（只读）：
+```bash
+GET /console/api/workspaces/current/model-providers/langgenius/siliconflow/siliconflow/models/parameter-rules?model=<模型名>
+```
+该插件只认这 9 个参数：`temperature` `max_tokens` `top_p` `top_k` `frequency_penalty`
+`response_format` `json_schema` **`enable_thinking`** `reasoning_effort`。
+> 顺便：SF 原生 API 直接传 `thinking=false` 会 **HTTP 400** —— 只有 `enable_thinking` 有效。
+
+### 坑 15：知识库检索「英文素材 → 中文标准文档」会 0 命中
+
+`nodeKBGrade` / `nodeKBSens` 的 `query_variable_selector` 原来指向**英文素材文本**，
+而知识库里是**中文分级标准** —— 向量检索跨语言失配，`result` 恒为空数组，
+**整条知识库参考路径是死的**（而且不报错，只是静默返回空）。
+
+解法：在检索节点前插一个 code 节点，输出**固定中文检索意图词**（如"分级标准 词数 蓝思 句长 对照表"），
+检索质量立刻正常（实测 8 段，score 0.68–0.73）。
+
+> ⚠️ 新增检索/LLM 节点后**必须补一条从 `start` 可达的入边** —— Dify 的执行是
+> 「从 start 出发的可达性驱动」，没有入边的节点**永远不会被执行**，
+> 而且工作流可能直接跑完不报错。`build_dify.py` 的 `validate_graph()` 已加这条断言。
+
+### 坑 16：Dify 网关对 `blocking` 有约 120s 硬超时，长工作流必须走 `streaming`
+
+GEN 早期用 DeepSeek 官方渠道耗时 145s，`response_mode: "blocking"` **实测直接 504**；
+换 `streaming` 后同样 184.7s 的工作流正常返回（首字节 1.1s）。
+
+前端已把 GEN 调用改成 SSE（`response_mode: "streaming"`），并按 `node_finished`
+事件显示「已完成 N 个节点」的进度；FACT 只要 ~10–26s，仍走 `blocking`。
+
+---
+
 ## 4. 编号体系（改 step 相关逻辑必看）
 
 当前体系（2026-09-04 全局重排后，已验证自洽）：
@@ -301,10 +369,13 @@ python3 start_railway_local.py --stop
   但**线上运行时不是** —— `_serve_index()` 会把密钥注入页面（详见第 5 节 ⚠️）
 - `.gitignore` 已排除 `frontend/config.local.js`；本机调试时把它放出来用
 
-**⚠️ LLM 走的是 DeepSeek，不是 SiliconFlow**（2026-09-09 实测确认）：
-- FACT `12e8c26d-...` 3 个 LLM 节点 → `langgenius/deepseek/deepseek` / `deepseek-v4-flash`
-- GEN `f4462032-...` 2 个 LLM 节点 → `langgenius/deepseek/deepseek` / `deepseek-v4-pro`
-- 硅基流动**没有** `deepseek-v4-*` 系列（实测 400 "Model does not exist"），别照着 SF 的模型列表改
+**⚠️ LLM 渠道已于 2026-09-10 切到硅基流动**（DeepSeek 官方账户余额耗尽，402 Insufficient Balance）：
+- FACT `12e8c26d-...` 3 个 LLM 节点、GEN `f4462032-...` 6 个 LLM 节点
+  → **全部** `langgenius/siliconflow/siliconflow` / `deepseek-ai/DeepSeek-V4-Flash`
+- 硅基流动**有** `deepseek-ai/DeepSeek-V4-Flash` 与 `-Pro`（2026-09-09 的"没有该系列"结论已过期）
+- ⚠️ **模型名必须带厂商前缀**，且用 `deepseek-ai/…` 而不是 `deepseek/…`
+- 渠道改写集中在 `build_dify.py` 的 `MODEL_REPOINT` + `repoint_models()`，
+  改渠道请改那里再重建，**不要手改 Dify 图**（9 个节点容易漏）
 
 ---
 
@@ -312,10 +383,24 @@ python3 start_railway_local.py --stop
 
 | 项 | 实测 |
 |---|---|
-| Dify FACT | 9.7 ~ 13.2s succeeded，8 个 outputs |
-| Dify GEN | **50 ~ 61s** succeeded，三档文章 A2/B1/B2 |
+| Dify FACT | 8 ~ 26s succeeded，输出含 `summary` / `facts_text` / `level`(12 子档) |
+| Dify GEN | **77s** succeeded，12 子档文章 + 12×3 题，`validation_pass=true` |
 | SiliconFlow 封面图（Kolors 512） | 可用，但 URL 带 `X-Amz-Expires=3600`（**1 小时失效**） |
 | TTS | 1.9s |
+
+### 硅基流动模型吞吐（2026-09-11 实测 · 4 路并发 + 900 词长文）
+
+| 模型 | 吞吐 | 结论 |
+|---|---|---|
+| `deepseek-ai/DeepSeek-V4-Flash` | **81.9 t/s** | ✅ 唯一可用，9 个节点统一用它 |
+| `deepseek-ai/DeepSeek-V3.1-Terminus` | 24.3 t/s | ❌ 太慢 |
+| `Pro/deepseek-ai/DeepSeek-V3.2` | 21.6 t/s | ❌ 专用通道并没更快 |
+| `deepseek-ai/DeepSeek-V3.2` | 21.6 t/s | ❌ 太慢 |
+| `deepseek-ai/DeepSeek-V4-Pro` | 4.4 t/s | ❌ 不可用（120s 跑不完 900 tokens） |
+| `zai-org/GLM-5.3` | 180s 超时 | ❌ 不可用 |
+
+> ⚠️ **测吞吐必须用「并发 + 长输出」的负载**。拿单次小请求测会得到严重乐观的数字
+> （实测同一模型小请求 69 t/s、并发长文只有 21.6 t/s），据此选型会翻车。
 
 **硬约束**：
 - **封面图生成后必须立即转 base64** 存 `coverDataUrl`，存 URL 隔天全是裂图
