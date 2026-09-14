@@ -210,6 +210,11 @@ _article_mem = None
 
 # 判定为「正文完整」的最少字符数（实测正常新闻正文在 2k–7k 字符）
 MIN_ARTICLE_CHARS = 800
+# 判定为「可交付」的最少字符数：低于此值的条目一律不进热点列表。
+# ⚠️ 必须与前端 hasUsableText() 的 MIN_USABLE_TEXT 严格一致 —— 那是生成流程的闸门：
+# 低于阈值的条目点进去只会弹「请粘贴原文」并中止。留在列表里 = 制造
+# 「有卡片、但一步也走不到生成」的假供给，比列表短更伤信任。
+MIN_USABLE_TEXT = 200
 # 超过此大小的页面不进磁盘缓存，避免缓存膨胀（实测 LiveScience 单页 2.2MB）
 MAX_CACHE_BYTES = 1024 * 1024
 # 正文抽取时长度低于此值的段落视为噪音丢弃
@@ -1116,6 +1121,19 @@ def tt_take_dropped_video():
     return out
 
 
+# 本批因「拿不到可用正文」被筛掉的条目（含视频型之外的情况：话题页无正文、
+# 正文短于 MIN_USABLE_TEXT、RSS 抓取失败只剩短摘要）。
+# 统一走这一个台账，接口就能一次说清「少了多少条、为什么少」。
+_TR_DROPPED_NO_TEXT = []
+
+
+def tt_take_dropped_no_text():
+    """取出并清空本批被筛掉的「无可用正文」条目。供接口回传。"""
+    out = list(_TR_DROPPED_NO_TEXT)
+    del _TR_DROPPED_NO_TEXT[:]
+    return out
+
+
 def toutiao_article_text(art_id):
     """/article/<id> → 移动端 JSON 接口取真实正文。返回 {text, source, title}"""
     try:
@@ -1789,6 +1807,29 @@ def fetch_trends(theme="all", sub=None, limit=30):
     except Exception as e:
         note_error("trends.enrich_fulltext", e, severity="error",
                    msg="原文补齐失败，条目将只带摘要（不影响主流程）")
+    # 第二层：无可用正文的条目一律不进列表 —— 列表里能看到的，点进去就能直接进入生成流程。
+    # 判据与前端 hasUsableText 严格对齐（fulltext_len >= MIN_USABLE_TEXT）。
+    # 这一步必须放在 enrich_fulltext 之后：抓取失败的条目会被回填成摘要（summary_only），
+    # 摘要短于阈值时同样点不动 —— 不能因为「好歹有个摘要」就当它可用。
+    # 也放在翻译之前：省掉给即将丢弃的条目做中英互译。
+    # 拦截条目不进 _health_record：源成功率要反映「交付出去的内容质量」，
+    # 被主动筛掉的条目不该把它拉低；条数变少的原因由 filtered_no_text 台账回传，界面明说。
+    _kept = []
+    for it in ranked:
+        _len = it.get("fulltext_len")
+        if _len is None:
+            _len = len(it.get("fulltext") or "")
+        if _len < MIN_USABLE_TEXT:
+            _TR_DROPPED_NO_TEXT.append({
+                "title": it.get("cn") or it.get("topic") or "",
+                "url": it.get("url") or "",
+                "lang": it.get("lang") or "en",
+                "status": it.get("fulltext_status") or "unknown",
+                "len": _len,
+            })
+            continue
+        _kept.append(it)
+    ranked = _kept
     # 为英文热点补中文翻译，实现"所有热点统一英文 + 中文"双语格式
     try:
         en_titles = [it.get("topic", "") for it in ranked if it.get("lang") != "zh" and it.get("topic")]
@@ -2391,7 +2432,8 @@ class Handler(BaseHTTPRequestHandler):
             # degraded=True 表示「结果不完整」：用户必须知道这不是"没有热点"，而是"有源失败"
             return self._send({"ok": True, "theme": theme, "sub": sub, "items": items,
                                "errors": errs, "degraded": _is_real_degradation(errs),
-                               "filtered_video": tt_take_dropped_video()})
+                               "filtered_video": tt_take_dropped_video(),
+                               "filtered_no_text": tt_take_dropped_no_text()})
         if path == "/api/scan":
             urls = [u for u in (q.get("urls") or "").split(",")]
             try:
