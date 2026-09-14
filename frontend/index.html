@@ -2276,7 +2276,10 @@ async function startLiveRun(material, label, book){
   renderLiveChip();
   const st = $("#liveStat"); if(st) st.textContent = L("已提交 AI，正在抽取事实…（约 5–10 秒）", "Submitted to AI… extracting facts (~5–10s)");
   try {
-    const wfInputs = { material: material.slice(0, 4800), level: state.lvl, style: state.style || "default" };
+    /* 不传 level —— FACT start.level 的标签本就写着「可选，空则由分级节点判定」。
+       实测：传档位偏好既会与 select 的取值格式耦合（前端内部键 A1_1 vs 枚举 A1.1），
+       也会把分级往偏好上带；省略该键 → nodeGrade 自行判区间，这才是设计意图。 */
+    const wfInputs = { material: material.slice(0, 4800), style: state.style || "default" };
     if(!AIWF_FACT.appKey) throw new Error(L(
       "AI 未运行：服务端未配置 DIFY_WF_FACT 密钥。请在部署平台（Railway → Variables）填入后重新部署。",
       "AI not running: DIFY_WF_FACT key missing on server. Add it in Railway → Variables and redeploy."));
@@ -2333,7 +2336,9 @@ async function runGeneration(){
      以为卡住了。渲染后由 setInterval 的 refreshRunViz 每秒更新已用时。 */
   render();
   try {
-    const wfInputs = { summary: fc.summary, facts_text: fc.facts_text, angle: fc.angle, level: fc.level || state.lvl, style: state.style || "default", facts_raw: fc.facts_raw || "" };
+    /* level 必须转成点式（A1.1 / B2+.1）——start.level 是 select，枚举值是点式；
+       而 state.lvl 是内部下划线键（A1_1）。nkDisp 幂等，点式/下划线都能吃。 */
+    const wfInputs = { summary: fc.summary, facts_text: fc.facts_text, angle: fc.angle, level: nkDisp(fc.level || state.lvl), style: state.style || "default", facts_raw: fc.facts_raw || "" };
     if(!AIWF_GEN.appKey) throw new Error(L(
       "AI 未运行：服务端未配置 DIFY_WF_GEN 密钥。请在部署平台（Railway → Variables）填入后重新部署。",
       "AI not running: DIFY_WF_GEN key missing on server. Add it in Railway → Variables and redeploy."));
