@@ -129,12 +129,18 @@ try:
 except Exception:
     _SSL_CTX = None
 
-def fetch(url, timeout=12):
+def fetch(url, timeout=12, headers=None):
     now = time.time()
-    hit = _CACHE.get(url)
+    # 同一 URL 换 UA 抓到的内容可能完全不同（头条对爬虫返回 SSR 完整页、对浏览器返回 JS 壳），
+    # 缓存键必须带上 UA，否则先抓的那版会把后一版顶掉，出现「明明改了却拿到旧结果」。
+    key = url if not headers else "%s|%s" % (url, headers.get("User-Agent", ""))
+    hit = _CACHE.get(key)
     if hit and now - hit[0] < _CACHE_TTL:
         return hit[1]
-    req = urllib.request.Request(url, headers={"User-Agent": UA, "Accept": "*/*"})
+    hdr = {"User-Agent": UA, "Accept": "*/*"}
+    if headers:
+        hdr.update(headers)
+    req = urllib.request.Request(url, headers=hdr)
     if url.startswith("https://"):
         opener = urllib.request.build_opener(
             urllib.request.HTTPSHandler(context=_SSL_CTX),
@@ -144,7 +150,7 @@ def fetch(url, timeout=12):
         opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
     with opener.open(req, timeout=timeout) as r:
         data = r.read()
-    _CACHE[url] = (now, data)
+    _CACHE[key] = (now, data)
     return data
 
 
@@ -1055,9 +1061,23 @@ def enrich_zh_titles(titles):
 # ============ 今日头条原文获取（第二层 A）============
 # 实测：热榜 50 条里 /article/<id> 仅约 2%（直达文章），/trending/<id> 约 98%（话题聚合）。
 #   /article/<id>  → m.toutiao.com/i<id>/info/ 直接返回 JSON 正文（纯 HTTP 可用）
-#   /trending/<id> → PC 页与移动页都是 JS 壳 / 404，必须渲染后才能拿到文章 id
+#   /trending/<id> → 普通 UA 只给 4.8KB JS 壳（无正文）；
+#                    **换搜索引擎爬虫 UA 则返回 SSR 完整 HTML**，其中「事件详情」区块
+#                    就是该热点的正文来源（实测 2026-09-14：纯 HTTP、0.3s/条）：
+#                      · 文章型   → 块内有 /article/<id> → 取文章全文（实测 741–3730 字）
+#                      · 微头条型 → 块内有 /w/<id>     → 取微头条正文（实测 292 字）
+#                      · 视频型   → 只有几十字视频文案，本身无文章正文 → 诚实标记 no_source
+#                    无头 Chrome 渲染只作兜底（本地可用，Railway 容器里没有 Chrome）。
 _TT_ART_RE = re.compile(r"/article/(\d{6,})")
 _TT_TREND_RE = re.compile(r"/trending/(\d{6,})")
+_TT_W_RE = re.compile(r"/w/(\d{6,})")
+
+# 头条对搜索引擎爬虫放行 SSR —— 这是线上（容器内无 Chrome）取头条原文的唯一可行路径
+BOT_UA = "Mozilla/5.0 (compatible; Baiduspider/2.0; +http://www.baidu.com/search/spider.html)"
+_TT_BLOCK_RE = re.compile(r'<div class="block-title">([^<]*)</div>', re.I)
+# 低于此长度不当作「正文」（实测边界：视频型事件文案 56–119 字，最短的真实简讯 133 字；
+# 取 125 可放行真实简讯、挡住视频文案，避免把视频标题送去事实抽取）
+_TT_MIN_TEXT = 125
 
 
 def toutiao_article_text(art_id):
@@ -1072,6 +1092,119 @@ def toutiao_article_text(art_id):
         return {"text": "", "source": "", "title": ""}
     return {"text": text, "source": (d.get("source") or "").strip(),
             "title": (d.get("title") or "").strip()}
+
+
+def _tt_page_source(html):
+    """从文章页 SSR 的 meta 行取来源名（形如「标题  2026-09-14 10:32 · 新华社」）"""
+    m = re.search(r'class="[^"]*article-content[^"]*"[^>]*>([\s\S]{0,600}?)</div>', html or "", re.I)
+    if not m:
+        return ""
+    t = clean_html(m.group(1))
+    mm = re.search(r"[·•]\s*([^·•\s]{2,20})", t)
+    return mm.group(1).strip() if mm else ""
+
+
+def toutiao_article_ssr_text(art_id, timeout=15):
+    """爬虫 UA 抓文章页 → SSR 里的 <article> 就是完整正文（无需 Chrome）。
+
+    实测：同一篇 7685205245144482350，移动 JSON 只给 145 字，文章页 SSR 有 1303 字。"""
+    try:
+        html = fetch("https://www.toutiao.com/article/%s/" % art_id, timeout=timeout,
+                     headers={"User-Agent": BOT_UA}).decode("utf-8", "ignore")
+    except Exception as e:
+        note_error("toutiao.article.ssr", e, severity="warn", art_id=str(art_id))
+        return {"text": "", "source": "", "title": ""}
+    title = ""
+    m = re.search(r"<title>([^<]*)</title>", html, re.I)
+    if m:
+        title = re.sub(r"\s*[-_]\s*今日头条\s*$", "", clean_html(m.group(1))).strip()
+    return {"text": extract_article_from_dom(html), "source": _tt_page_source(html), "title": title}
+
+
+def toutiao_article_full(art_id):
+    """文章正文取全：移动 JSON 优先（快），不足 200 字再上文章页 SSR。"""
+    r = toutiao_article_text(art_id)
+    if len(r["text"]) >= 200:
+        return r
+    ssr = toutiao_article_ssr_text(art_id)
+    if len(ssr["text"]) > len(r["text"]):
+        return {"text": ssr["text"], "source": ssr["source"] or r["source"],
+                "title": ssr["title"] or r["title"]}
+    return r
+
+
+def toutiao_micro_text(wid, timeout=15):
+    """微头条（/w/<id>）正文：SSR 里的 <article> 即正文。返回 {text, source}"""
+    try:
+        html = fetch("https://www.toutiao.com/w/%s/" % wid, timeout=timeout,
+                     headers={"User-Agent": BOT_UA}).decode("utf-8", "ignore")
+    except Exception as e:
+        note_error("toutiao.micro", e, severity="warn", wid=str(wid))
+        return {"text": "", "source": ""}
+    return {"text": extract_article_from_dom(html), "source": _tt_page_source(html)}
+
+
+def _tt_event_block(html):
+    """截出话题页「事件详情」区块的 HTML —— 只在这一块里找正文，
+    避免抓到「网友讨论」和相关推荐里的别的文章。"""
+    if not html:
+        return ""
+    marks = [(m.start(), m.group(1)) for m in _TT_BLOCK_RE.finditer(html)]
+    for i, (pos, t) in enumerate(marks):
+        if "事件详情" in t:
+            end = marks[i + 1][0] if i + 1 < len(marks) else len(html)
+            return html[pos:end]
+    return ""
+
+
+def _tt_block_text(seg):
+    """「事件详情」区块的内嵌文案（微头条/视频型没有外链时可当作正文）"""
+    t = re.sub(r"<(script|style)[\s\S]*?</\1>", " ", seg, flags=re.I)
+    t = clean_html(t)
+    # 去掉区块自带的固定 UI 噪声词，剩下才是正文
+    for w in ("事件详情", "关注", "分享", "转发到头条", "复制链接", "微信扫码分享",
+              "微信", "新浪微博", "QQ空间", "请先", "登录", "后发表评论～", "评论",
+              "换一换", "举报"):
+        t = t.replace(w, " ")
+    return re.sub(r"\s{2,}", " ", t).strip()
+
+
+def toutiao_topic_ssr_text(topic_url, timeout=12):
+    """话题聚合页 → 爬虫 UA 走 SSR → 解出该热点正文。**纯 HTTP，无需 Chrome**。
+
+    这是线上（Railway 容器无 Chrome）取头条原文的主力路径。
+    返回 {text, source, url, kind}；kind ∈ {article, micro, video, none}"""
+    try:
+        html = fetch(topic_url, timeout=timeout,
+                     headers={"User-Agent": BOT_UA}).decode("utf-8", "ignore")
+    except Exception as e:
+        note_error("toutiao.topic.ssr", e, severity="warn", url=topic_url)
+        return {"text": "", "source": "", "url": "", "kind": "none"}
+    seg = _tt_event_block(html)
+    if not seg:
+        return {"text": "", "source": "", "url": "", "kind": "none"}
+    # ① 文章型：块内有 /article/<id> → 取全文（正文本身可能很短，如新华社简讯 133 字，
+    #    那是真实全文而非抓取失败，长度交上层用 _TT_MIN_TEXT 判，这里不改写 kind）
+    m = re.search(r'href="/article/(\d{6,})/', seg)
+    if m:
+        r = toutiao_article_full(m.group(1))
+        return {"text": r["text"], "source": r["source"],
+                "url": "https://www.toutiao.com/article/%s" % m.group(1), "kind": "article"}
+    # ② 微头条型：块内有 /w/<id> → 取微头条正文；取不到就退回块内文案
+    w = _TT_W_RE.search(seg)
+    if w:
+        r = toutiao_micro_text(w.group(1))
+        if len(r["text"]) < _TT_MIN_TEXT:
+            inline = _tt_block_text(seg)
+            if len(inline) > len(r["text"]):
+                return {"text": inline, "source": "", "url": topic_url, "kind": "micro"}
+        return {"text": r["text"], "source": r["source"],
+                "url": "https://www.toutiao.com/w/%s" % w.group(1), "kind": "micro"}
+    # ③ 无外链：只剩块内文案。够长算微头条文案，过短则确属视频型（本身无文章正文）
+    inline = _tt_block_text(seg)
+    if len(inline) >= _TT_MIN_TEXT:
+        return {"text": inline, "source": "", "url": topic_url, "kind": "micro"}
+    return {"text": inline, "source": "", "url": topic_url, "kind": "video"}
 
 
 _CHROME_OK = None   # None=尚未探测；True/False=探测结果（只探一次，避免每条目都白等 10 秒）
@@ -1272,12 +1405,14 @@ def _cn_bigrams(s):
     return set(s[i:i + 2] for i in range(max(0, len(s) - 1)))
 
 
-def cn_fallback_article(title, min_score=3):
+def cn_fallback_article(title, min_score=6):
     """按热点标题在中文 RSS 里找最相关的原文。返回 {text, source, url, score}。
-    ⚠️ min_score 默认 3（有意义重合）是刻意的：实测人民网/新华网 RSS 偏 editorial
-    （文博会、地质公园一类），与热搜的突发新闻几乎无重合，最高只到 1 分。
-    若放宽到 1–2 分，就会把一篇无关报道当作该热点的「原文」——那是伪造溯源，
-    比「没有原文」更糟。宁可诚实标记无原文，也不给错的出处。"""
+    ⚠️ min_score 默认 6 是刻意的。实测人民网/新华网 RSS 偏 editorial（文博会、地质公园
+    一类），与热搜的突发新闻几乎无重合，正经匹配最高只到 1–2 分。
+    2026-09-14 抓到一次 4 分的**假匹配**：热搜「国家卫健委：进一步营造生育友好环境」(2026)
+    被配上「国家卫健委发布新冠病毒疫苗第二剂次加强免疫接种实施方案」(2022) —— 两边只是
+    共有一个机构名「国家卫健委」。可见 3 分并不安全，故提到 6 分。
+    宁可诚实标记无原文，也不给错的出处（伪造溯源比缺原文更糟）。"""
     want = _cn_bigrams(title)
     if not want:
         return {"text": "", "source": "", "url": "", "score": 0}
@@ -1312,7 +1447,7 @@ def cn_fallback_article(title, min_score=3):
 def fetch_toutiao(limit=15, want_fulltext=True):
     """今日头条热榜：真实中文全网热搜。
     ⚠️ 不再用 LLM 摘要冒充原文 —— 那会让「事实抽取」建立在幻觉之上。
-    原文链路：/article/<id> → 移动 JSON；/trending/<id> → 无头渲染取文章 → JSON；
+    原文链路：/article/<id> → 移动 JSON / 文章页 SSR；/trending/<id> → 爬虫 UA 走 SSR 取「事件详情」；
     均失败 → 中文 RSS 兜底(B)；再失败 → 如实标记 no_source(C)，绝不伪造。"""
     try:
         data = fetch("https://www.toutiao.com/hot-event/hot-board/?origin=toutiao_pc", timeout=12)
@@ -1357,11 +1492,14 @@ TOUTIAO_RENDER_LIMIT = 12
 
 
 def _fill_toutiao_fulltext(row, title, allow_render=True):
-    """给单条头条热点补原文：A1(直达文章JSON) → A2(渲染话题页取文章) → B(中文RSS) → C(如实标记)"""
+    """给单条头条热点补原文：
+    A1(直达文章) → A2a(话题页 SSR，纯 HTTP) → A2b(无头渲染兜底) → B(中文 RSS) → C(如实标记)"""
     url = row.get("url") or ""
+    _ssr_short = ""              # 话题页拿不到可用正文时的具体原因，最终降级文案要说清
+    _ssr_conclusive = False      # 话题页已解析出「事件详情」块 → 答案已确定，不必再走渲染兜底
     m = _TT_ART_RE.search(url)
     if m:
-        r = toutiao_article_text(m.group(1))
+        r = toutiao_article_full(m.group(1))
         if len(r["text"]) >= 200:
             row["fulltext"] = r["text"]
             row["fulltext_status"] = "ok" if len(r["text"]) >= MIN_ARTICLE_CHARS else "short"
@@ -1370,8 +1508,30 @@ def _fill_toutiao_fulltext(row, title, allow_render=True):
                 row["source"] = "今日头条 · %s" % r["source"]
             row["url"] = "https://www.toutiao.com/article/%s" % m.group(1)
             return
-    # A2：话题聚合页 → 渲染 → 提取文章 id → 逐篇取正文（受 TOUTIAO_RENDER_LIMIT 限制）
-    if allow_render and _TT_TREND_RE.search(url):
+    # A2a：话题聚合页 → 爬虫 UA 走 SSR（纯 HTTP，线上唯一可行路径，实测 0.3s/条）
+    if _TT_TREND_RE.search(url):
+        sr = toutiao_topic_ssr_text(url)
+        _ssr_conclusive = (sr["kind"] != "none")
+        if len(sr["text"]) >= _TT_MIN_TEXT:
+            row["fulltext"] = sr["text"]
+            row["fulltext_status"] = "ok" if len(sr["text"]) >= MIN_ARTICLE_CHARS else "short"
+            row["fulltext_len"] = len(sr["text"])
+            if sr["source"]:
+                row["source"] = "今日头条 · %s" % sr["source"]
+            row["url"] = sr["url"]
+            if row["fulltext_status"] == "short":
+                row["fulltext_err"] = ("话题原文本身较短（%d 字，%s）"
+                                       % (len(sr["text"]),
+                                          "文章型简讯" if sr["kind"] == "article" else "微头条文案"))
+            return
+        if sr["kind"] == "video":
+            _ssr_short = "该热搜为视频型事件，事件详情本身是短视频、没有文章正文"
+        elif sr["text"]:
+            _ssr_short = "话题页仅有简短文案（%d 字），无长文正文" % len(sr["text"])
+        else:
+            _ssr_short = "话题页未附文章正文"
+    # A2b：SSR 没解出 → 无头渲染兜底（本地有 Chrome 时可用；线上容器无 Chrome，会整体跳过）
+    if allow_render and not _ssr_conclusive and _TT_TREND_RE.search(url):
         dom = render_dom_with_chrome(url)
         if dom:
             ids = []
@@ -1379,7 +1539,7 @@ def _fill_toutiao_fulltext(row, title, allow_render=True):
                 if aid not in ids:
                     ids.append(aid)
             for aid in ids[:3]:
-                r = toutiao_article_text(aid)
+                r = toutiao_article_full(aid)
                 text = r["text"]
                 src = r["source"]
                 # 移动 JSON 往往只给摘要（实测 176-183 字符，且 /w/ 格式直接返回 0）。
@@ -1410,7 +1570,8 @@ def _fill_toutiao_fulltext(row, title, allow_render=True):
     row["fulltext"] = ""
     row["fulltext_status"] = "no_source"
     row["fulltext_len"] = 0
-    row["fulltext_err"] = "未能获取原文（头条话题页需渲染，且无匹配中文源），请手动粘贴素材"
+    row["fulltext_err"] = ("%s，且无匹配中文源，请手动粘贴素材" % _ssr_short if _ssr_short else
+                           "未能获取原文（话题页未附文章正文，且无匹配中文源），请手动粘贴素材")
 
 
 def fetch_hackernews(limit=15):
