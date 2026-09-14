@@ -20,6 +20,7 @@ import threading
 import concurrent.futures
 import urllib.request
 import urllib.error
+import gzip
 import socket
 import xml.etree.ElementTree as ET
 from email.utils import parsedate_to_datetime
@@ -335,12 +336,32 @@ def extract_main_text(html):
     return "\n\n".join(paras), len(paras)
 
 
+def extract_title(html):
+    """取文章标题：og:title 优先，其次 <h1>，最后 <title>。
+    不优先用 <title>：它常带站名后缀（"… | ABC News"），拿它当素材标题很脏。"""
+    if not html:
+        return ""
+    pats = [
+        r'<meta[^>]+property=["\']og:title["\'][^>]*content=["\']([^"\']+)',
+        r'<meta[^>]+content=["\']([^"\']+)["\'][^>]*property=["\']og:title["\']',
+        r"<h1[^>]*>(.*?)</h1>",
+        r"<title[^>]*>(.*?)</title>",
+    ]
+    for p in pats:
+        m = re.search(p, html, re.I | re.S)
+        if m:
+            t = clean_html(m.group(1))
+            if t:
+                return t[:200]
+    return ""
+
+
 def fetch_article(url, timeout=15, use_cache=True):
     """抓取并抽取一篇文章的正文。返回 dict：
        {text, len, status, err}
        status: ok(正文达标) / short(抓到但偏短) / failed(抓不到或抽取为空)
     结果写入磁盘缓存，同一 URL 不重复抓取。"""
-    out = {"text": "", "len": 0, "status": "failed", "err": ""}
+    out = {"text": "", "len": 0, "status": "failed", "err": "", "title": ""}
     if not url:
         out["err"] = "empty url"
         return out
@@ -348,9 +369,12 @@ def fetch_article(url, timeout=15, use_cache=True):
     key = hashlib.md5(url.encode("utf-8")).hexdigest()
     if use_cache:
         hit = cache.get(key)
-        if hit and isinstance(hit, dict) and hit.get("len"):
+        # 缓存自愈：title 是后加的字段，早先落盘的条目没有它 —— 若直接返回，
+        # 标题会退化成 URL（实测过）。把「缺 title」当未命中，重抓一次即永久补上。
+        if hit and isinstance(hit, dict) and hit.get("len") and hit.get("title") is not None:
             return {"text": hit.get("text", ""), "len": hit.get("len", 0),
-                    "status": hit.get("status", "failed"), "err": hit.get("err", "")}
+                    "status": hit.get("status", "failed"), "err": hit.get("err", ""),
+                    "title": hit.get("title", "")}
     try:
         data = fetch(url, timeout=timeout)
         html = data.decode("utf-8", "ignore")
@@ -366,6 +390,7 @@ def fetch_article(url, timeout=15, use_cache=True):
     n = len(text)
     out["text"] = text
     out["len"] = n
+    out["title"] = extract_title(html)
     if n >= MIN_ARTICLE_CHARS:
         out["status"] = "ok"
     elif n > 0:
@@ -375,7 +400,7 @@ def fetch_article(url, timeout=15, use_cache=True):
         out["err"] = "未能抽取到正文"
     if out["status"] in ("ok", "short") and len(html) <= MAX_CACHE_BYTES:
         cache[key] = {"text": out["text"], "len": n, "status": out["status"],
-                      "err": out["err"], "ts": int(time.time())}
+                      "err": out["err"], "title": out["title"], "ts": int(time.time())}
         _save_article_cache()
     return out
 
@@ -410,6 +435,10 @@ def enrich_fulltext(items, workers=8, only_missing=True, timeout=15):
             if r["status"] in ("ok", "short") and r["len"] > len(it.get("fulltext") or ""):
                 it["fulltext"] = r["text"]
             it["fulltext_len"] = len(it.get("fulltext") or "")
+            # sitemap 只给 URL，标题先是路径片段；抓到正文后用页面真实标题覆盖
+            if it.get("_topic_from_url") and (r.get("title") or "").strip():
+                it["topic"] = r["title"]
+                it.pop("_topic_from_url", None)
             if r["status"] == "failed":
                 # 保留摘要兜底，但状态如实标记，前端必须能看出来
                 it.setdefault("fulltext", it.get("summary", ""))
@@ -1848,27 +1877,390 @@ def host_of(u):
     return urllib.parse.urlparse(u).netloc or u
 
 
-def discover_rss(html_bytes, base_url):
-    """从普通网页 HTML 中自动发现 RSS/Atom feed 链接。失败返回 None（调用方会降级），但需留痕"""
+# ==================== 信源发现层（docs/29）====================
+# 老师填的一个 URL 有四种可能：订阅地址 / 站点首页 / 栏目页 / 单篇文章。
+# 此前只处理第一种，其余靠「降级成网页标题」兜底 —— 那会产出一条以 URL 当标题、正文一两百字符的
+# 伪素材，生产不出任何档位的文章。按「热点搜集服务于文章生产」的原则（docs/29 §7）：
+# **发现不到可用内容就如实报告，绝不产出条目充数。**
+
+DISCOVER_TIMEOUT = 6        # 发现阶段单次探测超时。扫描是同步交互，必须控住总时长
+DISCOVER_WORKERS = 6        # L2 常见路径并发探测的线程数
+SITEMAP_MAX_URLS = 40       # sitemap 最多取多少条（只要最新的；892KB 的 sitemap 不能整棵解析）
+_DISCOVER_TTL = 7 * 86400   # 发现成功的缓存时长
+_DISCOVER_FAIL_TTL = 86400  # 发现失败的缓存时长（短一些）：否则每个扫描都为同一个站重跑 10 次探测
+DISCOVER_CACHE = {}         # host → (ts, feed_url, method)；feed_url 为空串表示「最近确认过没有」
+
+# L2：常见 feed 路径。对 WordPress / 自建站命中率不错；对大厂 SPA 无效（ABC 实测这些路径全 404）。
+FEED_GUESS_PATHS = [
+    "/feed", "/rss", "/rss.xml", "/feed.xml", "/atom.xml", "/index.xml",
+    "/feed/atom", "/feeds/all.rss", "/rss/index.xml", "/.rss",
+]
+
+# L3：站点知识库 —— host → 已知可用的 feed 地址。
+# ⚠️ 表里每一条都是 2026-09-14 经线上服务逐个实测通过的，**不要凭记忆往里加**。
+# 它只用于「发现」，不是内置信源，不会出现在界面上；维护成本约每站 1–2 分钟。
+# 为什么需要它：ABC / ESPN 这类站的 feed 路径（/abcnews/topstories、/espn/rss/news）
+# 既不在首页 HTML 里，也猜不出来（通用路径全 404）—— 没有这张表就永远发现不到。
+SITE_FEED_INDEX = {
+    "abcnews.com":          ["https://abcnews.go.com/abcnews/topstories"],
+    "abcnews.go.com":       ["https://abcnews.go.com/abcnews/topstories"],
+    "bbc.com":              ["https://feeds.bbci.co.uk/news/rss.xml",
+                             "https://www.bbc.com/news/rss.xml"],
+    "bbc.co.uk":            ["https://feeds.bbci.co.uk/news/rss.xml"],
+    "theguardian.com":      ["https://www.theguardian.com/world/rss",
+                             "https://www.theguardian.com/international/rss"],
+    "nytimes.com":          ["https://www.nytimes.com/services/xml/rss/nyt/HomePage.xml"],
+    "nbcnews.com":          ["https://feeds.nbcnews.com/nbcnews/public/news"],
+    "washingtonpost.com":   ["https://feeds.washingtonpost.com/rss/world"],
+    "wsj.com":              ["https://feeds.a.dj.com/rss/RSSWorldNews.xml"],
+    "aljazeera.com":        ["https://www.aljazeera.com/xml/rss/all.xml"],
+    "news.sky.com":         ["https://feeds.skynews.com/feeds/rss/world.xml"],
+    "npr.org":              ["https://feeds.npr.org/1001/rss.xml"],
+    "politico.com":         ["https://rss.politico.com/politics-news.xml"],
+    "newyorker.com":        ["https://www.newyorker.com/feed/everything"],
+    "theatlantic.com":      ["https://www.theatlantic.com/feed/all/"],
+    "time.com":             ["https://time.com/feed/"],
+    "vox.com":              ["https://www.vox.com/rss/index.xml"],
+    "cnbc.com":             ["https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=100003114"],
+    "bloomberg.com":        ["https://feeds.bloomberg.com/markets/news.rss"],
+    "fortune.com":          ["https://fortune.com/feed/"],
+    "sciencedaily.com":     ["https://www.sciencedaily.com/rss/all.xml"],
+    "phys.org":             ["https://phys.org/rss-feed/"],
+    "nasa.gov":             ["https://www.nasa.gov/rss/dyn/breaking_news.rss"],
+    "smithsonianmag.com":   ["https://www.smithsonianmag.com/rss/latest_articles/"],
+    "technologyreview.com": ["https://www.technologyreview.com/feed/"],
+    "wired.com":            ["https://www.wired.com/feed/rss"],
+    "arstechnica.com":      ["https://feeds.arstechnica.com/arstechnica/index"],
+    "theverge.com":         ["https://www.theverge.com/rss/index.xml"],
+    "techcrunch.com":       ["https://techcrunch.com/feed/"],
+    "cnet.com":             ["https://www.cnet.com/feeds/news/"],
+    "readwrite.com":        ["https://readwrite.com/feed/"],
+    "economist.com":        ["https://www.economist.com/the-world-this-week/rss.xml"],
+    "espn.com":             ["https://www.espn.com/espn/rss/news"],
+    "news.ycombinator.com": ["https://news.ycombinator.com/rss"],
+}
+
+
+def _kb_host(u):
+    """查知识库用的 host：小写、去 www.、去端口。"""
+    h = (urllib.parse.urlparse(u).netloc or "").lower()
+    h = h.split("@")[-1].split(":")[0]
+    return h[4:] if h.startswith("www.") else h
+
+
+def _site_root(u):
+    p = urllib.parse.urlparse(u)
+    return "%s://%s" % (p.scheme or "https", p.netloc)
+
+
+def _fetch_text(url, timeout=DISCOVER_TIMEOUT):
+    """抓文本。sitemap 常见 .gz 且往往不带 Content-Encoding，需按魔数手动解压。"""
+    data = fetch(url, timeout=timeout)
+    if data[:2] == b"\x1f\x8b":
+        try:
+            data = gzip.decompress(data)
+        except Exception:
+            pass
+    return data.decode("utf-8", "ignore")
+
+
+def discover_feeds_from_html(html_bytes, base_url):
+    """从网页 HTML 里自动发现 feed 地址，返回候选列表（可多个）。
+
+    修掉旧实现的三个坑（docs/29 §3）：
+      ① 只返回第一个匹配 —— 第一个可能不是主 feed（可能是评论/分类 feed），应全部返回再逐个验；
+      ② 相对路径只处理 "/" 开头 —— href="feed.xml" 这种会被原样返回、抓取必失败（漏掉一整类站点）；
+      ③ 强制要求 rel 含 alternate —— 有些站只写 type="application/rss+xml"。
+    """
     try:
         text = html_bytes.decode("utf-8", "ignore")
-    except Exception as e:
-        note_error("discover_rss.decode", e, severity="warn", url=base_url)
-        return None
+    except Exception:
+        return []
+    out = []
     for m in re.finditer(r'<link[^>]+>', text, re.I):
         tag = m.group(0)
-        rel = re.search(r'rel=["\']?([^"\'\s>]+)', tag, re.I)
-        href = re.search(r'href=["\']([^"\']+)["\']', tag, re.I)
-        if not rel or not href:
+        low = tag.lower()
+        if not ("rss" in low or "atom" in low or "feed" in low):
             continue
-        if "alternate" in rel.group(1) and ("rss" in tag.lower() or "atom" in tag.lower() or "feed" in tag.lower()):
-            url = href.group(1)
-            if url.startswith("//"):
-                url = "https:" + url
-            elif url.startswith("/"):
-                url = urllib.parse.urljoin(base_url, url)
-            return url
-    return None
+        href = re.search(r'href=["\']([^"\']+)["\']', tag, re.I)
+        if not href:
+            continue
+        rel = re.search(r'rel=["\']?([^"\'\s>]+)', tag, re.I)
+        rel_v = rel.group(1).lower() if rel else ""
+        typed = ("application/rss+xml" in low or "application/atom+xml" in low
+                 or "application/feed+json" in low)
+        if not typed and "alternate" not in rel_v and "feed" not in rel_v:
+            continue
+        cand = href.group(1).strip()
+        if not cand or cand.startswith(("data:", "javascript:")):
+            continue
+        # urljoin 能正确处理 "/x"、"x"、"//host/x" 三种写法（修坑 ②）
+        cand = urllib.parse.urljoin(base_url, cand)
+        if cand not in out:
+            out.append(cand)
+    return out[:5]
+
+
+def looks_like_article(html, url=""):
+    """判断一个网页是「单篇文章」还是「列表页」。纯结构特征，不用 LLM。
+
+    判错的代价很大，两个方向都糟：
+      · 首页/栏目页被当成文章 → 老师只拿到一条首页碎片正文；
+      · 文章被当成列表页 → 老师拿到整个 feed（几十条），而不是他点的那一篇。
+    后者更容易接受，所以判据整体偏保守（宁可判成列表页）。
+
+    三条判据，按可靠性排序：
+      ① URL 路径段数 —— 根路径/单段路径（站点首页、栏目页）不可能是文章。最可靠且零成本；
+      ② og:type 显式声明；
+      ③ 一页里有几个 <article> 容器。
+    ⚠️ 不要用「链接密度」：实测列表页 0.24–0.67 / 文章页 0.01–0.31，完全重叠，分不开。
+    ⚠️ 也不能只信 og:type：ScienceDaily 首页自称 og:type=article（站点标注不严谨）。
+    """
+    if not html:
+        return False
+    if url:
+        segs = [s for s in (urllib.parse.urlparse(url).path or "").split("/") if s]
+        if len(segs) <= 1:
+            return False
+    head = html[:300000]
+    og = re.search(r'<meta[^>]+property=["\']og:type["\'][^>]*content=["\']([^"\']+)', head, re.I)
+    ogv = og.group(1).strip().lower() if og else ""
+    if ogv == "article":
+        return True
+    if ogv in ("website", "blog", "profile"):
+        return False          # 站点自己声明了这不是文章页，别用弱信号去推翻它
+    n_art = len(re.findall(r"<article[\s>]", head, re.I))
+    if n_art > 1:
+        # 一页里多个 <article> 容器 = 列表页（每张内容卡一个），实测 ESPN 首页有 21 个
+        return False
+    if n_art == 1 and re.search(
+            r"(?i)(article:published_time|og:updated_time|itemprop=[\"']datePublished)", head):
+        return True
+    return False
+
+
+def robots_sitemaps(u):
+    """从 robots.txt 读 Sitemap 声明 —— 找 sitemap 的**零猜测**路径（标准约定，站方自己声明）。
+    实测 ABC / ESPN / ScienceDaily / The Verge 四站全部有声明。"""
+    root = _site_root(u)
+    try:
+        txt = _fetch_text(root + "/robots.txt")
+    except Exception:
+        return []
+    out = []
+    for m in re.finditer(r"(?im)^\s*sitemap:\s*(\S+)", txt):
+        v = m.group(1).strip()
+        if v and v not in out:
+            out.append(v)
+    return out[:5]
+
+
+def sitemap_article_urls(raw, limit=SITEMAP_MAX_URLS):
+    """从 sitemap XML 取文章 URL。返回 (urls, 子sitemap列表)。
+    sitemapindex 只递归一层，避免 sitemap 套娃；.gz 按魔数判断，不靠扩展名。"""
+    data = raw or b""
+    if data[:2] == b"\x1f\x8b":
+        try:
+            data = gzip.decompress(data)
+        except Exception:
+            return [], []
+    try:
+        root = ET.fromstring(data)          # 传 bytes：带 encoding 声明的 XML 不接受 str
+    except Exception:
+        return [], []
+    tg = root.tag.split("}")[-1].lower()
+    locs = []
+    for e in root.iter():
+        if e.tag.split("}")[-1].lower() == "loc" and (e.text or "").strip():
+            locs.append(e.text.strip())
+    if tg == "sitemapindex":
+        return [], locs[:5]
+    return locs[:limit], []
+
+
+def _is_feed(url, timeout=DISCOVER_TIMEOUT):
+    """探测一个地址是不是可用 feed：能解析出条目才算。"""
+    try:
+        d = fetch(url, timeout=timeout)
+    except Exception:
+        return False
+    try:
+        return bool(parse_feed(d, host_of(url)))
+    except Exception:
+        return False
+
+
+def _title_from_url(u):
+    """sitemap 只给 URL、没有标题。先用人可读的路径片段顶上，
+    补正文时会被页面真实标题覆盖（见 enrich_fulltext 的 _topic_from_url）。"""
+    try:
+        seg = [s for s in (urllib.parse.urlparse(u).path or "").split("/") if s]
+        if not seg:
+            return u
+        slug = seg[-1] if len(seg[-1]) > 3 else (seg[-2] if len(seg) > 1 else seg[-1])
+        slug = re.sub(r"\.(html?|php|aspx|amp)$", "", slug, flags=re.I)
+        words = urllib.parse.unquote(re.sub(r"[-_]+", " ", slug)).strip()
+        return (words or u)[:120]
+    except Exception:
+        return u
+
+
+def _discovery_chain(data, u, timeout=DISCOVER_TIMEOUT):
+    """列表页 → feed。按成本从低到高，命中即止：L1 复用已抓 HTML → L3 查知识库 → L2 猜路径。
+    返回 (feed_url, method)，找不到返回 (None, "")。"""
+    host = _kb_host(u)
+    hit = DISCOVER_CACHE.get(host)
+    if hit:
+        age = time.time() - hit[0]
+        if age < (_DISCOVER_TTL if hit[1] else _DISCOVER_FAIL_TTL):
+            return (hit[1], hit[2]) if hit[1] else (None, "")
+
+    def _remember(url, method):
+        DISCOVER_CACHE[host] = (time.time(), url, method)
+        return url, method
+
+    # L1：HTML 自动发现（复用上面已抓到的 HTML，零额外请求）
+    for cand in discover_feeds_from_html(data, u):
+        if _is_feed(cand, timeout):
+            return _remember(cand, "autodiscover")
+
+    # L3：站点知识库（零网络成本，且每条都是实测过的）
+    for cand in SITE_FEED_INDEX.get(host, []):
+        if _is_feed(cand, timeout):
+            return _remember(cand, "index")
+
+    # L2：常见路径并发探测，第一个命中的胜出
+    root = _site_root(u)
+    if root and not root.endswith("://"):
+        with concurrent.futures.ThreadPoolExecutor(max_workers=DISCOVER_WORKERS) as ex:
+            futs = {ex.submit(_is_feed, root + p, timeout): root + p for p in FEED_GUESS_PATHS}
+            for f in concurrent.futures.as_completed(futs):
+                try:
+                    if f.result():
+                        return _remember(futs[f], "guess")
+                except Exception:
+                    continue
+    DISCOVER_CACHE[host] = (time.time(), "", "fail")
+    return None, ""
+
+
+# sitemap 里混着首页 / 栏目页 / 关于我们 —— 按路径特征滤掉明显不是文章的
+_NON_ARTICLE_SEGS = {
+    "about", "contact", "advertise", "privacy", "terms", "subscribe", "login",
+    "signup", "help", "faq", "careers", "jobs", "sitemap", "rss", "feed",
+    "tags", "tag", "categories", "category", "authors", "author", "search",
+    "live", "video", "videos", "photos", "gallery", "shop", "store",
+    "podcasts", "podcast", "newsletter",
+}
+
+
+def _looks_like_article_url(u):
+    """判断 sitemap 里的一条 URL 像不像文章（排除首页、栏目页、关于我们这类）。"""
+    try:
+        segs = [s for s in (urllib.parse.urlparse(u).path or "").split("/") if s]
+        if len(segs) < 2:
+            return False                      # 根路径 / 单段 = 站点页或栏目页
+        if any(s.lower() in _NON_ARTICLE_SEGS for s in segs):
+            return False
+        last = segs[-1].lower()
+        if "." in last and not re.search(r"\.(html?|php|aspx|amp)$", last):
+            return False                      # 静态资源（图片/PDF 等）
+        return len(last) >= 4
+    except Exception:
+        return False
+
+
+def _sitemap_priority(url):
+    """news / 最新文章类 sitemap 优先。
+    实测 ABC 的 robots 依次声明 xmap / xmlLatestStories / xmlLatestVideos，
+    只有 xmlLatestStories 给的是文章列表 —— xmap 给的全是栏目页。必须按名字挑，不能取第一个。"""
+    low = url.lower()
+    for i, k in enumerate(("latest", "news", "article", "story", "post", "blog")):
+        if k in low:
+            return i
+    return 9
+
+
+def _discovery_sitemap(u, timeout=DISCOVER_TIMEOUT):
+    """最后一招：robots.txt → sitemap → 文章 URL 列表。
+    只有 URL、没有标题，质量最低，所以排在 feed 发现之后。"""
+    sms = sorted(robots_sitemaps(u), key=_sitemap_priority)
+    if not sms:
+        root = _site_root(u)
+        sms = [root + "/news-sitemap.xml", root + "/sitemap.xml"]
+    for sm in sms:
+        try:
+            urls, subs = sitemap_article_urls(fetch(sm, timeout=timeout))
+        except Exception:
+            continue
+        for sub in sorted(subs, key=_sitemap_priority)[:2]:
+            if len(urls) >= SITEMAP_MAX_URLS:
+                break
+            try:
+                more, _ = sitemap_article_urls(fetch(sub, timeout=timeout))
+                urls.extend(more)
+            except Exception:
+                continue
+        # 只留像文章的；若这个 sitemap 全是站点页，就换下一个
+        urls = [x for x in dict.fromkeys(urls) if _looks_like_article_url(x)]
+        if urls:
+            return urls[:SITEMAP_MAX_URLS]
+    return []
+
+
+def discover_source(u, timeout=DISCOVER_TIMEOUT):
+    """把一个老师填的 URL 解析成「可采集的来源」。
+
+    返回 {kind, feed_url, feed_data, urls, method, reason}，kind ∈
+      feed         —— 找到订阅地址（method: direct / autodiscover / index / guess）
+      sitemap      —— 只拿到文章 URL 列表（method: robots-sitemap）
+      article      —— 这个 URL 本身是一篇文章（method: article）
+      unsupported  —— 发现不到可用内容；reason 是给老师看的**客观原因**：
+                      site_blocks(站点拒绝自动化访问) / unreachable(站点无法访问)
+                      / http_error / no_feed(没找到订阅地址)
+
+    ⚠️ 这里**不记 error**：单个源抓不到是「这个源的客观结果」，不是系统故障。
+    _is_real_degradation() 对任何非渲染类错误都返回 True —— 若在此记 error，
+    老师加一个反爬站就会让整个热点榜挂上「降级」横幅。结果由 sources 报告承载并回传前端。
+    """
+    res = {"kind": "unsupported", "feed_url": "", "feed_data": None,
+           "urls": [], "method": "", "reason": ""}
+    try:
+        data = fetch(u, timeout=timeout)
+    except urllib.error.HTTPError as e:
+        # 401/403/407/429 = 站点主动拒绝自动化访问。这是对方的访问策略，不是我们的故障 ——
+        # 必须原样告诉老师，别让她反复试（docs/29 §6）。
+        res["reason"] = "site_blocks" if e.code in (401, 403, 407, 429) else "http_error"
+        res["http"] = e.code
+        return res
+    except Exception:
+        res["reason"] = "unreachable"
+        return res
+
+    # ① 直接就是 feed
+    if parse_feed(data, host_of(u)):
+        res.update(kind="feed", feed_url=u, feed_data=data, method="direct")
+        return res
+
+    # ② 这个 URL 本身是一篇文章 → 直接当一条素材采集，不去找列表
+    if looks_like_article(data.decode("utf-8", "ignore"), u):
+        res.update(kind="article", method="article")
+        return res
+
+    # ③ 当成列表页（首页 / 栏目页）→ 找订阅地址
+    feed_url, method = _discovery_chain(data, u, timeout)
+    if feed_url:
+        res.update(kind="feed", feed_url=feed_url, method=method)
+        return res
+
+    # ④ 兜底：sitemap 的最新文章列表
+    urls = _discovery_sitemap(u, timeout)
+    if urls:
+        res.update(kind="sitemap", urls=urls, method="robots-sitemap")
+        return res
+
+    res["reason"] = "no_feed"
+    return res
 
 
 SCAN_PER_SOURCE_LIMIT = 20
@@ -1878,59 +2270,84 @@ SCAN_ENRICH_LIMIT = 12
 SCAN_ENRICH_TIMEOUT = 10
 
 
+def _collect_from(res, u, limit):
+    """按发现结果取条目。返回 (items, reason)。"""
+    kind = res.get("kind")
+    if kind == "article":
+        # 老师直接贴了一篇文章的链接 —— 它就是一条素材，不需要找列表
+        art = fetch_article(u, timeout=SCAN_ENRICH_TIMEOUT)
+        if art.get("status") not in ("ok", "short"):
+            return [], "article_empty"
+        return [{"topic": art.get("title") or u, "source": "自定义信源", "url": u,
+                 "summary": "", "date": "", "ts": time.time(),
+                 "fulltext": art.get("text") or "", "fulltext_len": art.get("len") or 0,
+                 "fulltext_status": art.get("status"), "fulltext_err": art.get("err") or ""}], ""
+    if kind == "feed":
+        try:
+            data = res.get("feed_data") or fetch(res["feed_url"], timeout=DISCOVER_TIMEOUT)
+        except Exception as e:
+            note_error("scan.feed_fetch", e, severity="error", url=res.get("feed_url") or u)
+            return [], "unreachable"
+        got = parse_feed(data, host_of(res["feed_url"]))[:limit]
+        return got, ("" if got else "feed_empty")
+    if kind == "sitemap":
+        urls = (res.get("urls") or [])[:limit]
+        return [{"topic": _title_from_url(x), "source": "自定义信源", "url": x,
+                 "summary": "", "date": "", "ts": time.time(), "_topic_from_url": True}
+                for x in urls], ("" if urls else "sitemap_empty")
+    return [], (res.get("reason") or "no_feed")
+
+
 def fetch_scan(urls, limit=None):
-    """逐源扫描。单个源失败只跳过该源（不应中断整体），但每一个失败都必须留痕，
-    否则界面显示「没抓到内容」时，用户无法区分是源真的没内容还是网络/解析失败。
+    """逐源扫描，返回 (items, reports)。
+
+    每个源都产出一份**发现报告**：成功要说清是怎么找到的，失败要说清客观原因
+    （站点拒绝访问 / 无法访问 / 没找到订阅地址）。这比「界面上什么都没有、也不知道为什么」有用得多。
+
+    ⚠️ 绝不降级造假：发现不到内容就如实报告，不产出任何条目。
+    旧实现会把网页 <title> 当一条素材交出去 —— 那是以 URL/站名当标题、正文一两百字符的伪素材
+    （实测 `https://abcnews.com/` → topic 直接是 URL、fulltext_len=165），生产不出任何文章。
 
     limit：每个源的条数上限（默认 SCAN_PER_SOURCE_LIMIT）。播客类 RSS 实测单源 2975 条，
     不限量会把界面淹掉；截断属预期行为，不记错误日志。"""
     if limit is None:
         limit = SCAN_PER_SOURCE_LIMIT
     items = []
+    reports = []
     seen_urls = set()
     for u in urls:
-        u = u.strip()
+        u = (u or "").strip()
         if not u:
             continue
         if not u.startswith("http://") and not u.startswith("https://"):
             u = "https://" + u
-        # 尝试当作 RSS/Atom 抓取；失败则从网页自动发现 RSS；再失败则抓网页标题
+        rep = {"input": u, "kind": "unsupported", "method": "", "reason": "", "count": 0}
         try:
-            data = fetch(u)
-            got = parse_feed(data, host_of(u))
-            if not got:
-                rss_url = discover_rss(data, u)
-                if rss_url:
-                    try:
-                        data2 = fetch(rss_url)
-                        got = parse_feed(data2, host_of(rss_url))
-                    except Exception as e:
-                        note_error("scan.discovered_feed", e, severity="error", url=rss_url, origin=u)
-                        got = []
-            if not got:  # 兜底：网页标题（降级，需记录：结果质量低于 RSS）
-                text = clean_html(data.decode("utf-8", "ignore"))
-                m = re.search(r"<title[^>]*>(.*?)</title>", text, re.I)
-                title = clean_html(m.group(1)) if m else u
-                note_error("scan.degraded_to_title", severity="warn", url=u,
-                           msg="未能解析为 RSS/Atom，已降级为网页标题（内容较单薄）")
-                got = [{"topic": title, "source": "自定义信源", "url": u, "summary": "", "date": "", "ts": time.time(),
-                        "_degraded": True}]
-            for g in got[:limit]:
-                # 不回假热度：heat / srcs 原先是写死的 60 / 1，界面上的「热度 60 · 信源 1」是假指标。
-                # 自定义源本来就没有热度口径，与其造一个，不如不回传（前端改显示来源与时间）。
-                # origin 回传输入的那个 URL，前端据此把条目对回老师自己填的源名与标签。
-                g["origin"] = u
-                _gu = (g.get("url") or "").strip()
-                if _gu:
-                    if _gu in seen_urls:
-                        continue
-                    seen_urls.add(_gu)
-                items.append(g)
+            res = discover_source(u)
+            rep["kind"] = res.get("kind") or "unsupported"
+            rep["method"] = res.get("method") or ""
+            got, reason = _collect_from(res, u, limit)
+            rep["reason"] = reason
         except Exception as e:
-            # 这里原来是裸 continue：源不可达时返回空列表，界面表现为"没有内容"。
-            # 现在记录原因，由 /api/scan 汇总回传，用户能看到"哪个源失败、为什么"。
+            # 只有「预期之外」的异常才记 error：单个源抓不到属于客观结果，走 rep.reason，
+            # 否则 _is_real_degradation 会给整个榜单挂上降级横幅。
             note_error("scan.source", e, severity="error", url=u)
-            continue
+            got, rep["reason"] = [], "unreachable"
+        added = 0
+        for g in got:
+            # 不回假热度：heat / srcs 原先是写死的 60 / 1，界面上的「热度 60 · 信源 1」是假指标。
+            # 自定义源本来就没有热度口径，与其造一个，不如不回传（前端改显示来源与时间）。
+            # origin 回传输入的那个 URL，前端据此把条目对回老师自己填的源名与标签。
+            g["origin"] = u
+            _gu = (g.get("url") or "").strip()
+            if _gu:
+                if _gu in seen_urls:
+                    continue
+                seen_urls.add(_gu)
+            items.append(g)
+            added += 1
+        rep["count"] = added
+        reports.append(rep)
 
     # 打通交付链路：只回 RSS 级的标题+摘要时，前端的 hasUsableText（fulltext_len>=200）一定不过，
     # 于是每次点卡片都被「请粘贴原文」拦住 —— 看起来有卡片，实际一步也走不到生成，等于没交付。
@@ -1940,8 +2357,8 @@ def fetch_scan(urls, limit=None):
     except Exception as e:
         note_error("scan.enrich_fulltext", e, severity="error",
                    msg="扫描期补正文失败，条目仍可用（前端会标为仅摘要）")
-    # 未补到正文的条目（含超出配额的）：如实标为「仅摘要」，别让前端显示成「无原文」——
-    # 那会让人以为源坏了，而实际只是我们没去抓正文。
+    # 未补到正文的条目（含超出配额的）：如实标为「仅摘要」。
+    # 这里不再有「降级成网页标题」产出的伪条目 —— 那种连摘要都没有，已由发现层直接拦掉。
     for it in items:
         if it.get("fulltext_status"):
             continue
@@ -1949,13 +2366,11 @@ def fetch_scan(urls, limit=None):
             it.setdefault("fulltext", it["summary"])
             it["fulltext_status"] = "summary_only"
         else:
-            # 连摘要都没有（典型：RSS 解析失败降级成网页标题，topic 就是那个 URL）：
-            # 标 no_source 而不是 summary_only —— 后者在界面上写「仅摘要」，可这里没有摘要可摘。
             it.setdefault("fulltext", "")
             it["fulltext_status"] = "no_source"
             it["fulltext_err"] = it.get("fulltext_err") or "该来源未解析出可用的文章条目"
         it["fulltext_len"] = len(it.get("fulltext") or "")
-    return items
+    return items, reports
 
 
 
@@ -2441,9 +2856,12 @@ class Handler(BaseHTTPRequestHandler):
             except Exception:
                 limit = SCAN_PER_SOURCE_LIMIT
             t0 = int(time.time() * 1000)
-            items = fetch_scan(urls, limit)
+            items, reports = fetch_scan(urls, limit)
             errs = drain_errors(t0)
-            return self._send({"ok": True, "items": items, "requested_sources": len([u for u in urls if u.strip()]),
+            # sources：逐源的发现报告。「哪个源抓到了 / 怎么找到的 / 为什么没抓到」
+            # 必须在响应里说清 —— 只回一个 items 数组，老师只能看到内容变少却不知原因。
+            return self._send({"ok": True, "items": items, "sources": reports,
+                               "requested_sources": len([u for u in urls if u.strip()]),
                                "per_source_limit": limit,
                                "errors": errs, "degraded": _is_real_degradation(errs)})
         if path == "/api/library":
