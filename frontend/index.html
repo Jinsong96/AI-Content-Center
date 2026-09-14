@@ -3387,8 +3387,8 @@ function removeSource(i){
    后端为每个来源产出一份报告：找到了什么、怎么找到的、为什么没找到。
    没有它，老师只能看到「内容变少了」，分不清是自己填错、站方不允许、还是服务坏了。 */
 const SCAN_FAIL_REASON = {
-  site_blocks:   {zh:"该站点拒绝自动化访问（返回 403）", en:"site blocks automated access (403)"},
-  unreachable:   {zh:"站点无法访问（超时或连接被拒）",   en:"site unreachable (timeout / refused)"},
+  site_blocks:   {zh:"该站点拒绝自动化访问，返回 403", en:"site blocks automated access (403)"},
+  unreachable:   {zh:"站点无法访问，超时或连接被拒",   en:"site unreachable (timeout / refused)"},
   http_error:    {zh:"该地址打不开",                     en:"the URL returned an error"},
   no_feed:       {zh:"没找到可用的订阅地址",             en:"no usable feed found"},
   feed_empty:    {zh:"订阅地址里没有条目",               en:"the feed has no items"},
