@@ -3330,10 +3330,28 @@ const SOURCE_PRESETS = {
   ],
   review: [],
 };
-/* 会话内按角色持久化：同一同事再次登录，其自定义信源仍在 */
+/* 信源持久化：存在本机浏览器（按角色分桶）。
+   原先只存在内存里，刷新即丢 —— 而界面文案却写着「同一同事再次登录，信源保留」，属假承诺。
+   改用 localStorage 让「刷新不丢」成真；跨设备同步要等账号体系（另立一步）。 */
+const SOURCE_STORE_KEY = "wb_sources_v1";
 const SOURCE_STORE = {};
+function _loadSourceStore(){
+  try{ return JSON.parse(localStorage.getItem(SOURCE_STORE_KEY) || "{}") || {}; }catch(e){ return {}; }
+}
+function _saveSourceStore(){
+  try{ localStorage.setItem(SOURCE_STORE_KEY, JSON.stringify(SOURCE_STORE)); return true; }
+  catch(e){ return false; }
+}
+/* 与后端 host_of/补协议的行为对齐：比对时只留主机+路径，忽略协议、大小写与末尾斜杠 */
+function _normSrcUrl(u){
+  return String(u||"").trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\/+$/, "");
+}
 function initSources(id){
-  if(!SOURCE_STORE[id]) SOURCE_STORE[id] = (SOURCE_PRESETS[id]||[]).map(s=>({...s, tag:{...s.tag}}));
+  if(!SOURCE_STORE[id]){
+    const saved = _loadSourceStore()[id];
+    const base = (saved && saved.length) ? saved : (SOURCE_PRESETS[id]||[]);
+    SOURCE_STORE[id] = base.map(s => ({...s, tag: {...(s.tag || {zh:"未分类", en:"General"})}}));
+  }
   return SOURCE_STORE[id];
 }
 function srcFormUpdate(k, v){
@@ -3346,14 +3364,17 @@ function addSource(){
   if(!f.name.trim() || !f.url.trim()){ toast(L("请填写信源名称与链接","Name and URL are required")); return; }
   state.user.sources.push({type:f.type||"url", name:f.name.trim(), tag:{zh:f.tag.trim()||"未分类", en:f.tag.trim()||"General"}, url:f.url.trim()});
   state.srcForm = {type:f.type, name:"", tag:"", url:""};
-  state.customHots = null;
+  state.customHots = null; state.customScanNote = null;
+  const saved = _saveSourceStore();
   render();
-  toast(L("已添加自定义信源：「"+f.name.trim()+"」","Custom source added: "+f.name.trim()));
+  toast(L("已添加自定义信源：「"+f.name.trim()+"」"+(saved?"":"（注意：本机浏览器存储不可用，刷新后会丢失）"),
+          "Custom source added: "+f.name.trim()+(saved?"":" (browser storage unavailable — will be lost on refresh)")));
 }
 function removeSource(i){
   if(!state.user) return;
   state.user.sources.splice(i, 1);
-  state.customHots = null;
+  state.customHots = null; state.customScanNote = null;
+  _saveSourceStore();
   render();
   toast(L("已移除该信源","Source removed"));
 }
@@ -3361,28 +3382,61 @@ async function runCustomScan(){
   if(!state.user) return;
   const srcs = state.user.sources;
   if(!srcs.length){ toast(L("还没有自定义信源，先添加再同步扫描","Add a custom source first")); return; }
-  toast(L("Agent-Reach 正在抓取自定义信源…","Agent-Reach is fetching your sources…"));
-  const real = await fetchRealScan();
-  if(real && real.length){
-    state.customHots = real.map((r)=>({
-      custom:true, type:"url", name: r.source || "自定义信源", tag:{zh:"真实抓取",en:"live"},
-      topic: r.topic, cn: r.source, heat: r.heat || 60, srcs: 1,
-    }));
-    toast(L("已真实抓取 "+real.length+" 条内容","Fetched "+real.length+" real items"));
-  } else {
-    const pool = [L("本周热度上升","trending this week"), L("高赞内容进入视野","top-voted this week"), L("近期内容持续升温","rising fast")];
-    state.customHots = srcs.slice(0,3).map((s,i)=>({
-      custom:true, type:s.type, name:s.name, tag:s.tag,
-      topic: s.name+" — "+pool[i%pool.length],
-      cn: s.name+" 最新内容热度上升",
-      heat: 55+Math.round(Math.random()*38),
-      srcs: 1+Math.floor(Math.random()*4),
-    }));
-    toast(real === null
-      ? L("后端桥接不可达，已用演示数据（运行 backend/agent_reach_bridge.py 可真实抓取）","Bridge unreachable — showing demo data")
-      : L("未从这些信源抓到内容（源可能被墙或非 RSS），已用演示数据","No content from these sources (blocked or not RSS) — showing demo data"));
-  }
+  state.customScanning = true; state.customHots = null; state.customScanNote = null;
   render();
+  toast(L("Agent-Reach 正在抓取自定义信源…","Agent-Reach is fetching your sources…"));
+  let real = null;
+  try{ real = await fetchRealScan(); } finally { state.customScanning = false; }
+  /* 抓不到就是抓不到：绝不造假数据兜底。
+     原先这里用 Math.random() 造热度（55–93）、造条数、造标题（「本周热度上升」），
+     老师无法分辨真假 —— 这条兜底整个删除。 */
+  if(real === null){
+    state.customHots = [];
+    state.customScanNote = { kind:"fail",
+      msg: L("自定义信源抓取失败：后端桥接不可达，没有抓到任何内容（这是抓取失败，不是「没有内容」）。请确认服务已启动后重试。",
+             "Custom-source fetch failed: backend bridge unreachable, nothing was fetched (a fetch failure, not the same as having no content). Start the service and retry.") };
+    render();
+    toast(L("抓取失败：后端未响应","Fetch failed — backend not responding"));
+    return;
+  }
+  const seen = new Set();
+  const list = [];
+  real.forEach(r => {
+    const u = String(r.url || "").trim();
+    const key = u || String(r.topic || "");
+    if(!key || seen.has(key)) return;          /* 同一篇被多个源抓到只留一条 */
+    seen.add(key);
+    const own = srcs.find(x => _normSrcUrl(x.url) === _normSrcUrl(r.origin || ""));
+    list.push({
+      custom: true,
+      type: (own && own.type) || "other",
+      name: (own && own.name) || r.source || L("自定义信源","Custom source"),
+      tag: (own && own.tag) || {zh:"未分类", en:"General"},
+      topic: r.topic || "",
+      cn: (own && own.name) || r.source || "",
+      summary: r.summary || "",
+      url: u,                                   /* 原文链接必须带上：没有它，「手动粘贴原文」就是空话 */
+      date: r.date || "",
+      source: r.source || "",
+      fulltext: r.fulltext || "",
+      fulltext_len: r.fulltext_len,
+      fulltext_status: r.fulltext_status,
+      fulltext_err: r.fulltext_err,
+    });
+  });
+  state.customHots = list;
+  const failed = (state.trendsErrors || []).filter(e => !isRenderWarn(e));
+  state.customScanNote = list.length
+    ? (failed.length
+        ? { kind:"partial", msg: L("自定义信源：有 "+failed.length+" 个来源没抓到，结果可能少于实际（已抓到 "+list.length+" 条）。",
+                                  "Custom sources: "+failed.length+" source(s) failed — results may be fewer than actual ("+list.length+" fetched).") }
+        : null)
+    : { kind:"empty", msg: L("自定义信源：这些来源都没有抓到内容。常见原因：该站需要浏览器渲染、对机房 IP 返回 403、或填的不是订阅地址。建议换一个来源，或改填该站的订阅地址。",
+                             "Custom sources: nothing was fetched. Common causes: the site needs JS rendering, blocks datacenter IPs, or is not a feed address. Try another source.") };
+  render();
+  toast(list.length
+    ? L("已真实抓取 "+list.length+" 条内容","Fetched "+list.length+" real items")
+    : L("未从这些信源抓到内容（原因已写在页面上）","Nothing fetched — reasons shown on the page"));
 }
 
 /* ---------- Stage 1 ---------- */
@@ -3420,6 +3474,10 @@ function interestPanelHTML(){
 /* 抓取降级横幅：必须让用户分清「信源里没有内容」和「有信源失败了」——
    后者若只显示"暂无热点"，用户会误判为今天没有热点 */
 function degradedBannerHTML(){
+  /* 自定义信源抓取的失败/空结果说明优先展示：它比「部分信源未抓到」更具体，
+     并且明确区分「抓取失败」和「这些源里没有内容」。 */
+  const note = state.customScanNote;
+  if(note && note.msg) return `<div class="degraded degraded-mini">${esc(note.msg)}</div>`;
   if(!state.trendsDegraded) return "";
   const errs = state.trendsErrors || [];
   if(!errs.length) return "";
@@ -3461,9 +3519,9 @@ function s1(){
   <div class="srccfg">
     <div class="srccfg-head">
       <div class="t">${L("我的自定义信源","My Custom Sources")}</div>
-      <span class="sub">${L("每个同事的关注点与专业领域不同，可在此维护自己认可的网址、YouTube 博主等信源，与 Agent-Reach 同步参与热点搜集；同一同事再次登录，信源保留。",
-        "Every colleague has a different focus — curate your own trusted websites, YouTubers, etc., scanned together with Agent-Reach. Sources persist for the same account.")}</span>
-      <button class="btn mini" onclick="runCustomScan()">${L("同步扫描","Scan now")}</button>
+      <span class="sub">${L("每个同事的关注点与专业领域不同，可在此维护自己认可的网址、YouTube 博主等信源，与 Agent-Reach 同步参与热点搜集；信源保存在本机浏览器，换设备或清缓存后需重新添加。",
+        "Every colleague has a different focus — curate your own trusted websites, YouTubers, etc., scanned together with Agent-Reach. Sources are stored in this browser; switching devices or clearing cache means re-adding them.")}</span>
+      <button class="btn mini" onclick="runCustomScan()" ${state.customScanning?"disabled":""}>${state.customScanning ? L("抓取中…","Fetching…") : L("同步扫描","Scan now")}</button>
     </div>
     <div class="srcform">
       <select onchange="srcFormUpdate('type',this.value)">${types}</select>
@@ -3531,7 +3589,8 @@ async function fetchRealScan(){
   const srcs = (state.user && state.user.sources) || [];
   if(!srcs.length) return null;
   const urls = srcs.map(s => s.url).join(",");
-  const j = await fetchJSON(AGENT_REACH_API + "/api/scan?urls=" + encodeURIComponent(urls));
+  /* limit 按「每个源」算：播客类 RSS 单源实测 2975 条，不限量会把界面全量渲染成卡片 */
+  const j = await fetchJSON(AGENT_REACH_API + "/api/scan?urls=" + encodeURIComponent(urls) + "&limit=20");
   const r = digestFetchResult(j, "scan");
   state.trendsDegraded = r.degraded;
   state.trendsErrors = r.errors;
@@ -3721,6 +3780,12 @@ function renderHots(){
     g.innerHTML = `<div class="srclist-empty"> ${L("Agent-Reach 正在全网扫描「"+(tf0?DIRS[tf0].zh:"")+"」主题热点…","Agent-Reach is scanning the web for theme 「"+(tf0?DIRS[tf0].en:"")+"」…")}
       <div style="margin-top:9px;font-size:12px;font-weight:700;color:var(--pri)">${scanEstimateText()}</div>
       <div style="margin-top:5px;font-size:11.5px;color:var(--muted)">${L("已用时","Elapsed")} <b>${state.scanElapsed}</b> ${L("秒","s · 请稍候，页面会自动刷新")}</div></div>`;
+    /* 趋势扫描只该占住「全网热点」这一块，不能顺带把老师自己贴的来源清空：
+       scanTimer 每秒调一次本函数，之前每次都把网格重置成占位符，
+       自定义条目于是每秒消失一次（state 里还在，界面上没了 —— 最典型的静默失败）。
+       清空 innerHTML 必须同时清 stamp，否则幂等闸门会挡住重新追加。 */
+    g.dataset.custStamp = "";
+    renderCustomHots(g, true);
     return;
   }
   if(state.realHots && state.realHots.length){
@@ -3741,6 +3806,7 @@ function renderHots(){
         requestAnimationFrame(()=>requestAnimationFrame(()=>{ const b=$("#rb"+i); if(b) b.style.width=h.heat+"%"; }));
       }, 90*i);
     });
+    renderCustomHots(g);
     return;
   }
   const tf = state.hotTheme;
@@ -3752,6 +3818,7 @@ function renderHots(){
   });
   if(tf && !items.length){
     g.innerHTML = `<div class="srclist-empty">${L("「"+DIRS[tf].zh+"」主题暂无本地缓存热点，Agent-Reach 正在发起全网定制扫描…","No cached topics for theme 「"+DIRS[tf].en+"」 — Agent-Reach is launching a targeted web scan…")}</div>`;
+    g.dataset.custStamp = "";
     return;
   }
   items.forEach(({h, idx}, i) => {
@@ -3772,24 +3839,41 @@ function renderHots(){
       requestAnimationFrame(()=>requestAnimationFrame(()=>{ const b=$("#hb"+idx); if(b) b.style.width=h.heat+"%"; }));
     }, 110*i);
   });
-  /* 自定义信源热点（同步扫描后）追加在 Agent-Reach 榜单之后；有主题筛选时只展示匹配该主题的真实热点 */
-  if(!tf){
-    const cust = state.customHots || [];
-    cust.forEach((h, i) => {
-      setTimeout(()=>{
-        const T = SRC_TYPES[h.type] || SRC_TYPES.other;
-        const d = document.createElement("div"); d.className = "hotcard custom";
-        d.onclick = () => { state.hot = HOTS.length + i; render(); };
-        d.innerHTML = `<div class="rank"></div>
-          <div class="srctag"><i style="background:${T.color}"></i>${L(T.zh,T.en)} · ${L(h.tag.zh,h.tag.en)} · ${h.name}</div>
-          <h4>${h.topic}</h4><div class="cn">${h.cn}</div>
-          <div class="heatbar"><i style="width:0" id="chb${i}"></i></div>
-          <div class="meta"><span>${L("热度","Heat")} <b>${h.heat}</b></span><span>${L("信源","Sources")} <b>${h.srcs}</b></span></div>`;
-        g.appendChild(d);
-        requestAnimationFrame(()=>requestAnimationFrame(()=>{ const b=$("#chb"+i); if(b) b.style.width=h.heat+"%"; }));
-      }, 110*(HOTS.length+i));
-    });
-  }
+  renderCustomHots(g);
+}
+
+/* 自定义信源条目：必须和真实热点走同一套选中入口（pickRealHot）。
+   原来写的是 state.hot = HOTS.length + i —— 越界下标，curHot() 读 HOTS[state.hot] 得到 null，
+   表现为「点进去选不中、进不了生成流程」。没有可用正文时由 pickRealHot 引导粘贴原文，
+   弹窗里会给出 h.url，老师才知道去哪找原文。
+   同时不再显示「热度 / 信源」两个数：自定义源没有真实热度口径，与其造假指标不如不显示。 */
+function renderCustomHots(g, immediate){
+  if(!g || state.hotTheme) return;
+  const cust = state.customHots || [];
+  if(!cust.length) return;
+  /* 幂等保护：renderHots 会被 scanTimer 每秒调用一次，没有这道闸就会一秒追加一批卡片。
+     指纹取「条数 + 首条 url」，重扫换了内容才会变。清空 innerHTML 的地方要同步清 stamp。 */
+  const stamp = cust.length + "|" + ((cust[0] && cust[0].url) || "");
+  if(g.dataset.custStamp === stamp && g.querySelector(".hotcard.custom")) return;
+  g.dataset.custStamp = stamp;
+  cust.forEach((h, i) => {
+    const make = () => {
+      const T = SRC_TYPES[h.type] || SRC_TYPES.other;
+      const d = document.createElement("div"); d.className = "hotcard custom";
+      d.onclick = () => pickRealHot(h);
+      const link = h.url
+        ? `<a href="${esc(h.url)}" target="_blank" rel="noopener" style="color:#E65425;text-decoration:underline" onclick="event.stopPropagation()">${L("打开原文","Open source")}</a>`
+        : "";
+      d.innerHTML = `<div class="rank"></div>
+        <div class="srctag"><i style="background:${T.color}"></i>${L("我的来源","My source")} · ${L(h.tag.zh,h.tag.en)} · ${esc(h.name)}</div>
+        <h4>${esc(h.topic)}</h4>
+        ${h.summary ? `<div class="cn">${esc(h.summary)}</div>` : ""}
+        ${fulltextBadge(h)}
+        <div class="meta"><span>${esc(h.source||"")}${h.date ? " · " + esc(h.date) : ""}</span><span>${link}</span></div>`;
+      g.appendChild(d);
+    };
+    if(immediate) make(); else setTimeout(make, 110*i);
+  });
 }
 /* 选中真实热点：把文章原文喂给 AI 实时引擎，真实走敏感排查 + 12 子档生成 */
 function pickHot(i){
