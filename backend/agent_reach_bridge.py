@@ -300,20 +300,32 @@ def extract_main_text(html):
     s = re.sub(r"(?is)<noscript\b.*?</noscript>", " ", s)
     for tag in ("nav", "header", "footer", "aside", "form", "figure"):
         s = re.sub(r"(?is)<%s\b.*?</%s>" % (tag, tag), " ", s)
-    m = re.search(r"(?is)<article\b[^>]*>(.*?)</article>", s)
-    body = m.group(1) if m else s
-    paras = []
-    for pm in re.finditer(r"(?is)<p\b[^>]*>(.*?)</p>", body):
-        t = clean_html(pm.group(1))
-        if len(t) < MIN_PARA_CHARS:
-            continue
-        low = t.lower()
-        if any(b.lower() in low for b in _BOILERPLATE):
-            continue
-        paras.append(t)
+    # <article> 往往不止一个：首个常是「相关推荐」小卡（实测 ESPN 只有 165 字符），
+    # 正文在另一个里面。原先只取第一个匹配，于是抽到空壳 → fetch_article 误报「抓取失败」。
+    # 改为在所有 <article> 中取最长的那个作为正文容器。
+    _cands = [mm.group(1) for mm in re.finditer(r"(?is)<article\b[^>]*>(.*?)</article>", s)]
+    _cands = [c for c in _cands if c.strip()]
+    body = max(_cands, key=len) if _cands else s
+
+    def _paras_of(scope):
+        got = []
+        for pm in re.finditer(r"(?is)<p\b[^>]*>(.*?)</p>", scope):
+            t = clean_html(pm.group(1))
+            if len(t) < MIN_PARA_CHARS:
+                continue
+            low = t.lower()
+            if any(b.lower() in low for b in _BOILERPLATE):
+                continue
+            got.append(t)
+        return got
+
+    paras = _paras_of(body)
+    if not paras and body is not s:
+        # 选中的容器里没有达标段落 → 退回整页重试：别把「选错容器」误报成「没有正文」
+        paras = _paras_of(s)
     if not paras:
-        # 没有 <p> 结构（部分站点用 <div> 承载），退化为整页去标签文本
-        t = clean_html(body)
+        # 没有 <p> 结构（部分站点用 <div> 承载），退化为容器去标签文本
+        t = clean_html(body) or clean_html(s)
         return (t, 1) if t else ("", 0)
     return "\n\n".join(paras), len(paras)
 
@@ -363,9 +375,10 @@ def fetch_article(url, timeout=15, use_cache=True):
     return out
 
 
-def enrich_fulltext(items, workers=8, only_missing=True):
+def enrich_fulltext(items, workers=8, only_missing=True, timeout=15):
     """批量为一批热点补齐原文。就地写入 fulltext / fulltext_len / fulltext_status / fulltext_err。
-    抓不到时保留原有 summary 作为兜底，绝不伪造。"""
+    抓不到时保留原有 summary 作为兜底，绝不伪造。
+    timeout：单篇抓取上限（秒）。扫描接口是同步等待的交互，需要比默认更短的上限。"""
     targets = []
     for it in items:
         # no_source = 已经按 A→B→C 链路试过并确认拿不到，不重复浪费时间
@@ -379,7 +392,7 @@ def enrich_fulltext(items, workers=8, only_missing=True):
 
     def one(it):
         t0 = time.time()
-        r = fetch_article(it["url"])
+        r = fetch_article(it["url"], timeout=timeout)
         _health_record(it.get("source"), r["status"], (time.time() - t0) * 1000)
         return it, r
 
@@ -1817,10 +1830,23 @@ def discover_rss(html_bytes, base_url):
     return None
 
 
-def fetch_scan(urls):
+SCAN_PER_SOURCE_LIMIT = 20
+# 扫描期补正文的条数上限与单篇超时：扫描是用户按了按钮就同步等的交互，
+# 不能像 /api/trends 那样敞开抓。超出配额的条目状态标为「仅摘要」，不谎报「无原文」。
+SCAN_ENRICH_LIMIT = 12
+SCAN_ENRICH_TIMEOUT = 10
+
+
+def fetch_scan(urls, limit=None):
     """逐源扫描。单个源失败只跳过该源（不应中断整体），但每一个失败都必须留痕，
-    否则界面显示"没抓到内容"时，用户无法区分是源真的没内容还是网络/解析失败。"""
+    否则界面显示「没抓到内容」时，用户无法区分是源真的没内容还是网络/解析失败。
+
+    limit：每个源的条数上限（默认 SCAN_PER_SOURCE_LIMIT）。播客类 RSS 实测单源 2975 条，
+    不限量会把界面淹掉；截断属预期行为，不记错误日志。"""
+    if limit is None:
+        limit = SCAN_PER_SOURCE_LIMIT
     items = []
+    seen_urls = set()
     for u in urls:
         u = u.strip()
         if not u:
@@ -1848,15 +1874,39 @@ def fetch_scan(urls):
                            msg="未能解析为 RSS/Atom，已降级为网页标题（内容较单薄）")
                 got = [{"topic": title, "source": "自定义信源", "url": u, "summary": "", "date": "", "ts": time.time(),
                         "_degraded": True}]
-            for g in got:
-                g["heat"] = 60
-                g["srcs"] = 1
+            for g in got[:limit]:
+                # 不回假热度：heat / srcs 原先是写死的 60 / 1，界面上的「热度 60 · 信源 1」是假指标。
+                # 自定义源本来就没有热度口径，与其造一个，不如不回传（前端改显示来源与时间）。
+                # origin 回传输入的那个 URL，前端据此把条目对回老师自己填的源名与标签。
+                g["origin"] = u
+                _gu = (g.get("url") or "").strip()
+                if _gu:
+                    if _gu in seen_urls:
+                        continue
+                    seen_urls.add(_gu)
                 items.append(g)
         except Exception as e:
             # 这里原来是裸 continue：源不可达时返回空列表，界面表现为"没有内容"。
             # 现在记录原因，由 /api/scan 汇总回传，用户能看到"哪个源失败、为什么"。
             note_error("scan.source", e, severity="error", url=u)
             continue
+
+    # 打通交付链路：只回 RSS 级的标题+摘要时，前端的 hasUsableText（fulltext_len>=200）一定不过，
+    # 于是每次点卡片都被「请粘贴原文」拦住 —— 看起来有卡片，实际一步也走不到生成，等于没交付。
+    # 这里与 /api/trends 保持一致，补抓正文；fetch_article 有磁盘缓存，重复扫同一源不再付成本。
+    try:
+        enrich_fulltext(items[:SCAN_ENRICH_LIMIT], workers=8, timeout=SCAN_ENRICH_TIMEOUT)
+    except Exception as e:
+        note_error("scan.enrich_fulltext", e, severity="error",
+                   msg="扫描期补正文失败，条目仍可用（前端会标为仅摘要）")
+    # 未补到正文的条目（含超出配额的）：如实标为「仅摘要」，别让前端显示成「无原文」——
+    # 那会让人以为源坏了，而实际只是我们没去抓正文。
+    for it in items:
+        if not it.get("fulltext_status"):
+            if not (it.get("fulltext") or "").strip():
+                it["fulltext"] = it.get("summary", "")
+            it["fulltext_status"] = "summary_only"
+            it["fulltext_len"] = len(it.get("fulltext") or "")
     return items
 
 
@@ -2337,10 +2387,15 @@ class Handler(BaseHTTPRequestHandler):
                                "filtered_video": tt_take_dropped_video()})
         if path == "/api/scan":
             urls = [u for u in (q.get("urls") or "").split(",")]
+            try:
+                limit = max(1, min(200, int(q.get("limit") or SCAN_PER_SOURCE_LIMIT)))
+            except Exception:
+                limit = SCAN_PER_SOURCE_LIMIT
             t0 = int(time.time() * 1000)
-            items = fetch_scan(urls)
+            items = fetch_scan(urls, limit)
             errs = drain_errors(t0)
             return self._send({"ok": True, "items": items, "requested_sources": len([u for u in urls if u.strip()]),
+                               "per_source_limit": limit,
                                "errors": errs, "degraded": _is_real_degradation(errs)})
         if path == "/api/library":
             items = library_list()
