@@ -730,11 +730,17 @@ _CACHE_DIR = os.path.dirname(os.path.abspath(__file__))
 _TR_CACHE_FILE = os.path.join(_CACHE_DIR, ".toutiao_en_cache.json")
 
 def _load_tr_cache():
+    if not os.path.exists(_TR_CACHE_FILE):
+        # 冷启动（含 Railway 部署重建容器、缓存文件随旧容器一起没了）属正常情况，
+        # 不该每次都告警 —— 否则部署后首批次会记一条 warn，把界面误挂上
+        # 「部分信源未抓到」横幅（实际 0 个源失败）。对齐 _load_tag_cache() 的行为。
+        return {}
     try:
         with open(_TR_CACHE_FILE, "r", encoding="utf-8") as f:
             return json.load(f)
     except Exception as e:
-        # 有兜底（未命中就重新翻译，结果仍然正确，只是慢且费钱）→ warn 级
+        # 文件存在但读不动（损坏 / 权限），有兜底（未命中就重新翻译，结果仍正确，
+        # 只是慢且费钱）→ warn 级，这种情况才值得报警
         note_error("cache.translation.load", e, severity="warn", file=_TR_CACHE_FILE)
         return {}
 
