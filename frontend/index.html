@@ -1817,7 +1817,7 @@ const KPIS = [
   [{zh:"单篇成本",en:"Cost / article"},"≤¥8"],
 ];
 
-const state = {route:null, hot:undefined, hotTheme:null, hotSubTheme:null, realHot:null, realHots:null, realScanning:false, bridgeOk:null, style:"default", lvl:"B1_2", lvlManual:false, big:"B1", guide:{}, words12:null, meta12:null, extracted:false, validated:false, reviewed:false, srcForm:null, customHots:null, topicSel:null, factsCache:null, trendsDegraded:false, trendsErrors:null, audio:{}, audioMeta:null, audioGenerating:false, audioPromise:null, audioAccent:"us", quiz:{}, quizShow:{}, factMap:null, unusedFacts:[], scanFirst:null, scanElapsed:0,
+const state = {route:null, hot:undefined, hotTheme:null, hotSubTheme:null, realHot:null, realHots:null, realScanning:false, bridgeOk:null, style:"default", lvl:"B1_2", lvlManual:false, big:"B1", guide:{}, words12:null, meta12:null, extracted:false, validated:false, reviewed:false, srcForm:null, customHots:null, topicSel:null, factsCache:null, trendsDegraded:false, trendsErrors:null, trendsFiltered:null, audio:{}, audioMeta:null, audioGenerating:false, audioPromise:null, audioAccent:"us", quiz:{}, quizShow:{}, factMap:null, unusedFacts:[], scanFirst:null, scanElapsed:0,
   tagContent:[], tagFree:[], tagFreeCands:[], tagFreeInput:"", tagCognitive:"全年龄",
   tagOpenCats:{}, tagAIContent:[], tagAIReason:"", tagMeta:null, tagWarn:"", tagExtracting:false, tagTitleOnly:false, taxoLoaded:false, reviewingId:null};
 /* ==================== 当前选中素材（统一访问热点 / 自有版权 / 公版书三种入口） ==================== */
@@ -1851,6 +1851,9 @@ function fulltextStatusInfo(h){
     case "summary_only":return {zh:"仅摘要", en:"Summary only", cls:"warn"};
     case "failed":     return {zh:"抓取失败", en:"Fetch failed", cls:"bad"};
     case "no_source":  return {zh:"无原文", en:"No source", cls:"bad"};
+    /* video_dropped 正常不该出现在列表里（后端已按规则拦截），
+       保留分支只为兜住旧后端与缓存里可能残留的条目 */
+    case "video_dropped": return {zh:"视频型·已拦截", en:"Video (excluded)", cls:"bad"};
     default:
       return len >= 800 ? {zh:"原文已完整", en:"Full text", cls:"ok"}
            : len > 0   ? {zh:"原文偏短", en:"Partial", cls:"warn"}
@@ -3424,19 +3427,29 @@ async function runCustomScan(){
       fulltext_err: r.fulltext_err,
     });
   });
-  state.customHots = list;
+  /* 列表只放「点进去就能直接生成」的条目：fulltext_len < MIN_USABLE_TEXT 的条目点不动
+     （pickRealHot 会弹「请粘贴原文」并中止）。自定义源里这类多半是「填的不是订阅地址、
+     只抓到网页标题」或「站点对机房 IP 返回 403」—— 留着只会让老师以为有内容可用。
+     隐藏条数必须说出来：「抓到 20 条」和「界面只有 12 条」对不上，会被当成抓取坏了。 */
+  const usable = list.filter(hasUsableText);
+  const hidden = list.length - usable.length;
+  const hidTxt = hidden ? L("，另有 "+hidden+" 条抓不到正文已隐藏","; "+hidden+" more hidden (no usable text)") : "";
+  state.customHots = usable;
   const failed = (state.trendsErrors || []).filter(e => !isRenderWarn(e));
-  state.customScanNote = list.length
+  state.customScanNote = usable.length
     ? (failed.length
-        ? { kind:"partial", msg: L("自定义信源：有 "+failed.length+" 个来源没抓到，结果可能少于实际（已抓到 "+list.length+" 条）。",
-                                  "Custom sources: "+failed.length+" source(s) failed — results may be fewer than actual ("+list.length+" fetched).") }
+        ? { kind:"partial", msg: L("自定义信源：有 "+failed.length+" 个来源没抓到，结果可能少于实际（已抓到 "+usable.length+" 条"+hidTxt+"）。",
+                                  "Custom sources: "+failed.length+" source(s) failed — results may be fewer than actual ("+usable.length+" fetched"+hidTxt+").") }
         : null)
-    : { kind:"empty", msg: L("自定义信源：这些来源都没有抓到内容。常见原因：该站需要浏览器渲染、对机房 IP 返回 403、或填的不是订阅地址。建议换一个来源，或改填该站的订阅地址。",
-                             "Custom sources: nothing was fetched. Common causes: the site needs JS rendering, blocks datacenter IPs, or is not a feed address. Try another source.") };
+    : (list.length
+        ? { kind:"empty", msg: L("自定义信源：抓到 "+list.length+" 条，但都拿不到可用正文（低于 "+MIN_USABLE_TEXT+" 字符），点进去无法直接生成，已全部隐藏。建议改填该站的订阅地址。",
+                                 "Custom sources: "+list.length+" item(s) fetched but none has usable text (< "+MIN_USABLE_TEXT+" chars) — all hidden. Try the site's feed address instead.") }
+        : { kind:"empty", msg: L("自定义信源：这些来源都没有抓到内容。常见原因：该站需要浏览器渲染、对机房 IP 返回 403、或填的不是订阅地址。建议换一个来源，或改填该站的订阅地址。",
+                                 "Custom sources: nothing was fetched. Common causes: the site needs JS rendering, blocks datacenter IPs, or is not a feed address. Try another source.") });
   render();
-  toast(list.length
-    ? L("已真实抓取 "+list.length+" 条内容","Fetched "+list.length+" real items")
-    : L("未从这些信源抓到内容（原因已写在页面上）","Nothing fetched — reasons shown on the page"));
+  toast(usable.length
+    ? L("已真实抓取 "+usable.length+" 条可用内容"+hidTxt,"Fetched "+usable.length+" usable items"+hidTxt)
+    : L("未从这些信源抓到可用内容（原因已写在页面上）","Nothing usable fetched — reasons shown on the page"));
 }
 
 /* ---------- Stage 1 ---------- */
@@ -3478,6 +3491,16 @@ function degradedBannerHTML(){
      并且明确区分「抓取失败」和「这些源里没有内容」。 */
   const note = state.customScanNote;
   if(note && note.msg) return `<div class="degraded degraded-mini">${esc(note.msg)}</div>`;
+  /* 「已隐藏无原文条目」不是降级，是规则性过滤 —— 但必须说出来：
+     否则老师会以为热度榜本来就只有这么几条，或怀疑抓取坏了。
+     条数对不上（热搜 50 条 / 列表 26 条）正是「静默失败」最容易被误读的形态。 */
+  const f = state.trendsFiltered;
+  if(f && (f.noText.length + f.video.length)){
+    const n = f.noText.length + f.video.length;
+    const vp = f.video.length ? L("，其中 "+f.video.length+" 条是视频型事件"," ("+f.video.length+" of them are video items)") : "";
+    return `<div class="degraded degraded-mini">${L("已隐藏 "+n+" 条无可用原文的热点"+vp+"。它们抓不到正文（如视频型热搜），点进去无法直接生成，故不出现在列表中。",
+      "Hidden "+n+" topic(s) without usable text"+vp+". They have no article body and cannot be generated from, so they are not listed.")}</div>`;
+  }
   if(!state.trendsDegraded) return "";
   const errs = state.trendsErrors || [];
   if(!errs.length) return "";
@@ -3583,6 +3606,11 @@ async function fetchRealTrends(theme, sub){
   const r = digestFetchResult(j, "trends");
   state.trendsDegraded = r.degraded;
   state.trendsErrors = r.errors;
+  /* 被主动筛掉的条目（后端按 MIN_USABLE_TEXT 拦下的）+ 视频型热搜 —— 必须带到界面上：
+     「热搜榜 50 条、这里只有 26 条」若没有解释，看起来就是抓取坏了，最容易被误读成故障。 */
+  state.trendsFiltered = (j && Array.isArray(j.items))
+    ? { noText: (j.filtered_no_text || []), video: (j.filtered_video || []) }
+    : null;
   return r.items;
 }
 async function fetchRealScan(){
@@ -3678,10 +3706,13 @@ async function refreshTrends(){
   render();
 }
 /* 素材是否有可用正文。低于 200 字符基本只剩标题/摘要，事实抽取抽不出有价值的事实卡。
-   实测：用 40–84 字符的纯标题跑抽取，status 全是 succeeded 但只出 0–3 张废话卡。 */
+   实测：用 40–84 字符的纯标题跑抽取，status 全是 succeeded 但只出 0–3 张废话卡。
+   ⚠️ MIN_USABLE_TEXT 必须与后端 MIN_USABLE_TEXT 严格一致。两边不一致会出现
+   「后端放行、前端弹粘贴」或反向的错位，是最难查的那类问题。 */
+const MIN_USABLE_TEXT = 200;
 function hasUsableText(h){
   const len = (h && h.fulltext_len != null) ? h.fulltext_len : ((h && h.fulltext) ? h.fulltext.length : 0);
-  return len >= 200;
+  return len >= MIN_USABLE_TEXT;
 }
 /* 无可用原文的热点：先弹窗引导粘贴真实原文，再继续走流程 */
 function renderPasteModal(){
@@ -3788,8 +3819,27 @@ function renderHots(){
     renderCustomHots(g, true);
     return;
   }
-  if(state.realHots && state.realHots.length){
-    state.realHots.forEach((h, i) => {
+  if(state.realHots){
+    /* 列表只放「点进去就能直接生成」的条目。fulltext_len < MIN_USABLE_TEXT 的条目点不动：
+       pickRealHot() 第一件事就查 hasUsableText，不达标弹「请粘贴原文」并中止 ——
+       留在列表里只会制造「有卡片、但一步也走不到生成」的假供给。
+       后端已按同一阈值筛过一轮，这里是兜底，同时也覆盖 /api/scan 与将来的检索接口。 */
+    const real = state.realHots.filter(hasUsableText);
+    if(!real.length){
+      /* 注意：realHots = [] 时绝不能落回下面的 HOTS 分支 ——
+         那是 2026 年 8 月的内置演示数据，冒充「本次抓取结果」比空列表更误导。 */
+      const f = state.trendsFiltered || { noText: [], video: [] };
+      const hid = f.noText.length + f.video.length;
+      g.innerHTML = `<div class="srclist-empty">${hid
+        ? L("本批 "+hid+" 条热点都拿不到可用正文（低于 "+MIN_USABLE_TEXT+" 字符），点进去无法直接生成，已按规则隐藏。换一个主题或稍后刷新试试。",
+            "All "+hid+" fetched topics lack usable text (< "+MIN_USABLE_TEXT+" chars) and were hidden. Try another theme or refresh later.")
+        : L("本次没有可用热点。换一个主题，或点上方「刷新」重试。",
+            "No usable topics this time. Try another theme or hit Refresh above.")}</div>`;
+      g.dataset.custStamp = "";   /* 空态也必须清 stamp，否则自定义卡会被幂等闸门挡住 */
+      renderCustomHots(g, true);
+      return;
+    }
+    real.forEach((h, i) => {
       setTimeout(()=>{
         const d = document.createElement("div"); d.className = "hotcard";
         d.onclick = () => pickRealHot(h);
@@ -3849,7 +3899,9 @@ function renderHots(){
    同时不再显示「热度 / 信源」两个数：自定义源没有真实热度口径，与其造假指标不如不显示。 */
 function renderCustomHots(g, immediate){
   if(!g || state.hotTheme) return;
-  const cust = state.customHots || [];
+  /* 与全网热点同一规则：无可用正文的条目不进列表（点进去只会弹「请粘贴原文」）。
+     runCustomScan 里已筛过一轮，这里兜住 state 被别处写入的情况。 */
+  const cust = (state.customHots || []).filter(hasUsableText);
   if(!cust.length) return;
   /* 幂等保护：renderHots 会被 scanTimer 每秒调用一次，没有这道闸就会一秒追加一批卡片。
      指纹取「条数 + 首条 url」，重扫换了内容才会变。清空 innerHTML 的地方要同步清 stamp。 */
