@@ -1902,11 +1902,18 @@ def fetch_scan(urls, limit=None):
     # 未补到正文的条目（含超出配额的）：如实标为「仅摘要」，别让前端显示成「无原文」——
     # 那会让人以为源坏了，而实际只是我们没去抓正文。
     for it in items:
-        if not it.get("fulltext_status"):
-            if not (it.get("fulltext") or "").strip():
-                it["fulltext"] = it.get("summary", "")
+        if it.get("fulltext_status"):
+            continue
+        if (it.get("summary") or "").strip():
+            it.setdefault("fulltext", it["summary"])
             it["fulltext_status"] = "summary_only"
-            it["fulltext_len"] = len(it.get("fulltext") or "")
+        else:
+            # 连摘要都没有（典型：RSS 解析失败降级成网页标题，topic 就是那个 URL）：
+            # 标 no_source 而不是 summary_only —— 后者在界面上写「仅摘要」，可这里没有摘要可摘。
+            it.setdefault("fulltext", "")
+            it["fulltext_status"] = "no_source"
+            it["fulltext_err"] = it.get("fulltext_err") or "该来源未解析出可用的文章条目"
+        it["fulltext_len"] = len(it.get("fulltext") or "")
     return items
 
 
