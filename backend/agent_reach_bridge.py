@@ -1079,6 +1079,23 @@ _TT_BLOCK_RE = re.compile(r'<div class="block-title">([^<]*)</div>', re.I)
 # 取 125 可放行真实简讯、挡住视频文案，避免把视频标题送去事实抽取）
 _TT_MIN_TEXT = 125
 
+# 视频型事件（话题页「事件详情」块只有 /video/<id> + 几十字视频文案）→ 直接拦截，不进热点列表。
+# 依据（2026-09-14 实测）：这类事件全链路都没有文章正文 —— 块内无 /article/ 与 /w/，
+# /video/<id> 页与移动 JSON 抽取正文均为 0 字，meta 描述只是视频标题 + 样板文。
+# 留着只会在界面显示「无原文」，对下游事实抽取毫无价值。
+# 置 False 可恢复旧行为（保留条目并如实标记 no_source）。
+TOUTIAO_DROP_VIDEO = True
+
+# 本批被拦截的视频型热搜（随 /api/trends 响应回传，说明条数变少是预期而非故障）
+_TT_DROPPED_VIDEO = []
+
+
+def tt_take_dropped_video():
+    """取出并清空本批被拦截的视频型热搜。供接口回传，避免「条数变少」被当成抓取失败。"""
+    out = list(_TT_DROPPED_VIDEO)
+    del _TT_DROPPED_VIDEO[:]
+    return out
+
 
 def toutiao_article_text(art_id):
     """/article/<id> → 移动端 JSON 接口取真实正文。返回 {text, source, title}"""
@@ -1480,7 +1497,14 @@ def fetch_toutiao(limit=15, want_fulltext=True):
                "hot": hot_num, "heat": max(50, 98 - i), "srcs": 1, "lang": "zh"}
         if want_fulltext:
             _fill_toutiao_fulltext(row, title, allow_render=(i < TOUTIAO_RENDER_LIMIT))
-            _health_record("今日头条热搜", row.get("fulltext_status") or "failed", 0)
+            _st = row.get("fulltext_status") or "failed"
+            # 视频型已按规则拦截：整条不进结果列表（列表变短是预期行为，不是抓取失败）。
+            # 拦截条目不进 _health_record —— 源成功率要反映「交付出去的内容质量」，
+            # 被主动筛掉的条目不该把成功率拉低；它另由 filtered_video 台账回传。
+            if _st == "video_dropped":
+                _TT_DROPPED_VIDEO.append({"title": title, "url": row.get("url") or ""})
+                continue
+            _health_record("今日头条热搜", _st, 0)
         out.append(row)
     return out
 
@@ -1506,12 +1530,21 @@ def _fill_toutiao_fulltext(row, title, allow_render=True):
             row["fulltext_len"] = len(r["text"])
             if r["source"]:
                 row["source"] = "今日头条 · %s" % r["source"]
+            row["tt_kind"] = "article"
             row["url"] = "https://www.toutiao.com/article/%s" % m.group(1)
             return
     # A2a：话题聚合页 → 爬虫 UA 走 SSR（纯 HTTP，线上唯一可行路径，实测 0.3s/条）
     if _TT_TREND_RE.search(url):
         sr = toutiao_topic_ssr_text(url)
         _ssr_conclusive = (sr["kind"] != "none")
+        row["tt_kind"] = sr["kind"]
+        # 视频型：事件本身是短视频，全链路无文章正文 → 按规则拦截。
+        # 提前 return 可顺带省掉「中文源兜底」与本条的无头渲染尝试。
+        if sr["kind"] == "video" and TOUTIAO_DROP_VIDEO:
+            row["fulltext_status"] = "video_dropped"
+            row["fulltext_err"] = ("视频型事件（事件详情为短视频，无文章正文），"
+                                   "已按规则拦截，不纳入热点列表")
+            return
         if len(sr["text"]) >= _TT_MIN_TEXT:
             row["fulltext"] = sr["text"]
             row["fulltext_status"] = "ok" if len(sr["text"]) >= MIN_ARTICLE_CHARS else "short"
@@ -1550,6 +1583,7 @@ def _fill_toutiao_fulltext(row, title, allow_render=True):
                         text = rendered
                 if len(text) >= 200:
                     row["fulltext"] = text
+                    row["tt_kind"] = "article"
                     row["fulltext_status"] = "ok" if len(text) >= MIN_ARTICLE_CHARS else "short"
                     row["fulltext_len"] = len(text)
                     if src:
@@ -2293,7 +2327,8 @@ class Handler(BaseHTTPRequestHandler):
             errs = drain_errors(t0)
             # degraded=True 表示「结果不完整」：用户必须知道这不是"没有热点"，而是"有源失败"
             return self._send({"ok": True, "theme": theme, "sub": sub, "items": items,
-                               "errors": errs, "degraded": _is_real_degradation(errs)})
+                               "errors": errs, "degraded": _is_real_degradation(errs),
+                               "filtered_video": tt_take_dropped_video()})
         if path == "/api/scan":
             urls = [u for u in (q.get("urls") or "").split(",")]
             t0 = int(time.time() * 1000)
