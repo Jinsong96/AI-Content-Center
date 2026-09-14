@@ -2338,7 +2338,7 @@ async function runGeneration(){
   try {
     /* level 必须转成点式（A1.1 / B2+.1）——start.level 是 select，枚举值是点式；
        而 state.lvl 是内部下划线键（A1_1）。nkDisp 幂等，点式/下划线都能吃。 */
-    const wfInputs = { summary: fc.summary, facts_text: fc.facts_text, angle: fc.angle, level: nkDisp(fc.level || state.lvl), style: state.style || "default", facts_raw: fc.facts_raw || "" };
+    const wfInputs = { summary: fc.summary, facts_text: fc.facts_text, angle: fc.angle, level: nkDisp(fc.level || state.lvl), style: state.style || "default", gist: fc.gist || "", facts_raw: fc.facts_raw || "" };
     if(!AIWF_GEN.appKey) throw new Error(L(
       "AI 未运行：服务端未配置 DIFY_WF_GEN 密钥。请在部署平台（Railway → Variables）填入后重新部署。",
       "AI not running: DIFY_WF_GEN key missing on server. Add it in Railway → Variables and redeploy."));
@@ -2471,7 +2471,10 @@ function applyLive(){
   const o = liveOut(); if(!o || isExcludedStatus(o.status)) return;
   /* 缓存抽取好的事实，供后续换风格时直连「生成专用」工作流（跳过事实抽取/排查/分级） */
   if(o.summary && o.facts_text){
-    state.factsCache = { summary: o.summary, facts_text: o.facts_text, angle: o.angle, level: nkDisp(o.level) || o.level, facts_raw: o.facts_raw || o.fact_json || "" };
+    /* gist 必须一起缓存并回传给 GEN —— 低档 A1/A2 的「去数字大意拍」基准就靠它。
+     实测不带 gist 时 nodeClean 会退回 facts_text：低档系统性欠写（A1.2 119 vs 149 词）、
+     校验多出 3 个硬失败、低档 gist_map 只引用到 4 条（应在 8 条内）。 */
+    state.factsCache = { summary: o.summary, facts_text: o.facts_text, angle: o.angle, level: nkDisp(o.level) || o.level, gist: o.gist || "", facts_raw: o.facts_raw || o.fact_json || "" };
   }
   const jp = function(v){ try { const x = (typeof v === "string") ? JSON.parse(v) : v; return (x && typeof x === "object") ? x : null; } catch(e){ return null; } };
   /* 关键归一化：Dify 的 JSON key 是下划线式（A1_1 / B2P_1），统一转成规范 key */
