@@ -193,6 +193,8 @@ body{font-family:var(--font);color:var(--text);background:var(--bg);overflow:hid
 .srclist{display:flex;flex-direction:column;gap:7px}
 .srclist-empty{font-size:12px;color:var(--muted);text-align:center;padding:14px 0;border:1px dashed var(--border2);border-radius:10px;background:var(--bg)}
 .srcrow{display:flex;align-items:center;gap:11px;background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:9px 13px;animation:pop .3s both}
+.srcnote{margin-top:11px;padding:8px 11px;border:1px dashed var(--border2);border-radius:9px;background:var(--bg);font-size:11.5px;line-height:1.65;color:var(--muted)}
+.srcnote b{color:var(--sub);font-weight:800}
 .srcrow .sico{width:32px;height:32px;border-radius:9px;display:grid;place-items:center;font-size:15px;flex-shrink:0}
 .srcrow .sinfo{flex:1;min-width:0}
 .srcrow .sinfo b{display:block;font-size:12.5px;font-weight:700}
@@ -3381,11 +3383,48 @@ function removeSource(i){
   render();
   toast(L("已移除该信源","Source removed"));
 }
+/* ---------- 信源发现报告 → 人话（docs/29 §6）----------
+   后端为每个来源产出一份报告：找到了什么、怎么找到的、为什么没找到。
+   没有它，老师只能看到「内容变少了」，分不清是自己填错、站方不允许、还是服务坏了。 */
+const SCAN_FAIL_REASON = {
+  site_blocks:   {zh:"该站点拒绝自动化访问（返回 403）", en:"site blocks automated access (403)"},
+  unreachable:   {zh:"站点无法访问（超时或连接被拒）",   en:"site unreachable (timeout / refused)"},
+  http_error:    {zh:"该地址打不开",                     en:"the URL returned an error"},
+  no_feed:       {zh:"没找到可用的订阅地址",             en:"no usable feed found"},
+  feed_empty:    {zh:"订阅地址里没有条目",               en:"the feed has no items"},
+  article_empty: {zh:"这一篇抓不到正文",                 en:"no article body for this URL"},
+  sitemap_empty: {zh:"站点地图里没有可用文章",           en:"no articles in the site map"},
+};
+const SCAN_OK_METHOD = {
+  direct:{zh:"订阅地址",en:"feed address"},         autodiscover:{zh:"网页自动发现",en:"auto-discovered"},
+  index:{zh:"站点知识库",en:"site index"},          guess:{zh:"常见订阅路径",en:"common feed path"},
+  "robots-sitemap":{zh:"站点地图",en:"site map"},   article:{zh:"单篇文章",en:"single article"},
+};
+function scanSrcName(input){
+  const srcs = (state.user && state.user.sources) || [];
+  const own = srcs.find(x => _normSrcUrl(x.url) === _normSrcUrl(input));
+  return (own && own.name) || input;
+}
+function scanReportText(rows){
+  if(!Array.isArray(rows) || !rows.length) return null;
+  const fails = rows.filter(r => !!r.reason);
+  const okRows = rows.filter(r => !r.reason);
+  const failTxt = fails.map(r => {
+    const why = SCAN_FAIL_REASON[r.reason] || {zh:"没抓到内容", en:"nothing fetched"};
+    return scanSrcName(r.input) + "（" + L(why.zh, why.en) + "）";
+  }).join("；");
+  const kinds = [];
+  okRows.forEach(r => {
+    const m = SCAN_OK_METHOD[r.method];
+    if(m){ const s = L(m.zh, m.en); if(kinds.indexOf(s) < 0) kinds.push(s); }
+  });
+  return { failCount: fails.length, okCount: okRows.length, failTxt: failTxt, okKinds: kinds.join(" / ") };
+}
 async function runCustomScan(){
   if(!state.user) return;
   const srcs = state.user.sources;
   if(!srcs.length){ toast(L("还没有自定义信源，先添加再同步扫描","Add a custom source first")); return; }
-  state.customScanning = true; state.customHots = null; state.customScanNote = null;
+  state.customScanning = true; state.customHots = null; state.customScanNote = null; state.scanSources = null;
   render();
   toast(L("Agent-Reach 正在抓取自定义信源…","Agent-Reach is fetching your sources…"));
   let real = null;
@@ -3435,17 +3474,20 @@ async function runCustomScan(){
   const hidden = list.length - usable.length;
   const hidTxt = hidden ? L("，另有 "+hidden+" 条抓不到正文已隐藏","; "+hidden+" more hidden (no usable text)") : "";
   state.customHots = usable;
-  const failed = (state.trendsErrors || []).filter(e => !isRenderWarn(e));
+  const rep = scanReportText(state.scanSources);
+  const failLine = (rep && rep.failCount)
+    ? L("；有 "+rep.failCount+" 个来源没抓到："+rep.failTxt, "; "+rep.failCount+" source(s) failed: "+rep.failTxt)
+    : "";
   state.customScanNote = usable.length
-    ? (failed.length
-        ? { kind:"partial", msg: L("自定义信源：有 "+failed.length+" 个来源没抓到，结果可能少于实际（已抓到 "+usable.length+" 条"+hidTxt+"）。",
-                                  "Custom sources: "+failed.length+" source(s) failed — results may be fewer than actual ("+usable.length+" fetched"+hidTxt+").") }
+    ? ((rep && rep.failCount) || hidden
+        ? { kind:"partial", msg: L("自定义信源：已抓到 "+usable.length+" 条可用内容"+hidTxt+failLine+"。",
+                                  "Custom sources: "+usable.length+" usable item(s)"+hidTxt+failLine+".") }
         : null)
     : (list.length
         ? { kind:"empty", msg: L("自定义信源：抓到 "+list.length+" 条，但都拿不到可用正文（低于 "+MIN_USABLE_TEXT+" 字符），点进去无法直接生成，已全部隐藏。建议改填该站的订阅地址。",
                                  "Custom sources: "+list.length+" item(s) fetched but none has usable text (< "+MIN_USABLE_TEXT+" chars) — all hidden. Try the site's feed address instead.") }
-        : { kind:"empty", msg: L("自定义信源：这些来源都没有抓到内容。常见原因：该站需要浏览器渲染、对机房 IP 返回 403、或填的不是订阅地址。建议换一个来源，或改填该站的订阅地址。",
-                                 "Custom sources: nothing was fetched. Common causes: the site needs JS rendering, blocks datacenter IPs, or is not a feed address. Try another source.") });
+        : { kind:"empty", msg: L("自定义信源：这些来源都没抓到可用内容"+failLine+"。建议换一个来源，或直接粘贴该来源具体文章的链接。",
+                                 "Custom sources: nothing usable was fetched"+failLine+". Try another source, or paste the URL of a specific article from it.") });
   render();
   toast(usable.length
     ? L("已真实抓取 "+usable.length+" 条可用内容"+hidTxt,"Fetched "+usable.length+" usable items"+hidTxt)
@@ -3491,6 +3533,9 @@ function degradedBannerHTML(){
      并且明确区分「抓取失败」和「这些源里没有内容」。 */
   const note = state.customScanNote;
   if(note && note.msg) return `<div class="degraded degraded-mini">${esc(note.msg)}</div>`;
+  /* 自定义扫描的结果以后端的逐源报告为准：报告说每个源都正常，就不该因为内部 warn
+     （例如某条视频页抽不到正文）挂上「部分信源未抓到」—— 那会把成功的一批说成失败。 */
+  if(Array.isArray(state.scanSources) && !state.scanSources.some(r => r.reason)) return "";
   /* 「已隐藏无原文条目」不是降级，是规则性过滤 —— 但必须说出来：
      否则老师会以为热度榜本来就只有这么几条，或怀疑抓取坏了。
      条数对不上（热搜 50 条 / 列表 26 条）正是「静默失败」最容易被误读的形态。 */
@@ -3554,6 +3599,7 @@ function s1(){
       <button class="btn mini sec" onclick="addSource()">＋ ${L("添加","Add")}</button>
     </div>
     <div class="srclist" id="srclist">${list}</div>
+    <div class="srcnote">${L("<b>关于部分国际知名站点：</b>美联社、路透社等站点出于自身的访问限制策略，会对来自自动化程序的访问返回拒绝响应 —— 这是站点方的策略限制，并非本服务故障，因此暂时无法采集。遇到这类来源，可改用其它来源，或直接粘贴该站点具体文章的链接。", "<b>About certain international outlets:</b> AP, Reuters and similar sites apply their own access-restriction policies and refuse requests from automated programs. That is the site's own policy, not a fault of this service, so they cannot be collected for now. Use another source, or paste the URL of a specific article from that site.")}</div>
   </div>
   ${interestPanelHTML()}
   <div style="display:flex;align-items:center;gap:10px;margin:0 0 12px;flex-wrap:wrap">
@@ -3622,6 +3668,9 @@ async function fetchRealScan(){
   const r = digestFetchResult(j, "scan");
   state.trendsDegraded = r.degraded;
   state.trendsErrors = r.errors;
+  /* sources：逐源的发现报告 —— 找到了什么、怎么找到的、为什么没找到。
+     只回一个 items 数组时，老师看到内容变少却无从判断原因。 */
+  state.scanSources = (j && Array.isArray(j.sources)) ? j.sources : null;
   return r.items;
 }
 async function checkBridge(){
