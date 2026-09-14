@@ -3388,7 +3388,7 @@ async function runCustomScan(){
   let real = null;
   try{ real = await fetchRealScan(); } finally { state.customScanning = false; }
   /* 抓不到就是抓不到：绝不造假数据兜底。
-     原先这里用 Math.random() 造热度（55–93）、造条数、造标题（「本周热度上升」），
+     原先这里用 Math.random() 造热度（55–93）、造条数、编造「热度上升」类标题，
      老师无法分辨真假 —— 这条兜底整个删除。 */
   if(real === null){
     state.customHots = [];
