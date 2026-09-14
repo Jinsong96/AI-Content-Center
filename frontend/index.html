@@ -817,6 +817,13 @@ body{font-family:var(--font);color:var(--text);background:var(--bg);overflow:hid
 .bigtab:hover{border-color:#FFDFCF;background:#FFF9F5}
 .bigtab.sel{background:var(--pri-t);border-color:#FFD1BF}
 .bigtab.sel b{color:var(--pri)}
+/* 大档切换条上的「有无内容」标识：有内容=橙点+段数，空档=灰点+虚线框（避免盲点进空档） */
+.bigtab .bt-n{display:inline-flex;align-items:center;gap:4px;font-size:10.5px;font-weight:700;color:#D04418;background:#FFF0EB;border-radius:6px;padding:1px 6px;margin-left:2px}
+.bigtab .bt-n i{width:5px;height:5px;border-radius:50%;background:#E65425;display:block}
+.bigtab .bt-n.off{color:var(--muted);background:#F2F4F7;font-weight:600}
+.bigtab .bt-n.off i{background:#98A2B3}
+.bigtab.blank{border-style:dashed}
+.bigtab.blank b{color:#98A2B3}
 .guidecard{background:#fff;border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin:14px 0;box-shadow:var(--shadow)}
 .guidecard-h{display:flex;align-items:center;gap:8px;margin-bottom:8px}
 .guidecard-h .gtag{background:#FFF0EB;color:var(--pri);font-size:11px;font-weight:800;padding:3px 9px;border-radius:7px}
@@ -1237,11 +1244,18 @@ function curBig(){ return state.big || bigOf(state.lvl) || BIG_GROUPS[0].big; }
 function offCap(lvl){ const b = bigOf(lvl) || BIG_GROUPS[0].big; return b === "A1" ? "1%" : b === "A2" ? "2%" : b === "B1" ? "3%" : "4%"; }
 /* 大档切换条：一次渲染只出一个（避免同页重复） */
 let _bigBarUsed = false;
+/* 某大档下已生成段落总数：切换条据此标注「有无内容」，用户不必盲点后才发现在空档里 */
+function bigParaCount(big){
+  return subKeys(big).reduce(function(a,k){ return a + ((GEN[k] && GEN[k].paras) ? GEN[k].paras.length : 0); }, 0);
+}
 function bigBarHTML(){
   _bigBarUsed = true;
   const cur = curBig();
   return '<div class="bigbar"><span class="bigbar-l">' + L("大档","Group") + '</span>' +
-    BIG_GROUPS.map(function(g){ return '<div class="bigtab' + (cur === g.big ? ' sel' : '') + '" onclick="setBig(\'' + g.big + '\')"><b>' + g.big + '</b><span>' + L(g.zh, g.en) + '</span></div>'; }).join("") +
+    BIG_GROUPS.map(function(g){
+      const n = bigParaCount(g.big);
+      return '<div class="bigtab' + (cur === g.big ? ' sel' : '') + (n ? '' : ' blank') + '" onclick="setBig(\'' + g.big + '\')"><b>' + g.big + '</b><span>' + L(g.zh, g.en) + '</span><span class="bt-n' + (n ? '' : ' off') + '"><i></i>' + n + '</span></div>';
+    }).join("") +
     '<span class="bigbar-r">' + L("12 子档 · A1.1–B2+.3","12 sub-levels · A1.1–B2+.3") + '</span></div>';
 }
 function bigBarOnce(){ return _bigBarUsed ? "" : bigBarHTML(); }
@@ -4298,11 +4312,15 @@ function showIdentity(){
 
 /* ---------- Stage 9 ---------- */
 function s12(){
+  /* 切换条提到页面级：先占住「一页一条」的闸门，alignedViewHTML 内部那次即返回空，不会出两条。
+     之前它藏在「逐段原文」卡片内部（首屏看不到），用户会以为审核页根本没有换挡按钮。 */
+  const bigBar = bigBarOnce();
   const parasHTML = alignedViewHTML(false);
-  const parasBlock = parasHTML ? `<div class="reviewparas"><div class="pane-h">${L("逐段原文 · 本大档 3 子档对齐（全文完整展示）","Segment originals · 3 sub-levels aligned, full text")}</div>${parasHTML}</div>` : `<div class="note pri-note">${L("尚未有生成文章，您可以直接点击","No article generated yet — click ")}<a href="#" onclick="go(0);return false;" style="color:#E65425;font-weight:700;text-decoration:underline;cursor:pointer">${L("素材选择","Material Selection")}</a>${L("，进行内容生成工作流。"," to run the content generation workflow.")}</div>`;
+  const parasBlock = `<div class="reviewparas"><div class="pane-h">${L("逐段原文 · 本大档 3 子档对齐（全文完整展示）","Segment originals · 3 sub-levels aligned, full text")}</div>${parasHTML}</div>`;
   return head("11", L("逐段审核","Segment Review"), "Per-segment check") +
     artWorkflowBar() +
     reviewContextHTML() +
+    bigBar +
   `<p class="lede">${L("逐段审核本大档 3 个子档生成文章（A1.1–B2+.3）：下方为素材原文与子档对齐段落（全文完整展示），逐段核对语义一致性、分级体感与语言质量。",
     "Review the generated articles of this group's three sub-levels (A1.1–B2+.3): below is the source material and the aligned paragraphs (full text) — check semantic consistency, level fit and language quality per segment.")}</p>
   ${materialCardHTML()}
@@ -4402,14 +4420,27 @@ function paraCard(k,i,editable){
     '<div class="pbody"'+(edit?' contenteditable="true" spellcheck="false" oninput="paraEdit(this)"':'')+'>'+esc(txt)+'</div>'+
     factCiteHTML(k,i)+'</div>';
 }
+/* 本大档无内容时的空态卡片（切分 / 校对 / 审核共用）。
+   ⚠️ 绝不能整块返回 "" —— 切换条就在这块里，一并消失后用户点不回有内容的大档，只能退出页面。
+   （2026-09-14 用 CDP 实测复现：点 B1 → bigtab 数 0 → 死锁。） */
+function emptyGroupHTML(){
+  const cur = curBig();
+  const anyHas = BIG_GROUPS.some(function(g){ return bigParaCount(g.big) > 0; });
+  return '<div class="pcard svempty"><div class="svempty-t">' +
+    (anyHas
+      ? L("本大档（"+cur+"）本篇暂无生成内容 —— 该档位在本文的生成区间之外，请用上方大档按钮查看有内容的档位",
+          "No content for this group ("+cur+") — it is outside this article's generated level range; use the group buttons above")
+      : L("尚未有生成文章，请先运行内容生成工作流","No article generated yet — run the content generation workflow first"))
+    + '</div></div>';
+}
 /* 本大档 3 子档对齐段落视图（切分/对齐/校对/审核环节复用）：全文完整展示，editable=false 只读 */
 function alignedViewHTML(editable){
   const lvls=subKeys(curBig());
   const has = lvls.some(k=>GEN[k]&&GEN[k].paras&&GEN[k].paras.length);
-  if(!has) return "";
-  const maxP=Math.max(...lvls.map(k=>GEN[k]&&GEN[k].paras?GEN[k].paras.length:0));
+  const maxP=Math.max(0,...lvls.map(k=>GEN[k]&&GEN[k].paras?GEN[k].paras.length:0));
   let h=bigBarOnce();
   h+='<div class="plvlbar">'+lvls.map(k=>{const n=GEN[k]&&GEN[k].paras?GEN[k].paras.length:0;const m=LVL_META[k]||{color:"#E65425"};return '<div class="plvl-pill"><span class="dot" style="background:'+m.color+'"></span><b>'+dispOf(k)+'</b><span>'+n+' '+L("段","paras")+'</span></div>';}).join("")+'</div>';
+  if(!has) return h+emptyGroupHTML();   /* 切换条与空态始终保留 —— 这是修死锁的关键一行 */
   h+='<div class="aligngrid">';
   for(let i=0;i<maxP;i++){ h+='<div class="alignrow"><div class="arow-no">#'+(i+1)+'</div>'+lvls.map(k=>paraCard(k,i,editable)).join("")+'</div>'; }
   h+='</div>';
@@ -4425,9 +4456,12 @@ function s9(){
   html+='<p class="lede">'+L("AI 已自动切分并对齐本大档 3 个子档的段落，请在下方逐段校读并修正——点击任意段落文字即可编辑，修改自动保存。","AI has auto-split and aligned the three sub-levels of this group — proofread and fix each paragraph below; click any text to edit, changes auto-save.")+'</p>';
   html+='<div class="pedit-hint"> '+L("所有段落已完整展示，点击任意段落文字即可编辑修改。","All paragraphs shown in full — click any text to edit.")+'</div>';
   html+='<div class="plvlbar">'+lvls.map(k=>{const n=GEN[k]&&GEN[k].paras?GEN[k].paras.length:0;const m=LVL_META[k]||{color:"#E65425"};return '<div class="plvl-pill"><span class="dot" style="background:'+m.color+'"></span><b>'+dispOf(k)+'</b><span>'+n+' '+L("段","paras")+'</span></div>';}).join("")+'</div>';
+  if(maxP===0){ html+=emptyGroupHTML(); }
+  else {
   html+='<div class="aligngrid">';
   for(let i=0;i<maxP;i++){ html+='<div class="alignrow"><div class="arow-no">#'+(i+1)+'</div>'+lvls.map(k=>paraCard(k,i,true)).join("")+'</div>'; }
   html+='</div>';
+  }
   html+='<div class="note">'+L("AI 切分 + 人工校对 = 双重保障，确保用户切换难度时体验无缝。","AI split + human proofreading = double guarantee for seamless difficulty switching.")+'</div>';
   html+=quizAlignedHTML();
   html+=guideCardHTML();
@@ -4444,9 +4478,12 @@ function s10(){
   html+='<p class="lede">'+L("校对老师逐段校读本大档 3 个子档文章，检查拼写、语法、语义与对齐质量，必要时直接点击段落文字修正；修改自动保存。","Proofread each paragraph across the three sub-levels of this group — check spelling, grammar, meaning and alignment; click any text to fix; changes auto-save.")+'</p>';
   html+='<div class="pedit-hint"> '+L("所有段落原文已完整展示，点击任意段落文字即可编辑修改。","All paragraphs are shown in full — click any text to edit.")+'</div>';
   html+='<div class="plvlbar">'+lvls.map(k=>{const n=GEN[k]&&GEN[k].paras?GEN[k].paras.length:0;const m=LVL_META[k]||{color:"#E65425"};return '<div class="plvl-pill"><span class="dot" style="background:'+m.color+'"></span><b>'+dispOf(k)+'</b><span>'+n+' '+L("段","paras")+'</span></div>';}).join("")+'</div>';
+  if(maxP===0){ html+=emptyGroupHTML(); }
+  else {
   html+='<div class="aligngrid">';
   for(let i=0;i<maxP;i++){ html+='<div class="alignrow"><div class="arow-no">#'+(i+1)+'</div>'+lvls.map(k=>paraCard(k,i,true)).join("")+'</div>'; }
   html+='</div>';
+  }
   html+='<div class="note">'+L("AI 切分 + 人工校对 = 双重保障，确保用户切换难度时体验无缝。","AI split + human proofreading = double guarantee for seamless difficulty switching.")+'</div>';
   html+=quizAlignedHTML();
   html+=guideCardHTML();
