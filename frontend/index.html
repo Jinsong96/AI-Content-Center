@@ -2283,7 +2283,7 @@ function renderLiveChip(){
   } else { c.textContent = "✕ AI 运行失败"; c.style.background = "#FFEDE4"; c.style.color = "#A32D2D"; }
 }
 
-async function startLiveRun(material, label, book){
+async function startLiveRun(material, label, book, override){
   if(state.live.status === "running") return;
   state.live = { status: "running", material, label: label || "", book: book || "", run: null, err: null, t0: Date.now(), elapsed: 0 };
   state.factMap = null; state.unusedFacts = [];   /* 新一轮前清空上一轮的段落↔事实卡绑定 */
@@ -2297,6 +2297,7 @@ async function startLiveRun(material, label, book){
        实测：传档位偏好既会与 select 的取值格式耦合（前端内部键 A1_1 vs 枚举 A1.1），
        也会把分级往偏好上带；省略该键 → nodeGrade 自行判区间，这才是设计意图。 */
     const wfInputs = { material: material.slice(0, 4800), style: state.style || "default" };
+    if(override) wfInputs.override_sensitive = "true";   /* 人工放行：跳过敏感闸门，仍保留 AI 原判定留痕 */
     if(!AIWF_FACT.appKey) throw new Error(L(
       "AI 未运行：服务端未配置 DIFY_WF_FACT 密钥。请在部署平台（Railway → Variables）填入后重新部署。",
       "AI not running: DIFY_WF_FACT key missing on server. Add it in Railway → Variables and redeploy."));
@@ -2333,6 +2334,17 @@ async function startLiveRun(material, label, book){
   }
   applyLive();
   render();
+}
+/* 人工放行：被 AI 敏感排查排除后，人工确认后带 override 重跑，跳过闸门继续生成。
+   原 AI 判定会保留在 sens_reason 里（「人工放行（原判定：Sx / 理由）」）作警示留痕。 */
+function manualOverrideRun(){
+  const m = state.live && state.live.material;
+  if(!m){ toast(L("无素材可放行","No material to override")); return; }
+  if(!confirm(L("该素材已被 AI 敏感排查判定为排除。确认人工放行并继续生成？（原判定会保留记录）",
+    "This material was excluded by the AI sensitivity screen. Confirm manual override and continue? (the original verdict stays on record)"))){
+    return;
+  }
+  startLiveRun(m, state.live.label || "", state.live.book || "", true);
 }
 /* 内容生成：用已抽取的事实卡喂「生成专用」工作流，产出 4 档文章 + 练习题 + 校验（~77s）。
    与事实抽取分开调用，各自有各自的预计用时，避免用户在事实抽取环节干等 1 分钟。 */
@@ -4026,7 +4038,7 @@ function s2(){
   ${!hasMaterial ? `<div class="note pri-note">${L("尚未提交素材排查。请先到 01 素材选择页选择一条真实素材（热点 / 自有版权 / 公版书）并点击「运行真实工作流」，本页将实时显示敏感排查过程与最终判定。",
     " No material submitted yet. Go to step 01, pick a real material (trend / licensed / public-domain) and hit \"Run live workflow\" — this page will show the screening progress and final verdict live.")}</div>` : ""}
   ${liveExcluded()
-    ? `<div class="nextbar"><div class="ctx"> ${L("该素材已被 AI 实时判定为排除（","This material was excluded by the live AI run (")}${esc(liveSensLevel()||"")}${L("），流程终止。请返回 01 更换素材。","), so the workflow stops here. Go back to step 01 and pick another.")}</div><button class="btn" style="opacity:.45;cursor:not-allowed">${L("流程已终止","Workflow stopped")}</button></div>`
+    ? `<div class="nextbar"><div class="ctx"> ${L("该素材已被 AI 判定为排除（","This material was excluded by the AI (")}${esc(liveSensLevel()||"")}${L("）· ",") · ")}${esc(liveSensReason()||"")}${L("。可返回 01 更换，或人工放行继续。"," — go back to step 01, or override to continue.")}</div><button class="btn" onclick="manualOverrideRun()">${L("人工放行继续","Manual override · continue")}</button></div>`
     : nextBtn("确定选题标签","Set topic tags")}` + wfStrip();
 }
 
@@ -4178,7 +4190,7 @@ function s4(){
        必须如实说「被排除」，否则用户会以为只是没抽到卡而反复重试，永远走不下去。 */
     factBody = `<div class="note warn-note" style="margin-bottom:10px">${L("该素材已被 AI 敏感排查判定为<b>排除</b>，工作流在此终止，不会产出事实卡。","This material was <b>excluded</b> by the AI sensitivity screen — the workflow stops here and produces no fact cards.")}</div>
       <div style="margin-bottom:10px;font-size:12.5px;color:var(--sub)">${L("敏感等级","Sensitivity")}：<b>${esc(liveSensLevel() || "—")}</b> · ${L("判定理由","Reason")}：${esc(liveSensReason() || L("（工作流未返回理由）","(no reason returned)"))}</div>
-      <div style="margin-bottom:10px"><a class="btn" href="#" onclick="go(0);return false;">${L("返回 01 更换素材","Back to step 01 · pick another material")}</a></div>`;
+      <div style="margin-bottom:10px"><button class="btn" onclick="manualOverrideRun()">${L("人工放行继续","Manual override · continue")}</button> <a class="btn sec" href="#" onclick="go(0);return false;">${L("返回 01 更换素材","Back to step 01 · pick another material")}</a></div>`;
   } else if(state.extracted){
     /* 0 张卡有五种成因，按诊断结果给不同说明与出口；旧文案一律说「素材没有正文」会误导排查方向。 */
     const diag = liveFactDiag();
@@ -4226,7 +4238,7 @@ function s4(){
     </div>
   </div>
   ${liveExcluded()
-    ? `<div class="nextbar"><div class="ctx"> ${L("该素材已被 AI 判定为排除，流程终止，请返回 01 更换素材。","This material was excluded by the AI — workflow stopped. Go back to step 01 and pick another.")}</div><button class="btn" style="opacity:.45;cursor:not-allowed">${L("流程已终止","Workflow stopped")}</button></div>`
+    ? `<div class="nextbar"><div class="ctx"> ${L("该素材已被 AI 判定为排除。可返回 01 更换，或人工放行继续。","This material was excluded by the AI — go back to step 01, or override to continue.")}</div><button class="btn" onclick="manualOverrideRun()">${L("人工放行继续","Manual override · continue")}</button></div>`
     : (ready ? nextBtn("查看分级标准","KB & specs") : waitBtn(running ? L("工作流运行中…","Workflow running…") : L("点击运行抽取","Run extraction")))}` + wfStrip();
 }
 function extract(){
