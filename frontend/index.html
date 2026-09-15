@@ -3510,7 +3510,6 @@ function interestPanelHTML(){
   return `<div class="interest">
     <div class="srccfg-head">
       <div class="t"> ${L("用户感兴趣的主题","Reader Interest Topics")}</div>
-      <span class="sub">${L("英语阅读用户点击阅读的文章会被统计为兴趣信号，据此聚合出读者最感兴趣的话题，辅助内容生成同事按读者偏好选题。","Articles readers click and read are counted as interest signals; topics are aggregated here to help content teams pick what readers love.")}</span>
       <span class="int-badge">${L("近 7 天 · 阅读行为","Last 7 days · reading")}</span>
     </div>
     <div class="intlist">
@@ -3546,16 +3545,6 @@ function degradedBannerHTML(){
   /* 自定义扫描的结果以后端的逐源报告为准：报告说每个源都正常，就不该因为内部 warn
      （例如某条视频页抽不到正文）挂上「部分信源未抓到」—— 那会把成功的一批说成失败。 */
   if(Array.isArray(state.scanSources) && !state.scanSources.some(r => r.reason)) return "";
-  /* 「已隐藏无原文条目」不是降级，是规则性过滤 —— 但必须说出来：
-     否则老师会以为热度榜本来就只有这么几条，或怀疑抓取坏了。
-     条数对不上（热搜 50 条 / 列表 26 条）正是「静默失败」最容易被误读的形态。 */
-  const f = state.trendsFiltered;
-  if(f && (f.noText.length + f.video.length)){
-    const n = f.noText.length + f.video.length;
-    const vp = f.video.length ? L("，其中 "+f.video.length+" 条是视频型事件"," ("+f.video.length+" of them are video items)") : "";
-    return `<div class="degraded degraded-mini">${L("已隐藏 "+n+" 条无可用原文的热点"+vp+"。它们抓不到正文（如视频型热搜），点进去无法直接生成，故不出现在列表中。",
-      "Hidden "+n+" topic(s) without usable text"+vp+". They have no article body and cannot be generated from, so they are not listed.")}</div>`;
-  }
   if(!state.trendsDegraded) return "";
   const errs = state.trendsErrors || [];
   if(!errs.length) return "";
@@ -3597,8 +3586,6 @@ function s1(){
   <div class="srccfg">
     <div class="srccfg-head">
       <div class="t">${L("我的自定义信源","My Custom Sources")}</div>
-      <span class="sub">${L("每个同事的关注点与专业领域不同，可在此维护自己认可的网址、YouTube 博主等信源，与 Agent-Reach 同步参与热点搜集；信源保存在本机浏览器，换设备或清缓存后需重新添加。",
-        "Every colleague has a different focus — curate your own trusted websites, YouTubers, etc., scanned together with Agent-Reach. Sources are stored in this browser; switching devices or clearing cache means re-adding them.")}</span>
       <button class="btn mini" onclick="runCustomScan()" ${state.customScanning?"disabled":""}>${state.customScanning ? L("抓取中…","Fetching…") : L("同步扫描","Scan now")}</button>
     </div>
     <div class="srcform">
@@ -4029,7 +4016,7 @@ function s2(){
   const s = state.live;
   const idle = s.status === "idle";
   const hasMaterial = !!(curMaterialText());   /* 已有选中素材（含 pending / running / done）即展示原文卡片 */
-  return head("03", L("敏感排除","Sensitivity Screen"), "KB5 · S0–S3 rules · AI LIVE") +
+  return head("03", L("敏感排除","Sensitivity Screen"), "") +
   matWorkflowBar() +
   `<p class="lede">${L("素材进入选题前，先由 <b>AI 实时引擎</b> 按教研知识库 KB5 敏感规范逐条排查：<b>S0 红线直接排除</b>，S1/S2 视教育价值排除或降级，S3 灾难类做软处理标记。排查结果实时返回，机器初筛 + 人工终审不可豁免。",
     "Before selection, the <b>AI LIVE engine</b> screens every material against KB5 sensitivity rules: S0 red-line topics excluded; S1/S2 excluded or downgraded on educational value; S3 disaster topics soft-handled. Verdicts return live; automated pre-screen + human review are never skipped.")}</p>
@@ -4090,8 +4077,7 @@ function s3(){
   (state.tagFreeCands || []).forEach(t => { if(freeAll.indexOf(t) < 0) freeAll.push(t); });
   (state.tagFree || []).forEach(t => { if(freeAll.indexOf(t) < 0) freeAll.push(t); });
   const layer2 = `<div class="tagsection">
-    <div class="tagsec-h">${L("第二层 · 自由标签","Layer 2 · Free tags")}
-      <span>${L("热门人物 / 话题事件，AI 提取后人工删减","Trending people & events — AI extracts, you prune")}</span></div>
+    <div class="tagsec-h">${L("第二层 · 自由标签","Layer 2 · Free tags")}</div>
     ${freeAll.length ? `<div class="tc-opts">${freeAll.map(t => {
       const on = state.tagFree.indexOf(t) >= 0;
       return `<span class="chip ${on ? "sel" : ""}" onclick="toggleFreeTag('${escAttr(t)}')">${on ? "✓ " : ""}${esc(t)}</span>`;
@@ -4223,9 +4209,7 @@ function s4(){
   }
   return head("06", L("事实抽取","Fact Extraction"), "AI fact extraction") +
     artWorkflowBar() +
-  `<p class="lede">${L("核心设计：<b>事实与语言分离</b>。AI 从原文抽取原子化事实卡，作为所有等级生成时唯一的事实来源——数字、人名、引语全部锚定原句，可回溯比对。每张事实卡为<b>英文事实 + 中文对照</b>，由 AI 真实工作流生成。",
-    "Core design: <b>facts and language separated</b>. The AI extracts atomic fact cards — the single source of truth for every level. Each card shows <b>English fact + Chinese gloss</b>, generated for real by the AI workflow.")}</p>
-  <div class="workbench">
+  `<div class="workbench">
     <div>
       <div class="pane-h"><span>${L("原文 · SOURCE TEXT","SOURCE TEXT")}</span><span style="font-weight:600;color:var(--muted);letter-spacing:0">${esc(label)}</span></div>
       <div class="article-mini" id="srcmini">${esc(text.slice(0, 2500))}</div>
@@ -4356,9 +4340,7 @@ function s6(){
   const factTrace = factTraceHTML();
   return head("08", L("内容生成","Graded Generation"), "Same facts · 4 levels") +
     artWorkflowBar() +
-  `<p class="lede">${L("同一套事实卡，按所选 CEFR 等级的语言规格重新生成——<b>事实不变，只变语言难度</b>。切换等级体验同一故事的三种难度：",
-    "One set of fact cards, regenerated per CEFR level — <b>facts unchanged, only language difficulty</b>. Switch levels to compare:")}</p>
-  ${styleBarHTML()}
+  `${styleBarHTML()}
   ${liveReady() ? `<div class="note" style="margin-bottom:12px"><b>${L("LIVE：","LIVE: ")}</b>${L("以下内容由 AI 工作流真实生成（","Generated for real by the AI workflow (")+state.live.elapsed+L("秒）。素材：","s). Material: ")+esc(state.live.label||"custom")}</div>` : (running ? `<div class="note" style="margin-bottom:12px;display:flex;align-items:center;gap:10px"><div class="spin"></div><span>${L("正在按所选风格重新生成…","Regenerating in selected style…")}</span> <span data-r="mini-time">${state.live.elapsed}s</span></div>` : "")}
   ${bigBarOnce()}
   <div class="gentabs">${allKeys().filter(k=>GEN[k]).map(k=>`<div class="gentab ${state.lvl===k?"sel":""}" onclick="setlvl('${k}')">${nkDisp(k)}</div>`).join("")}</div>
@@ -4428,10 +4410,7 @@ function typewriter(){
 function s7(){
   return head("09", L("AI 校验与身份记录","Validation & Identity"), "8 checks × 4 levels · provenance chain") +
     artWorkflowBar() +
-  `${liveReady() ? `<div class="note" style="margin-bottom:12px"><b>${L("LIVE：","LIVE: ")}</b>${L("下方校验结果来自 AI 工作流真实运行（","Validation below comes from the real AI run (")}${state.live.elapsed}s）。</div>` : ""}
-  <p class="lede">${L("生成稿必须 100% 通过<b>阻断级规则</b>才能进入人工审核（规则通道数字精确比对 + 模型通道 NLI 语义比对双保险）。校验通过后自动生成<b>身份记录</b>：AI 生成标识与全链路溯源信息随稿流转，合规可审计。",
-    "Every draft must pass all <b>blocking rules</b> before human review (deterministic number matching + NLI). On pass, an <b>identity record</b> is auto-generated: AI-content label plus full provenance chain, audit-ready.")}</p>
-  <div class="validate"><div id="vcol"></div><div id="vcol2"></div></div>
+  `<div class="validate"><div id="vcol"></div><div id="vcol2"></div></div>
   <div id="vsum"></div>
   <div id="videntity"></div>
   ${state.validated ? nextBtn("提交人工审核","Submit to review") : `<div class="nextbar"><div></div><button class="btn sec" onclick="runValidate()">${L("查看校验结果","View validation")} · 8×4</button></div>`}` + wfStrip();
@@ -4516,9 +4495,7 @@ function s12(){
     artWorkflowBar() +
     reviewContextHTML() +
     bigBar +
-  `<p class="lede">${L("逐段审核4 档生成文章（A1–B2）：下方为素材原文与子档对齐段落（全文完整展示），逐段核对语义一致性、分级体感与语言质量。",
-    "Review the generated articles of this group's four levels (A1–B2): below is the source material and the aligned paragraphs (full text) — check semantic consistency, level fit and language quality per segment.")}</p>
-  ${materialCardHTML()}
+  `${materialCardHTML()}
   ${parasBlock}
   ${quizAlignedHTML()}
   ${guideCardHTML()}
@@ -4648,7 +4625,6 @@ function s9(){
   html+=artWorkflowBar();
   html+=bigBarOnce();
   html+='<p class="lede">'+L("AI 已自动切分并对齐4 档的段落，请在下方逐段校读并修正——点击任意段落文字即可编辑，修改自动保存。","AI has auto-split and aligned the four levels of this group — proofread and fix each paragraph below; click any text to edit, changes auto-save.")+'</p>';
-  html+='<div class="pedit-hint"> '+L("所有段落已完整展示，点击任意段落文字即可编辑修改。","All paragraphs shown in full — click any text to edit.")+'</div>';
   html+='<div class="plvlbar">'+lvls.map(k=>{const n=GEN[k]&&GEN[k].paras?GEN[k].paras.length:0;const m=LVL_META[k]||{color:"#E65425"};return '<div class="plvl-pill"><span class="dot" style="background:'+m.color+'"></span><b>'+dispOf(k)+'</b><span>'+n+' '+L("段","paras")+'</span></div>';}).join("")+'</div>';
   if(maxP===0){ html+=emptyGroupHTML(); }
   else {
@@ -4792,10 +4768,10 @@ function audioFullUrl(rel){
   return AGENT_REACH_API + (rel.charAt(0) === "/" ? rel : "/" + rel);
 }
 function escAttr(s){ return esc(s).replace(/"/g, "&quot;").replace(/'/g, "&#39;"); }
-/* 统计当前档位已生成的音频文件数（单档 × 2 口音 us/uk） */
+/* 统计一篇文章已生成的音频文件数（4 档 × 2 口音 us/uk） */
 function bankAudioCount(a){
   let n = 0;
-  subKeys(bigOf(a && a.level) || curBig()).forEach(function(k){
+  allKeys().forEach(function(k){
     const v = (a && a.audio && a.audio[k]) || {};
     if(v.us) n++;
     if(v.uk) n++;
@@ -5312,7 +5288,6 @@ function sArticleBank(){
 
   let html = head("", L("文章库","Article Library"), "All articles · review & track");
 
-  html += `<p class="lede">${L("文章库汇总全部生成文章：顶部为整体概况，下方列表逐条呈现来源、审核状态、文章 ID、生成老师、主题与生成时间。审核老师在列表右侧点「人工审核」进入分档对照审核，通过或驳回后自动返回本页。","The article library lists every generated article: an overview on top, then one row per article with source, review status, article ID, creating teacher, topic and creation time. Reviewers click Manual Review on the right for the level-aligned check; approve or reject returns to this page.")}</p>`;
 
   /* 统计卡片行 */
   html += `<div class="mat-stats">
