@@ -1976,11 +1976,13 @@ function readApiBase(){
     const qs = new URLSearchParams(location.search).get("api");
     if(qs) return norm(qs);
   } catch(e){}
+  /* 服务端注入（含空串=同源）优先于 localStorage：线上部署时强制同源，
+     避免本机调试残留的 wb_api_base_v1 覆盖线上地址，导致跨设备打开线上链接时连不上桥接层。 */
+  if(typeof window !== "undefined" && typeof window.WB_API_BASE === "string") return norm(window.WB_API_BASE);
   try {
     const saved = localStorage.getItem("wb_api_base_v1");
     if(saved) return norm(saved);
   } catch(e){}
-  if(typeof window !== "undefined" && typeof window.WB_API_BASE === "string") return norm(window.WB_API_BASE);
   return DEFAULT_API_BASE;
 }
 /* 运行时可切换（换机器/指向新后端时用）；传空串则恢复默认 */
