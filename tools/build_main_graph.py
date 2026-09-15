@@ -135,7 +135,9 @@ Y_OFFSET_GEN = 520.0
 LLM_OUTPUTS = {'text', 'reasoning_content', 'usage', 'finish_reason'}
 KB_OUTPUTS = {'result'}
 LEVELS12 = ['A1', 'A2', 'B1', 'B2']
-REQUIRED_MODEL = 'deepseek-ai/DeepSeek-V4-Flash'
+# DeepSeek 官方渠道模型（2026-09-15 官方 API 已更新可用，切回官方）
+DS_PROVIDER = 'langgenius/deepseek/deepseek'
+DS_MODELS = {'deepseek-v4-flash', 'deepseek-v4-pro'}
 
 
 def load_graph(path):
@@ -348,15 +350,15 @@ def check(g):
             continue
         llm += 1
         m = d.get('model') or {}
-        if m.get('name') != REQUIRED_MODEL:
-            errs.append('%s 模型应为 %s，实为 %s' % (nid, REQUIRED_MODEL, m.get('name')))
-        if m.get('provider') != 'langgenius/siliconflow/siliconflow':
-            errs.append('%s provider 应为硅基流动，实为 %s' % (nid, m.get('provider')))
+        if m.get('name') not in DS_MODELS:
+            errs.append('%s 模型应为 DeepSeek 官方（deepseek-v4-flash / pro），实为 %s' % (nid, m.get('name')))
+        if m.get('provider') != DS_PROVIDER:
+            errs.append('%s provider 应为 DeepSeek 官方，实为 %s' % (nid, m.get('provider')))
         cp = m.get('completion_params') or {}
-        if cp.get('enable_thinking') is not False:
-            errs.append('%s 缺少 enable_thinking=false（会被平台默认开着思考跑）' % nid)
-        if 'thinking' in cp:
-            errs.append('%s 残留了错误的参数名 `thinking`（会被 Dify 静默丢弃）' % nid)
+        if cp.get('thinking') is not False:
+            errs.append('%s 缺少 thinking=false（会被平台默认开着思考跑）' % nid)
+        if 'enable_thinking' in cp:
+            errs.append('%s 残留了错误的参数名 `enable_thinking`（DeepSeek 官方渠道会被静默丢弃）' % nid)
 
     # 6) 4 档下拉选项
     for nid, n in nodes.items():
