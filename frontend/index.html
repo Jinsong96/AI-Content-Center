@@ -609,9 +609,7 @@ body{font-family:var(--font);color:var(--text);background:var(--bg);overflow:hid
 .tc-empty{font-size:11.5px;color:var(--muted);padding:8px 0}
 .tagadd{display:flex;gap:7px;margin-top:10px}
 .tagadd input{flex:1;max-width:320px;font-size:12px;padding:6px 10px;border:1px solid var(--border);border-radius:7px;font-family:inherit}
-.tagextract{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px}
-.tagextract .te-meta{font-size:10.5px;color:var(--muted)}
-.tagextract .te-reason{font-size:11px;color:var(--sub);flex:1;min-width:200px;line-height:1.5}
+.tagextract{display:flex;align-items:center;justify-content:flex-end;gap:10px;flex-wrap:wrap;margin-bottom:12px}
 .tagdropped{font-size:10.5px;color:#D04418;background:#FFEDE4;border:1px solid #F9BB8E;border-radius:8px;padding:7px 11px;margin-bottom:12px;line-height:1.6}
 .tagselbar{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-top:4px;padding:11px 13px;background:var(--bg);border:1px solid var(--border);border-radius:10px}
 .tsb-label{font-size:11px;font-weight:800;color:var(--muted);letter-spacing:.05em}
@@ -1353,10 +1351,10 @@ const BIG_GROUPS = [
   { big:"B2", zh:"中高级", en:"Upper-int." },
 ];
 const LEVELS12 = [
-  { key:"A1", d:"A1", big:"A1" },
+  { key:"A1", d:"A1-", big:"A1" },
   { key:"A2", d:"A2", big:"A2" },
   { key:"B1", d:"B1", big:"B1" },
-  { key:"B2", d:"B2", big:"B2" },
+  { key:"B2", d:"B2+", big:"B2" },
 ];
 const LEVEL_BY_KEY = {}; LEVELS12.forEach(function(l){ LEVEL_BY_KEY[l.key] = l; });
 /* 任意写法 → 规范 key：A1.1 / A1-1 / A1_1 / B2+.1 / B2P_1 / b2p3 → A1 / A2 / B1 / B2 */
@@ -1392,7 +1390,7 @@ function legacyKeyOf(k){ return bigOf(k); }
 /* 当前展示的大档（state.big 未设时按 state.lvl 推导） */
 function curBig(){ return state.lvl || LEVELS12[0].key; }
 /* 超纲词上限按大档区分 */
-function offCap(lvl){ const b = bigOf(lvl) || BIG_GROUPS[0].big; return b === "A1" ? "1%" : b === "A2" ? "2%" : b === "B1" ? "3%" : "4%"; }
+function offCap(lvl){ const b = bigOf(lvl) || BIG_GROUPS[0].big; return b === "A1" ? "1%" : b === "A2" ? "2%" : b === "B1" ? "3%" : "5%"; }
 /* 大档切换条：一次渲染只出一个（避免同页重复） */
 let _bigBarUsed = false;
 /* 某大档下已生成段落总数：切换条据此标注「有无内容」，用户不必盲点后才发现在空档里 */
@@ -1405,7 +1403,7 @@ function bigBarHTML(){
   return '<div class="bigbar"><span class="bigbar-l">' + L("档位","Level") + '</span>' +
     BIG_GROUPS.map(function(g){
       const n = bigParaCount(g.big);
-      return '<div class="bigtab' + (cur === g.big ? ' sel' : '') + (n ? '' : ' blank') + '" onclick="setBig(\'' + g.big + '\')"><b>' + g.big + '</b><span>' + L(g.zh, g.en) + '</span><span class="bt-n' + (n ? '' : ' off') + '"><i></i>' + n + ' ' + L("段","paras") + '</span></div>';
+      return '<div class="bigtab' + (cur === g.big ? ' sel' : '') + (n ? '' : ' blank') + '" onclick="setBig(\'' + g.big + '\')"><b>' + (LEVEL_BY_KEY[g.big] ? LEVEL_BY_KEY[g.big].d : g.big) + '</b><span>' + L(g.zh, g.en) + '</span><span class="bt-n' + (n ? '' : ' off') + '"><i></i>' + n + ' ' + L("段","paras") + '</span></div>';
     }).join("") +
     '<span class="bigbar-r">' + L("共 4 档 · 徽标为该档已生成段落数","4 levels · badge = paragraphs generated") + '</span></div>';
 }
@@ -1420,14 +1418,14 @@ function setBig(g){
 }
 
 const SPECS = {
-  A1:{name:"A1 · 入门 / Starter",words:"Top 800",avg:"5–10 词/句",max:"≤10 词",tense:"一般现在时",lex:"BR–400L",len:"60–160 词",clauses:"简单句为主",gloss:"3–5 词条",
-      en:{words:"Top 800",avg:"5–10 words/sentence",max:"≤10 words",tense:"Simple present",lex:"BR–400L",len:"60–160 words",clauses:"Simple sentences",gloss:"3–5 items"}},
-  A2:{name:"A2 · 初级 / Elementary",words:"Top 1,500",avg:"10–14 词/句",max:"≤16 词",tense:"一般现在/过去/将来",lex:"400–650L",len:"160–300 词",clauses:"仅 that 宾语从句",gloss:"5–8 词条",
-      en:{words:"Top 1,500",avg:"10–14 words/sentence",max:"≤16 words",tense:"Simple present / past / future",lex:"400–650L",len:"160–300 words",clauses:"that-clauses only",gloss:"5–8 items"}},
-  B1:{name:"B1 · 中级 / Intermediate",words:"Top 3,000",avg:"13–18 词/句",max:"≤25 词",tense:"+ 被动/现在完成",lex:"650–880L",len:"300–550 词",clauses:"+ which/who 从句",gloss:"8–12 词条",
-      en:{words:"Top 3,000",avg:"13–18 words/sentence",max:"≤25 words",tense:"+ passive / present perfect",lex:"650–880L",len:"300–550 words",clauses:"+ which / who clauses",gloss:"8–12 items"}},
-  "B2":{name:"B2 · 中高级 / Upper-int.",words:"Top 6,000",avg:"18–21 词/句",max:"≤35 词",tense:"+ 名词化/hedging/倒装",lex:"880–1000L",len:"550–700 词",clauses:"多重从句嵌套",gloss:"12–18 词条",
-      en:{words:"Top 6,000",avg:"18–21 words/sentence",max:"≤35 words",tense:"+ nominalisation / hedging / inversion",lex:"880–1000L",len:"550–700 words",clauses:"nested clauses",gloss:"12–18 items"}},
+  A1:{name:"A1- · 入门 / Starter",words:"EVP A1 (~600)",avg:"7–9 词/句",max:"≤12 词",tense:"一般现在/过去",lex:"BR–400L",len:"150–240 词",clauses:"简单句（从句 0 层）",gloss:"3 目标词",
+      en:{words:"EVP A1 (~600)",avg:"7–9 words/sentence",max:"≤12 words",tense:"Simple present / past",lex:"BR–400L",len:"150–240 words",clauses:"Simple sentences (0 clauses)",gloss:"3 topic words"}},
+  A2:{name:"A2 · 初级 / Elementary",words:"EVP A1–A2 (~1,300)",avg:"10–13 词/句",max:"≤16 词",tense:"+ 进行/将来/完成",lex:"400–750L",len:"240–380 词",clauses:"who/that 关系从句",gloss:"3–4 目标词",
+      en:{words:"EVP A1–A2 (~1,300)",avg:"10–13 words/sentence",max:"≤16 words",tense:"+ continuous / future / perfect",lex:"400–750L",len:"240–380 words",clauses:"who / that relative clauses",gloss:"3–4 topic words"}},
+  B1:{name:"B1 · 中级 / Intermediate",words:"EVP A1–B1 (~2,800)",avg:"14–17 词/句",max:"≤22 词",tense:"+ 被动/过去完成",lex:"750–1050L",len:"380–550 词",clauses:"which/whose 从句",gloss:"4–5 目标词",
+      en:{words:"EVP A1–B1 (~2,800)",avg:"14–17 words/sentence",max:"≤22 words",tense:"+ passive / past perfect",lex:"750–1050L",len:"380–550 words",clauses:"which / whose clauses",gloss:"4–5 topic words"}},
+  "B2":{name:"B2+ · 中高级 / Upper-int.",words:"EVP A1–B2+C1 (~5,000)",avg:"18–24 词/句",max:"≤32 词",tense:"+ 虚拟/倒装/分词",lex:"1050–1350L",len:"550–800 词",clauses:"多重从句嵌套",gloss:"5 目标词",
+      en:{words:"EVP A1–B2+C1 (~5,000)",avg:"18–24 words/sentence",max:"≤32 words",tense:"+ subjunctive / inversion / participle",lex:"1050–1350L",len:"550–800 words",clauses:"nested clauses",gloss:"5 topic words"}},
 };
 /* 某档位（子档 key，或大档名）适用的规格 */
 function specOf(lvl){ return SPECS[bigOf(lvl) || lvl] || SPECS[BIG_GROUPS[0].big]; }
@@ -1968,7 +1966,7 @@ const KPIS = [
 
 const state = {route:null, hot:undefined, hotTheme:null, hotSubTheme:null, realHot:null, realHots:null, realScanning:false, bridgeOk:null, style:"default", lvl:"B1_2", lvlManual:false, big:"B1", guide:{}, words12:null, meta12:null, extracted:false, validated:false, reviewed:false, srcForm:null, customHots:null, topicSel:null, factsCache:null, trendsDegraded:false, trendsErrors:null, trendsFiltered:null, audio:{}, audioMeta:null, audioGenerating:false, audioPromise:null, audioAccent:"us", quiz:{}, quizShow:{}, factMap:null, unusedFacts:[], scanFirst:null, scanElapsed:0,
   tagContent:[], tagFree:[], tagFreeCands:[], tagFreeInput:"", tagCognitive:"全年龄",
-  tagOpenCats:{}, tagAIContent:[], tagAIReason:"", tagMeta:null, tagWarn:"", tagExtracting:false, tagTitleOnly:false, taxoLoaded:false, reviewingId:null};
+  tagOpenCats:{}, tagAIContent:[], tagMeta:null, tagWarn:"", tagExtracting:false, tagTitleOnly:false, taxoLoaded:false, reviewingId:null};
 /* ==================== 当前选中素材（统一访问热点 / 自有版权 / 公版书三种入口） ==================== */
 function curHot(){ if(state.realHot) return state.realHot; return (state.hot !== undefined && state.hot !== null && HOTS[state.hot]) ? HOTS[state.hot] : null; }
 /* 当前素材的「原文正文」——热点用 fulltext；其余入口回退到 state.live.material */
@@ -2243,8 +2241,7 @@ async function extractTagsAI(){
     if(r.ok && j && j.ok){
       state.tagAIContent = j.content || [];
       state.tagFreeCands = j.free || [];
-      state.tagAIReason = j.reason || "";
-      state.tagMeta = { model: j.model, provider: j.provider, elapsedMs: j.elapsed_ms, cached: j.cached, dropped: j.dropped || [] };
+      state.tagMeta = { dropped: j.dropped || [] };
       state.tagWarn = j.warning || "";
       /* AI 建议默认选中，人工再删减 */
       state.tagContent = (j.content || []).map(c => tagKeyOf(c.cat, c.tag));
@@ -2272,7 +2269,6 @@ function resetTags(){
   state.tagCognitive = "全年龄";
   state.tagOpenCats = {};
   state.tagAIContent = [];
-  state.tagAIReason = "";
   state.tagMeta = null;
   state.tagWarn = "";
   state.tagTitleOnly = false;
@@ -4433,8 +4429,6 @@ function s3(){
   ${materialCardHTML()}
   <div class="tagextract">
     <button class="btn" onclick="extractTagsAI()" ${state.tagExtracting ? "disabled" : ""}>${state.tagExtracting ? " " + L("提取中…","Extracting…") : " " + L("AI 提取标签","AI extract tags")}</button>
-    ${state.tagMeta ? `<span class="te-meta">${esc(state.tagMeta.model || "")} · ${state.tagMeta.cached ? L("缓存","cached") : (state.tagMeta.elapsedMs || 0) + "ms"}</span>` : ""}
-    ${state.tagAIReason ? `<span class="te-reason">${esc(state.tagAIReason)}</span>` : ""}
   </div>
   ${state.tagWarn ? `<div class="degraded"><div class="dgb-h"> ${esc(state.tagWarn)}</div></div>` : ""}
   ${state.tagTitleOnly ? `<div class="tagdropped">${L("该热点仅有标题、无正文：内容标签与自由标签均基于标题提取，自由标签可能偏少。建议优先使用带正文的素材，或在 05 步补充正文后重新提取。","This topic has only a title (no body): tags were derived from the title, so free tags may be sparse. Prefer sources with body text, or enrich the material at step 05 and re-extract.")}</div>` : ""}
