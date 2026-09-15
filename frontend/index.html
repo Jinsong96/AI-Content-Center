@@ -15,11 +15,17 @@ window.WB_CFG = (window.WB_CONFIG || {});
 <style>
 :root{
   --bg:#FFFDF9; --card:#ffffff; --border:#EAECF0; --border2:#D0D5DD;
-  --text:#101828; --sub:#475467; --muted:#98A2B3;
+  --text:#101828; --sub:#475467; --muted:#667085;
   --pri:#E65425; --pri-d:#D04418; --pri-t:#FFF0EB; --grad-pri:linear-gradient(135deg,#E65425,#F79009);
+  /* 文字专用品牌色：--pri/--ok 只作色块与描边（作正文时对比度仅 2.2–3.3，低于可读线） */
+  --pri-tx:#C2421C; --ok-tx:#C2421C;
   --ok:#F79009; --ok-t:#FFF9F5; --warn:#D04418; --warn-t:#FFEDE4;
-  --danger:#A32D2D; --danger-t:#FFEDE4; --purple:#E65425; --purple-t:#FFF0EB;
-  --teal:#D04418; --teal-t:#FFF9F5;
+  --danger:#A32D2D; --danger-t:#FFEDE4;
+  /* 语义化命名（2026-09-15）：原 --teal/--purple 值其实是橙红，名字会骗人，已改名。
+     色相纪律：全站只有黑 / 灰 / 品牌橙红，新增颜色请勿引入蓝绿紫。 */
+  --tone-2:#E65425; --tone-2-t:#FFF0EB;
+  --tone-1:#D04418; --tone-1-t:#FFF9F5;
+  --neutral-t:#F2F4F7;
   --font:'Inter','Noto Sans SC',-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;
   --shadow:0 1px 2px rgba(16,24,40,.06),0 1px 3px rgba(16,24,40,.1);
   --shadow-lg:0 12px 16px -4px rgba(16,24,40,.08),0 4px 6px -2px rgba(16,24,40,.03);
@@ -29,6 +35,13 @@ window.WB_CFG = (window.WB_CONFIG || {});
 html,body{height:100%}
 body{font-family:var(--font);color:var(--text);background:var(--bg);overflow:hidden;font-size:14px}
 #app{display:grid;grid-template-rows:56px 1fr;height:100vh}
+/* 品牌化确认弹窗（替代原生 confirm） */
+.confirm-overlay{position:fixed;inset:0;background:rgba(16,24,40,.42);z-index:10000;display:none;align-items:center;justify-content:center;padding:20px}
+.confirm-overlay .cfm{background:#fff;border-radius:16px;box-shadow:var(--shadow-lg);padding:24px 26px;width:min(440px,92vw);animation:rise .22s both}
+.confirm-overlay .cfm h3{font-size:16.5px;font-weight:800;margin-bottom:10px}
+.confirm-overlay .cfm p{font-size:13px;line-height:1.75;color:var(--sub)}
+.confirm-overlay .cfm p b{color:var(--text)}
+.confirm-overlay .cfm-btns{display:flex;justify-content:flex-end;gap:10px;margin-top:20px}
 
 /* ============ TOPBAR ============ */
 #topbar{background:#fff;border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 20px;gap:12px;z-index:10}
@@ -38,10 +51,10 @@ body{font-family:var(--font);color:var(--text);background:var(--bg);overflow:hid
 #topbar .spacer{flex:1}
 /* lang segmented control */
 .langctl{display:flex;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:2px;gap:2px}
-.langctl button{border:none;background:transparent;font-family:var(--font);font-size:11.5px;font-weight:600;color:var(--muted);padding:3px 12px;border-radius:6px;cursor:pointer;transition:all .15s}
+.langctl button{border:none;background:transparent;font-family:var(--font);font-size:11.5px;font-weight:600;color:var(--muted);padding:0 12px;min-height:32px;display:inline-flex;align-items:center;justify-content:center;border-radius:6px;cursor:pointer;transition:all .15s}
 .langctl button.on{background:#fff;color:var(--text);box-shadow:0 1px 2px rgba(16,24,40,.1)}
 
-#body{display:grid;grid-template-columns:252px 1fr;overflow:hidden}
+#body {display:grid;grid-template-columns:252px minmax(0,1fr);overflow:hidden}
 
 /* ============ SIDEBAR ============ */
 #rail{background:#fff;border-right:1px solid var(--border);overflow-y:auto;padding:20px 12px 14px}
@@ -72,7 +85,14 @@ body{font-family:var(--font);color:var(--text);background:var(--bg);overflow:hid
 .kpi b{font-weight:700;color:var(--text)}
 
 /* ============ STAGE ============ */
-#stage{overflow-y:auto}
+#stage {overflow-y:auto;min-width:0}
+/* A2 段落草稿保存状态 */
+.draftstat{font-size:11.5px;font-weight:700}
+/* A3 超时提示与取消按钮 */
+.genrun .gr-over{font-size:11.5px;font-weight:700;color:var(--warn);margin-left:6px}
+.gr-cancel{margin-left:10px;flex-shrink:0}
+/* A5 无素材闸门 */
+.blockgate{font-size:12.5px;line-height:1.7;color:var(--sub);background:#FFF9F5;border:1px solid #FFDFCF;border-radius:10px;padding:11px 14px}
 #stage::-webkit-scrollbar{width:8px}
 #stage::-webkit-scrollbar-thumb{background:#D0D5DD;border-radius:4px}
 .wrap{max-width:1000px;margin:0 auto;padding:26px 32px 60px}
@@ -110,7 +130,7 @@ body{font-family:var(--font);color:var(--text);background:var(--bg);overflow:hid
 .mat-actions{display:flex;align-items:center;gap:6px;white-space:nowrap}
 .mat-actions .btn{flex:0 0 auto}
 .nextbar{display:flex;justify-content:space-between;align-items:center;margin-top:32px;padding-top:18px;border-top:1px solid var(--border);animation:fadeIn .35s both}
-.nextbar .hint{font-size:12px;color:var(--warn);font-weight:600}
+.nextbar .hint{font-size:12.5px;color:var(--sub);font-weight:600;background:var(--bg);border:1px dashed var(--border2);border-radius:8px;padding:6px 12px}
 .nextbar .ctx{font-size:11.5px;color:var(--muted)}
 .wfstrip{margin-top:28px;padding-top:16px;border-top:1px solid var(--border2,var(--border))}
 .wfstrip-h{font-size:11px;color:var(--muted);margin-bottom:10px;font-weight:600}
@@ -153,16 +173,16 @@ body{font-family:var(--font);color:var(--text);background:var(--bg);overflow:hid
 .chip{display:inline-flex;align-items:center;font-size:12px;font-weight:600;border:1px solid var(--border2);padding:5px 12px;border-radius:8px;background:#fff;cursor:pointer;transition:all .12s;user-select:none;margin:3px}
 .chip:hover{border-color:var(--pri);color:var(--pri)}
 .chip.sel{background:var(--pri);border-color:var(--pri);color:#fff}
-.chip.rec{border-color:var(--teal);color:var(--teal);background:#FFF9F5}
-.chip.rec::after{content:"★";font-size:9px;margin-left:5px;color:var(--teal)}
+.chip.rec{border-color:var(--tone-1);color:var(--tone-1);background:#FFF9F5}
+.chip.rec::after{content:"★";font-size:9px;margin-left:5px;color:var(--tone-1)}
 .chip.sel::before{content:"✓ ";font-size:10px}
 .tint{display:inline-block;font-size:11px;font-weight:700;padding:2px 9px;border-radius:6px}
 .tint.ok{background:var(--ok-t);color:var(--ok)}
 .tint.warn{background:var(--warn-t);color:var(--warn)}
 .tint.danger{background:var(--danger-t);color:var(--danger)}
 .tint.pri{background:var(--pri-t);color:var(--pri)}
-.tint.purple{background:var(--purple-t);color:var(--purple)}
-.tint.teal{background:var(--teal-t);color:var(--teal)}
+.tint.purple{background:var(--tone-2-t);color:var(--tone-2)}
+.tint.teal{background:var(--tone-1-t);color:var(--tone-1)}
 
 /* ============ S1 trends ============ */
 .agentbar{display:flex;align-items:center;gap:12px;background:#fff;border:1px solid var(--border);border-radius:var(--r);padding:12px 16px;margin-bottom:18px;box-shadow:var(--shadow);animation:pop .4s both}
@@ -180,7 +200,7 @@ body{font-family:var(--font);color:var(--text);background:var(--bg);overflow:hid
 .hotcard .meta{display:flex;justify-content:space-between;font-size:11px;color:var(--muted)}
 .hotcard .meta b{color:var(--pri);font-weight:800;font-size:12px}
 /* custom source config (trend discovery) */
-.btn.mini{padding:7px 14px;font-size:12px;border-radius:8px;flex-shrink:0}
+.btn.mini{padding:0 14px;min-height:32px;display:inline-flex;align-items:center;justify-content:center;font-size:12px;border-radius:8px;flex-shrink:0}
 .srccfg{background:#fff;border:1px solid var(--border);border-radius:var(--r);padding:16px 18px;margin-bottom:18px;box-shadow:var(--shadow);animation:pop .4s both}
 .srccfg-head{display:flex;align-items:center;gap:12px;margin-bottom:13px;flex-wrap:wrap}
 .srccfg-head .t{font-size:14px;font-weight:800;display:inline-flex;align-items:center;gap:7px}
@@ -260,7 +280,7 @@ body{font-family:var(--font);color:var(--text);background:var(--bg);overflow:hid
 .srccard .cls{position:absolute;top:-10px;left:14px;color:#fff;font-weight:800;font-size:11px;padding:2px 11px;border-radius:6px}
 .srccard h4{font-size:14.5px;font-weight:800;margin:6px 0 6px}
 .srccard p{font-size:12px;color:var(--sub);line-height:1.65}
-.srccard .foot{margin-top:10px;padding-top:9px;border-top:1px solid var(--border);font-size:11px;color:var(--teal);font-weight:700}
+.srccard .foot{margin-top:10px;padding-top:9px;border-top:1px solid var(--border);font-size:11px;color:var(--tone-1);font-weight:700}
 .article{background:#fff;border:1px solid var(--border);border-radius:var(--r);padding:20px 24px;margin-top:22px;box-shadow:var(--shadow);animation:pop .45s both}
 .article .meta{display:flex;gap:12px;align-items:center;font-size:11.5px;color:var(--muted);margin-bottom:10px;flex-wrap:wrap}
 .article h3{font-weight:800;font-size:19px;margin-bottom:2px}
@@ -326,7 +346,7 @@ body{font-family:var(--font);color:var(--text);background:var(--bg);overflow:hid
 .confbar{flex:1;min-width:56px;height:5px;background:var(--bg);border-radius:3px;position:relative;overflow:hidden}
 .confbar i{position:absolute;left:0;top:0;bottom:0;background:var(--ok);border-radius:3px}
 .confbar.low i{background:var(--warn)}
-.senref{font-size:10px;color:var(--teal);margin-top:6px;font-weight:700}
+.senref{font-size:10px;color:var(--tone-1);margin-top:6px;font-weight:700}
 
 /* ============ S6 KB ============ */
 .kbgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:18px}
@@ -347,10 +367,10 @@ body{font-family:var(--font);color:var(--text);background:var(--bg);overflow:hid
 .spec .row:last-child{border:none}
 .spec .row span{color:var(--sub)}
 .spec .row b{font-weight:700;text-align:right}
-.termbox{margin-top:16px;background:var(--teal-t);border:1px dashed var(--teal);border-radius:10px;padding:12px 16px;animation:pop .45s both}
-.termbox h6{font-size:11px;letter-spacing:.1em;color:var(--teal);font-weight:800;margin-bottom:6px}
+.termbox{margin-top:16px;background:var(--tone-1-t);border:1px dashed var(--tone-1);border-radius:10px;padding:12px 16px;animation:pop .45s both}
+.termbox h6{font-size:11px;letter-spacing:.1em;color:var(--tone-1);font-weight:800;margin-bottom:6px}
 .termbox .term{display:inline-block;margin:3px 6px 3px 0;font-size:11.5px;color:var(--sub)}
-.termbox .term b{color:var(--teal);font-weight:700}
+.termbox .term b{color:var(--tone-1);font-weight:700}
 
 /* ============ S7 generation ============ */
 .gentabs{display:flex;gap:8px;margin:14px 0 18px}
@@ -424,8 +444,8 @@ body{font-family:var(--font);color:var(--text);background:var(--bg);overflow:hid
 .metric .v small{font-size:10.5px;font-weight:500;color:var(--muted)}
 .metric .bar{height:5px;background:var(--bg);border-radius:3px;margin-top:7px;position:relative;overflow:hidden}
 .metric .bar i{position:absolute;left:0;top:0;bottom:0;background:var(--pri);border-radius:3px;transition:width .8s cubic-bezier(.2,.8,.2,1)}
-.factused{background:var(--purple-t);border:1px dashed var(--purple);border-radius:10px;padding:11px 14px;animation:pop .45s both}
-.factused h6{font-size:10.5px;letter-spacing:.08em;color:var(--purple);font-weight:800;margin-bottom:6px}
+.factused{background:var(--tone-2-t);border:1px dashed var(--tone-2);border-radius:10px;padding:11px 14px;animation:pop .45s both}
+.factused h6{font-size:10.5px;letter-spacing:.08em;color:var(--tone-2);font-weight:800;margin-bottom:6px}
 .factused li{font-size:10.5px;line-height:1.7;color:var(--sub);list-style:none;padding-left:14px;position:relative}
 .factused li::before{content:"✓";position:absolute;left:0;color:var(--ok);font-weight:800}
 .factused li b{color:#1D2939;font-weight:600}
@@ -450,14 +470,14 @@ body{font-family:var(--font);color:var(--text);background:var(--bg);overflow:hid
 .vsum .big{font-weight:800;font-size:34px;color:var(--ok)}
 .vsum .txt{flex:1;font-size:12.5px;line-height:1.65;color:var(--sub)}
 .vsum .txt b{color:var(--text)}
-.idcard{margin-top:16px;background:var(--teal-t);border:1.5px solid var(--teal);border-radius:var(--r);padding:16px 20px;animation:pop .5s both}
+.idcard{margin-top:16px;background:var(--tone-1-t);border:1.5px solid var(--tone-1);border-radius:var(--r);padding:16px 20px;animation:pop .5s both}
 .idcard .idhead{display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap}
 .idcard .idhead h4{font-weight:800;font-size:15px}
 .idcard .idhead .cid{font-size:11px;color:var(--sub);font-weight:600}
 .idcard .aibadge{margin-left:auto;background:var(--pri);color:#fff;font-size:10.5px;font-weight:800;padding:4px 12px;border-radius:7px;letter-spacing:.05em}
 .chain{display:flex;align-items:center;gap:7px;flex-wrap:wrap;font-size:11.5px;font-weight:600}
 .chain .cnode{border:1px solid var(--border2);background:#fff;padding:5px 11px;border-radius:7px;color:var(--sub)}
-.chain .carrow{color:var(--teal);font-weight:800}
+.chain .carrow{color:var(--tone-1);font-weight:800}
 .idrow{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:12px}
 .idcell{background:#fff;border:1px solid var(--border);border-radius:8px;padding:8px 11px}
 .idcell .k{font-size:9.5px;letter-spacing:.1em;color:var(--muted);font-weight:800}
@@ -465,7 +485,7 @@ body{font-family:var(--font);color:var(--text);background:var(--bg);overflow:hid
 .idnote{margin-top:11px;font-size:11px;color:var(--sub);line-height:1.65}
 /* two-column identity card */
 .idcols{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start}
-.idcol-h{font-size:11.5px;font-weight:800;color:var(--teal);margin-bottom:9px;padding-bottom:6px;border-bottom:1px solid #FFDFCF}
+.idcol-h{font-size:11.5px;font-weight:800;color:var(--tone-1);margin-bottom:9px;padding-bottom:6px;border-bottom:1px solid #FFDFCF}
 .tagrows{display:flex;flex-direction:column;gap:5px}
 .tagrow{display:flex;gap:10px;align-items:baseline;background:#fff;border:1px solid var(--border);border-radius:8px;padding:6px 10px}
 .tagrow .tk{font-size:10px;font-weight:800;color:var(--muted);min-width:96px;letter-spacing:.03em}
@@ -485,7 +505,7 @@ body{font-family:var(--font);color:var(--text);background:var(--bg);overflow:hid
 .mapcard.lit{opacity:1;border-color:var(--pri);box-shadow:0 0 0 3px var(--pri-t)}
 .mapcard .mh{display:flex;gap:7px;align-items:center;margin-bottom:4px}
 .mapcard .stmt{font-size:12px;line-height:1.55;color:#1D2939;font-weight:500}
-.mapcard .anchor{font-size:10px;color:var(--teal);margin-top:5px;font-weight:700}
+.mapcard .anchor{font-size:10px;color:var(--tone-1);margin-top:5px;font-weight:700}
 .verdict{margin-top:14px;display:flex;gap:10px}
 
 /* ============ S10 bank handoff ============ */
@@ -580,7 +600,7 @@ body{font-family:var(--font);color:var(--text);background:var(--bg);overflow:hid
 .tagcat:first-of-type{border-top:none;padding-top:0}
 .tagcat:last-child{padding-bottom:0}
 .tagcat.closed{display:flex;align-items:center;gap:9px;cursor:pointer;padding:9px 0}
-.tc-head{display:flex;align-items:center;gap:9px;cursor:pointer;user-select:none}
+.tc-head{display:flex;align-items:center;gap:9px;cursor:pointer;user-select:none;min-height:32px}
 .tc-name{font-size:12.5px;font-weight:700}
 .tc-name small{margin-left:6px;font-size:10.5px;color:var(--muted);font-weight:400}
 .tc-count{margin-left:auto;font-size:10.5px;color:var(--muted)}
@@ -607,7 +627,7 @@ body{font-family:var(--font);color:var(--text);background:var(--bg);overflow:hid
 .wfstrip{margin-top:34px;background:#fff;border:1px solid var(--border);border-radius:var(--r);padding:14px 18px;animation:fadeIn .4s both}
 .wfstrip .wfhead{display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap}
 .wfstrip .wfhead .t{font-size:12px;font-weight:800;letter-spacing:.06em;color:var(--text)}
-.wfstrip .wfhead .loop{font-size:11px;color:var(--teal);font-weight:600;background:var(--teal-t);border-radius:6px;padding:2px 9px}
+.wfstrip .wfhead .loop{font-size:11px;color:var(--tone-1);font-weight:600;background:var(--tone-1-t);border-radius:6px;padding:2px 9px}
 .wfstrip .wfhead .ext-note{font-size:11px;color:var(--muted)}
 .wfchips{display:flex;flex-wrap:wrap;gap:6px}
 .wfstep{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:600;color:var(--sub);background:var(--bg);border:1px solid var(--border);border-radius:99px;padding:4px 11px}
@@ -774,7 +794,7 @@ body{font-family:var(--font);color:var(--text);background:var(--bg);overflow:hid
 .userchip .uinfo{line-height:1.25;padding-right:4px}
 .userchip .uinfo b{display:block;font-size:11.5px;font-weight:700;max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .userchip .uinfo span{font-size:10px;color:var(--muted);font-weight:600}
-.userchip .uout{border:none;background:#fff;border:1px solid var(--border2);color:var(--sub);font-size:11px;font-weight:600;padding:4px 9px;border-radius:7px;cursor:pointer;font-family:var(--font);transition:all .12s}
+.userchip .uout{border:none;background:#fff;border:1px solid var(--border2);color:var(--sub);font-size:11px;font-weight:600;padding:4px 9px;border-radius:7px;cursor:pointer;font-family:var(--font);transition:all .12s;white-space:nowrap;flex-shrink:0}
 .userchip .uout:hover{color:var(--danger);border-color:var(--danger)}
 /* sidebar: owner dot + locked state */
 .rstep{position:relative}
@@ -807,7 +827,7 @@ body{font-family:var(--font);color:var(--text);background:var(--bg);overflow:hid
 #toast{position:fixed;top:70px;left:50%;transform:translateX(-50%) translateY(-8px);background:#101828;color:#fff;font-size:12.5px;font-weight:600;padding:10px 18px;border-radius:10px;box-shadow:var(--shadow-lg);z-index:200;opacity:0;pointer-events:none;transition:opacity .25s,transform .25s;max-width:82vw;text-align:center}
 #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 
-@media (max-width:1050px){#body{grid-template-columns:220px 1fr}.wrap{padding:22px 20px 50px}.dashcols,.histgrid,.sigcols{grid-template-columns:1fr}}
+@media (max-width:1050px){#body {grid-template-columns:220px minmax(0,1fr)}.wrap{padding:22px 20px 50px}.dashcols,.histgrid,.sigcols{grid-template-columns:1fr}}
 
 /* ============ S9-S11 段落切分 / 对齐 / 调校 ============ */
 .bigbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;background:#fff;border:1px solid var(--border);border-radius:11px;padding:8px 12px;margin:0 0 14px;box-shadow:var(--shadow)}
@@ -820,7 +840,7 @@ body{font-family:var(--font);color:var(--text);background:var(--bg);overflow:hid
 .bigtab.sel{background:var(--pri-t);border-color:#FFD1BF}
 .bigtab.sel b{color:var(--pri)}
 /* 大档切换条上的「有无内容」标识：有内容=橙点+段数，空档=灰点+虚线框（避免盲点进空档） */
-.bigtab .bt-n{display:inline-flex;align-items:center;gap:4px;font-size:10.5px;font-weight:700;color:#D04418;background:#FFF0EB;border-radius:6px;padding:1px 6px;margin-left:2px}
+.bigtab .bt-n{display:inline-flex;align-items:center;gap:4px;font-size:11.5px;font-weight:700;color:var(--pri-tx);background:#FFF0EB;border-radius:6px;padding:1px 6px;margin-left:2px}
 .bigtab .bt-n i{width:5px;height:5px;border-radius:50%;background:#E65425;display:block}
 .bigtab .bt-n.off{color:var(--muted);background:#F2F4F7;font-weight:600}
 .bigtab .bt-n.off i{background:#98A2B3}
@@ -831,7 +851,6 @@ body{font-family:var(--font);color:var(--text);background:var(--bg);overflow:hid
 .guidecard-h .gtag{background:#FFF0EB;color:var(--pri);font-size:11px;font-weight:800;padding:3px 9px;border-radius:7px}
 .guidecard-h b{font-size:13px}
 .guidecard-b{font-size:12.5px;line-height:1.9;color:#344054;white-space:pre-wrap}
-.plvlbar{display:flex;gap:10px;margin:0 0 18px;flex-wrap:wrap}
 .plvl-pill{flex:1;min-width:170px;display:flex;align-items:center;gap:9px;background:#fff;border:1px solid var(--border);border-radius:11px;padding:11px 14px;box-shadow:var(--shadow);animation:pop .4s both}
 .plvl-pill .dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
 .plvl-pill b{font-weight:800;font-size:14px;letter-spacing:.02em}
@@ -849,6 +868,15 @@ body{font-family:var(--font);color:var(--text);background:var(--bg);overflow:hid
 .pcard .pbody[contenteditable="true"]{cursor:text}
 .pcard .pbody[contenteditable="true"]:hover{background:#FFF9F5}
 .pcard .pbody[contenteditable="true"]:focus{background:var(--pri-t);box-shadow:inset 0 0 0 2px var(--pri)}
+.alignmode{display:flex;align-items:center;gap:8px;margin:0 0 12px;flex-wrap:wrap}
+.alignmode .am-l{font-size:11.5px;font-weight:700;color:var(--muted);letter-spacing:.04em}
+.alignmode .am-b{font-family:var(--font);font-size:12px;font-weight:700;color:var(--sub);background:#fff;border:1px solid var(--border);border-radius:8px;padding:5px 12px;cursor:pointer;transition:all .12s}
+.alignmode .am-b:hover{border-color:#FFDFCF;background:#FFF9F5}
+.alignmode .am-b.sel{background:var(--pri-t);border-color:#FFD1BF;color:var(--pri-tx)}
+.alignmode .am-h{font-size:11.5px;color:var(--sub);font-weight:600}
+.alignsingle{display:flex;flex-direction:column;gap:12px;max-width:100%}
+/* B5：≤900px 四栏塌成一列后就没有「对照」了 —— 明确提示改用单档视图，而不是静默降级 */
+@media (max-width:900px){.alignmode .am-note{display:block}}
 .aligngrid{display:flex;flex-direction:column;gap:12px}
 .alignrow{display:grid;grid-template-columns:44px 1fr 1fr 1fr 1fr;gap:10px;align-items:stretch}
 .alignrow .arow-no{display:grid;place-items:center;font-weight:800;font-size:13px;color:var(--pri);background:var(--pri-t);border:1px dashed #FFD1BF;border-radius:11px}
@@ -975,15 +1003,146 @@ body{font-family:var(--font);color:var(--text);background:var(--bg);overflow:hid
 .drawer-close:hover{background:var(--bg);color:var(--text)}
 .drawer-body{flex:1;overflow-y:auto;padding:18px 22px 24px}
 .drawer-footer{display:flex;gap:10px;justify-content:flex-end;padding:14px 22px;border-top:1px solid var(--border)}
+
+/* ================= 2026-09-15 窄屏骨架（A1） =================
+   根因：全站 9 条 @media 只改了卡片网格，没有一条处理骨架。
+   420px 视口下 #body 的 1fr 列被内容顶到 ~336px，页面被撑到 557px，右侧按钮落到屏幕外。
+   处理：① 主区允许收缩（minmax(0,1fr) + min-width:0）② ≤860px 时左侧栏改为可唤起的抽屉。 */
+.railbtn{display:none;width:34px;height:34px;border:1px solid var(--border2);background:#fff;border-radius:9px;cursor:pointer;flex-direction:column;justify-content:center;align-items:center;gap:3px;padding:0;flex-shrink:0}
+.railbtn span{display:block;width:15px;height:2px;border-radius:2px;background:var(--text)}
+.railbtn:hover{border-color:var(--pri)}
+.rail-overlay{position:fixed;inset:56px 0 0 0;background:rgba(16,24,40,.35);z-index:9000;display:none}
+.rail-overlay.open{display:block}
+#stage .wrap,#stage .workbench,#stage .aligngrid,#stage .dashcols{min-width:0}
+#stage .alignrow{min-width:0}
+@media (max-width:860px){
+  .railbtn{display:flex}
+  #body{grid-template-columns:minmax(0,1fr)}
+  #rail{position:fixed;top:56px;left:0;bottom:0;width:252px;z-index:9001;transform:translateX(-100%);transition:transform .25s cubic-bezier(.22,1,.36,1);box-shadow:0 12px 32px rgba(16,24,40,.18)}
+  #rail.open{transform:none}
+  #topbar{padding:0 12px;gap:8px;min-width:0}
+  #topbar .logo{flex-shrink:0}
+  #topbar .langctl{flex-shrink:0}
+  #topbar .title{font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;flex:1 1 auto}
+  #topbar .userchip{min-width:0;flex-shrink:1}
+  #topbar .userchip .uinfo{min-width:0;overflow:hidden}
+  #topbar .userchip .uinfo b{max-width:100%}
+  #topbar .userchip .uinfo span{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #topbar .badge{display:none}
+  .wrap{padding:18px 14px 44px}
+  .workbench{grid-template-columns:1fr}
+  .mat-table{display:block;overflow-x:auto;white-space:nowrap}
+  .bigbar{padding:8px 10px;gap:6px}
+}
+/* A1 收尾：≤560px 顶栏字号下调一级并隐藏平台名（页面名已由 stagehead 承担），
+   给「角色 + 账号 + 退出 + 语言」留出空间，避免顶栏把整页撑出横向滚动条。 */
+@media (max-width:560px){
+  #topbar{padding:0 10px;gap:6px}
+  #topbar .title{display:none}
+  #topbar .logo{font-size:11.5px;height:24px;padding:0 8px}
+  #topbar .langctl button{font-size:11px;padding:0 7px}
+}
+
+/* ===== 2026-09-15 窄屏收尾：多列栅格塌列（修 420px 下卡片被挤到 60~90px、每 2~3 字换行） ===== */
+.routegrid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+@media (max-width:720px){
+  .routegrid,.hotgrid,.tagboard,.specgrid,.kbgrid,.sigcols{grid-template-columns:1fr}
+  .idrow,.bankcaps,.dashstats,.mat-stats,.mat-stats.c5{grid-template-columns:repeat(2,1fr)}
+  .genlayout,.frow,.slotrow2,.review3{grid-template-columns:1fr}
+  .srccard p{min-height:0}
+}
+@media (max-width:480px){
+  .idrow,.bankcaps,.dashstats,.mat-stats,.mat-stats.c5{grid-template-columns:1fr}
+}
+
+/* ================= 2026-09-15 可用性修正（A4 / A6 / B3 / B7 / C4 / C5 / C10） ================= */
+.tint.neutral{background:var(--neutral-t);color:var(--sub)}
+.tint.pri{background:var(--pri-t);color:var(--pri-tx)}
+/* A4 引导型空态（统计卡 / 分页 / 「暂无匹配」三件套的替代） */
+.guide-empty{background:#fff;border:1px dashed var(--border2);border-radius:14px;padding:44px 30px;text-align:center;margin:18px 0}
+.guide-empty .ge-t{font-size:16px;font-weight:800;color:var(--text);margin-bottom:10px}
+.guide-empty .ge-d{font-size:13px;line-height:1.85;color:var(--sub);max-width:620px;margin:0 auto 20px}
+.guide-empty .ge-d b{color:var(--text)}
+.guide-empty .ge-btns{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+/* A6 事实卡引用：可悬停、可点开 */
+.fcite .fcref{display:inline-block;font-weight:700;color:var(--pri-tx);background:var(--pri-t);border:1px solid #FFDFCF;border-radius:6px;padding:1px 7px;margin-right:4px;cursor:pointer;transition:all .12s}
+.fcite .fcref:hover{background:#FFE3D6;border-color:var(--pri)}
+.fcite .fcref:focus{outline:2px solid var(--pri);outline-offset:1px}
+.fcbox .fcbox-en{font-size:14px;line-height:1.7;color:#1D2939;font-weight:600}
+.fcbox .fcbox-zh{font-size:13px;line-height:1.7;color:var(--sub);margin-top:8px;padding-left:10px;border-left:2px solid var(--border)}
+.fcbox .fcbox-note{font-size:11.5px;color:var(--muted);margin-top:14px;line-height:1.6}
+/* A7 内部代号：收进 hover 提示 */
+.hintcode{color:var(--muted);border-bottom:1px dotted var(--border2);cursor:help;font-size:12px}
+/* B3 底部工作流步骤条可点击 */
+.wfnode.wfclick{cursor:pointer}
+.wfnode.wfclick:hover{border-color:var(--pri);background:#FFF9F5;color:var(--pri-tx)}
+.wfnode.wfclick:focus{outline:2px solid var(--pri);outline-offset:1px}
+/* B7 角色卡 */
+.lrole .lpri{margin-left:8px;font-size:10.5px;font-weight:700;color:var(--pri-tx);background:var(--pri-t);border:1px solid #FFDFCF;border-radius:99px;padding:2px 8px;vertical-align:2px}
+.lrole .rduty{font-size:12.5px;line-height:1.75;color:var(--sub);margin:0 0 14px;min-height:44px}
+.lrole .rmods{min-height:0;margin-bottom:20px}
+.lrole .rbtn.sec{background:#fff;color:var(--text);border:1px solid var(--border2)}
+.lrole .rbtn.sec:hover{background:var(--bg);opacity:1}
+/* C4 入口卡说明改纯文本（原先的 chip 看着像能点） */
+.srccard .srccard-items{font-size:12px;line-height:1.7;color:var(--sub);margin:8px 0 10px;min-height:42px}
+/* C5 信源删除按钮热区（触控线 44px，原先 24px） */
+.srcrow .sdel{width:32px;height:32px;font-size:13px}
+/* C10 筛选栏结果计数与清空 */
+.mat-filter-extra{display:flex;align-items:center;gap:10px;justify-content:flex-end}
+.mat-filter-extra .mf-count{font-size:12px;color:var(--sub)}
+
+/* ================= 2026-09-15 可读性修正（B1 / B2） =================
+/* B7 角色卡不再强制等高 */
+.lrole{min-height:0}
+
+   实测对比度（WCAG）：说明文字 #98A2B3 on #FFFDF9 = 2.53:1（10–13px，每页 30–40 处）、
+   品牌橙 #E65425 作正文 3.34:1、#F79009 作数字 2.25:1，均低于 AA 正文线 4.5:1。
+   处理原则：色块 / 描边 / 图标继续用品牌色；文字层统一降深一档（--pri-tx / --ok-tx），
+   小字号抬到 ≥11.5px。色相仍只在「黑 / 灰 / 橙红」内，不引入新色相。 */
+.tint.ok{color:var(--ok-tx)}
+.tint.teal,.tint.purple{color:var(--pri-tx)}
+.lstage.done,.shownote,.fstat-ok,.vcheck.pass .state,.vsum .big,.chk.pass{color:var(--ok-tx)}
+.mfs.done .mfs-no{color:var(--ok-tx)}
+.factused li::before{color:var(--ok-tx)}
+.int-trend.down{color:var(--ok-tx)}
+.qcard .qans b,.qcard .qopt.ans{color:var(--pri-tx)}
+.wfnode.done,.wfnode.done .wfn-no{color:var(--ok-tx)}
+.rstep.active .t{color:var(--pri-tx)}
+.bigtab.sel b{color:var(--pri-tx)}
+.bigtab.blank b{color:#667085}
+.bigtab .bt-n.off i{background:#667085}
+/* 说明性小字抬到可读字号 */
+#topbar .badge{font-size:11.5px}
+.wfstrip-h{font-size:12px}
+.wfnode,.wfnode .wfn-no{font-size:11.5px}
+.bigbar-l,.bigbar-r{font-size:11.5px}
+.bigtab span{font-size:11.5px}
+.plvl-pill span{font-size:12px}
+.matflow-h{font-size:12.5px}
+.mat-stat-lbl{font-size:12px}
+.stagehead .sub{font-size:13px}
+.userchip .uinfo span{font-size:11px}
+.fcard .fid{font-size:11px}
+.rstep .t .lk{font-size:11px}
+.srcrow .sinfo span{font-size:11.5px}
+.empty-state{font-size:13.5px}
+/* C3 侧栏底部区（原先 4 项之下大片空白） */
+.railfoot{margin-top:auto;border-top:1px solid var(--border);padding:12px 6px 4px}
+.railfoot .rf-h{font-size:11px;font-weight:700;color:var(--muted);letter-spacing:.08em;margin:0 4px 8px}
+.railfoot .rf-b{display:block;width:100%;text-align:left;font-family:var(--font);font-size:12.5px;font-weight:600;color:var(--sub);background:none;border:none;padding:7px 10px;border-radius:8px;cursor:pointer;transition:background .12s}
+.railfoot .rf-b:hover{background:#FFF5F1;color:var(--pri-tx)}
+.railfoot .rf-v{margin:10px 4px 0;font-size:11px;color:var(--muted)}
+#rail{display:flex;flex-direction:column}
 </style>
 </head>
 <body data-page-node-id="FNapqlT50aNgihB7PQ9wCK">
 <div id="app" data-page-node-id="Ee4dgYgmfNVpD8HJtzZ2Ws">
   <header id="topbar" data-page-node-id="9PrUvbVr57J80T1Viciwfo">
+    <button id="railBtn" class="railbtn" onclick="toggleRail()" aria-label="打开导航" title="导航"><span></span><span></span><span></span></button>
     <div class="logo" data-page-node-id="kTcnFULaOFUCTOpZGdqy2J">ReadPal</div>
-    <div class="title" id="tbTitle" data-page-node-id="c0TMnJlvzMS7abosWrMogG">ReadPal 内容生产平台</div>
+    <div class="title" id="tbTitle" data-page-node-id="c0TMnJlvzMS7abosWrMogG">内容生产平台</div>
     <span class="badge" id="tbBadge" data-page-node-id="9OmpDyw3QWjZRua0ZXYA3T">Demo</span>
-    <span class="badge" id="livechip" style="background:#F2F4F7;color:#98A2B3;cursor:default" title="AI 实时引擎状态" data-page-node-id="UIeFEoBsRfmYWOsJC5sSmD">AI · 待运行</span>
+    <span class="badge" id="livechip" style="background:#F2F4F7;color:#667085;cursor:default" title="AI 实时引擎状态：待运行 / 运行中 / 已完成" data-page-node-id="UIeFEoBsRfmYWOsJC5sSmD">AI 待运行</span>
     <div class="spacer" data-page-node-id="MLauIgrET1a2HgJjqen9JK"></div>
     <div class="userchip" id="userChip" style="display:none" data-page-node-id="S1gLAo164nvijT6G8uHuHj"></div>
     <div class="langctl" data-page-node-id="A5q18SLrXnqRYVlOz0nAiE">
@@ -992,9 +1151,11 @@ body{font-family:var(--font);color:var(--text);background:var(--bg);overflow:hid
     </div>
   </header>
   <div id="loginOv" data-page-node-id="Nn2VCgGh5M20FAz6Nbv3UA"></div>
+  <div id="confirmOv" class="confirm-overlay"></div>
   <div id="toast" data-page-node-id="G6PRK7AXQTAEz7Mu1bUcIp"></div>
   <div id="drawerOverlay" class="drawer-overlay" onclick="closeDrawer()"></div>
   <div id="drawer" class="drawer"></div>
+  <div id="railOverlay" class="rail-overlay" onclick="closeRail()"></div>
   <div id="body" data-page-node-id="mDFwcJ3jEfUZS8sbBJnBC0">
     <aside id="rail" data-page-node-id="oaEGJOSmn82pAfC1lWf9yf">
       <div id="railsteps" data-page-node-id="GKwiObRE6DyFIHMB2kxYXJ"></div>
@@ -1019,7 +1180,7 @@ const STAGES = [
   {no:"06", phase:2, t:"事实抽取",     tEn:"Fact Extraction",  s:"AI fact extraction"},
   {no:"07", phase:2, t:"分级标准",     tEn:"KB & CEFR Specs",    s:"Versioned KB"},
   {no:"08", phase:2, t:"内容生成",     tEn:"Graded Generation",  s:"A1–B2 by outline"},
-  {no:"09", phase:2, t:"AI 校验",      tEn:"AI Validate",    s:"V1-V13 + record"},
+  {no:"09", phase:2, t:"AI 校验",      tEn:"AI Validate",    s:"13 项校验 + 存档"},
   {no:"10", phase:2, t:"段落校对",     tEn:"Paragraph Proofread", s:"Auto-split + human proofread"},
   // ===== PHASE 3: 审核（审核老师）=====
   {no:"11", phase:3, t:"逐段审核",     tEn:"Segment Review",      s:"Per-segment check"},
@@ -1254,9 +1415,9 @@ function bigBarHTML(){
   return '<div class="bigbar"><span class="bigbar-l">' + L("档位","Level") + '</span>' +
     BIG_GROUPS.map(function(g){
       const n = bigParaCount(g.big);
-      return '<div class="bigtab' + (cur === g.big ? ' sel' : '') + (n ? '' : ' blank') + '" onclick="setBig(\'' + g.big + '\')"><b>' + g.big + '</b><span>' + L(g.zh, g.en) + '</span><span class="bt-n' + (n ? '' : ' off') + '"><i></i>' + n + '</span></div>';
+      return '<div class="bigtab' + (cur === g.big ? ' sel' : '') + (n ? '' : ' blank') + '" onclick="setBig(\'' + g.big + '\')"><b>' + g.big + '</b><span>' + L(g.zh, g.en) + '</span><span class="bt-n' + (n ? '' : ' off') + '"><i></i>' + n + ' ' + L("段","paras") + '</span></div>';
     }).join("") +
-    '<span class="bigbar-r">' + L("4 档 · A1–B2","4 levels · A1–B2") + '</span></div>';
+    '<span class="bigbar-r">' + L("共 4 档 · 徽标为该档已生成段落数","4 levels · badge = paragraphs generated") + '</span></div>';
 }
 function bigBarOnce(){ return _bigBarUsed ? "" : bigBarHTML(); }
 /* 切换大档：三栏仅显示该大档的 4 档；当前档不在新大档内则落到其第一个子档 */
@@ -1785,7 +1946,7 @@ function identityRecord(){
   const cells = [
     ["Model / Prompt","qwen-max · GEN-v1.4"],
     ["KB Snapshot","KB-2026.08.1"],
-    ["Fact Cards","FC-…001 ~ " + String(facts.length).padStart(3,"0")],
+    [L("事实卡","Fact cards"), L("共 ","") + facts.length + L(" 张"," cards")],
     ["Generated", (h?h.date:"2026-08-21") + " 09:42"],
   ];
   const tg0 = curTags();
@@ -2227,7 +2388,27 @@ function factCitedBy(fi){
 function factCiteHTML(lv, pi){
   const ids = paraFactIds(lv, pi);
   if(!ids || !ids.length) return "";
-  return `<div class="fcite${ids.length?"":" none"}"><i>${L("引用事实卡","cites")}</i>${ids.map(n=>`<span>F${n}</span>`).join("")}</div>`;
+  /* A6：原先只是裸 <span>F1</span>，悬停、点击都没反应 —— 校对老师无法就地判断「这段有没有偏离事实」，
+     溯源这个卖点在界面上等于没兑现。现在带 title 提示 + 点击就地展开中英原文。 */
+  const lf = liveFacts();
+  const chips = ids.map(function(n){
+    const f = (lf && lf[n-1]) || null;
+    const tip = f ? (String(f.en || "") + (f.zh ? "\n" + String(f.zh) : "")) : L("事实卡 " + n, "Fact card " + n);
+    return '<span class="fcref" role="button" tabindex="0" title="' + esc(tip) + '"'
+      + ' onclick="showFactCard(' + n + ')" onkeydown="if(event.key===\'Enter\'){showFactCard(' + n + ')}">'
+      + L("事实卡 ", "Fact ") + n + '</span>';
+  }).join("");
+  return `<div class="fcite"><i>${L("引用","cites")}</i>${chips}</div>`;
+}
+/* A6：点开事实卡引用 → 抽屉里给出该条事实的中英原文 */
+function showFactCard(n){
+  const lf = liveFacts();
+  const f = lf && lf[n-1];
+  if(!f){ toast(L("该事实卡暂无内容","No content for this fact card")); return; }
+  openDrawer(L("事实卡 ", "Fact card ") + n,
+    '<div class="fcbox"><div class="fcbox-en">' + esc(f.en || "") + '</div>'
+    + (f.zh ? '<div class="fcbox-zh">' + esc(f.zh) + '</div>' : "")
+    + '<div class="fcbox-note">' + L("正文中标注「事实卡 n」的段落，即基于这条事实改写。","Paragraphs tagged with this fact card were rewritten from this fact.") + '</div></div>');
 }
 /* s8 侧栏「事实卡引用」面板：有 fact_map 时按段落分组真实溯源，否则回退全量罗列 */
 function factTraceHTML(){
@@ -2273,19 +2454,19 @@ function liveRunStat(){ const o = liveOut(); return { elapsed: state.live.elapse
 function renderLiveChip(){
   const c = $("#livechip"); if(!c) return;
   const s = state.live;
-  if(s.status === "idle"){ c.textContent = "AI 实时引擎 · 待运行"; c.style.background = "#F2F4F7"; c.style.color = "#98A2B3"; }
-  else if(s.status === "pending"){ c.textContent = "已选素材 · 待运行"; c.style.background = "#FFF0EB"; c.style.color = "#D04418"; }
-  else if(s.status === "running"){ c.textContent = "AI 运行中 " + s.elapsed + "s…"; c.style.background = "#FFF0EB"; c.style.color = "#D04418"; }
+  if(s.status === "idle"){ c.textContent = L("AI 待运行","AI idle"); c.style.background = "#F2F4F7"; c.style.color = "#667085"; }
+  else if(s.status === "pending"){ c.textContent = L("素材已就绪 · 待运行","Material ready · idle"); c.style.background = "#FFF0EB"; c.style.color = "#C2421C"; }
+  else if(s.status === "running"){ c.textContent = L("AI 运行中 · 已用 " + s.elapsed + "s", "AI running · " + s.elapsed + "s"); c.style.background = "#FFF0EB"; c.style.color = "#C2421C"; }
   else if(s.status === "done"){
     const o = liveOut();
     if(o && isExcludedStatus(o.status)){ c.textContent = " 已排除 · " + (liveSensLevel() || ""); c.style.background = "#FFEDE4"; c.style.color = "#A32D2D"; }
-    else { c.textContent = "✓ AI 完成 " + s.elapsed + "s" + (o && o.validation_score ? " · " + o.validation_score : ""); c.style.background = "#FFF9F5"; c.style.color = "#F79009"; }
+    else { c.textContent = "✓ " + L("AI 已完成","AI done") + " · " + s.elapsed + "s" + (o && o.validation_score ? " · " + o.validation_score : ""); c.style.background = "#FFF9F5"; c.style.color = "#C2421C"; }
   } else { c.textContent = "✕ AI 运行失败"; c.style.background = "#FFEDE4"; c.style.color = "#A32D2D"; }
 }
 
 async function startLiveRun(material, label, book, override){
   if(state.live.status === "running") return;
-  state.live = { status: "running", material, label: label || "", book: book || "", run: null, err: null, t0: Date.now(), elapsed: 0 };
+  state.live = { status: "running", material, label: label || "", book: book || "", run: null, err: null, t0: Date.now(), elapsed: 0, nodes: 0 };
   state.factMap = null; state.unusedFacts = [];   /* 新一轮前清空上一轮的段落↔事实卡绑定 */
   GEN = {}; state.quiz = {}; state.quizShow = {};   /* 清空上一轮文章与题目（事实抽取不产出文章） */
   /* 清空上一轮音频：否则新素材会误以为"已有音频"而跳过生成，导致入库时才补、等 15s */
@@ -2301,10 +2482,12 @@ async function startLiveRun(material, label, book, override){
     if(!AIWF_FACT.appKey) throw new Error(L(
       "AI 未运行：服务端未配置 DIFY_WF_FACT 密钥。请在部署平台（Railway → Variables）填入后重新部署。",
       "AI not running: DIFY_WF_FACT key missing on server. Add it in Railway → Variables and redeploy."));
+    _runAbort = new AbortController();
     const resp = await fetch(AIWF_FACT.apiBase + "/workflows/run", {
       method: "POST",
       headers: { "Authorization": "Bearer " + AIWF_FACT.appKey, "Content-Type": "application/json" },
       body: JSON.stringify({ inputs: wfInputs, response_mode: "blocking", user: AIWF_FACT.user }),
+      signal: _runAbort.signal,
     });
     const data = await resp.json();
     const stt = data && data.data && data.data.status;
@@ -2322,7 +2505,15 @@ async function startLiveRun(material, label, book, override){
         state.live.status = "error"; state.live.err = rawErr;
       }
     }
-  } catch(e){ state.live.status = "error"; state.live.err = "网络错误：" + e.message; }
+  } catch(e){
+    if(e && (e.name === "AbortError" || /abort/i.test(String(e.message)))){
+      state.live.status = "error";
+      state.live.err = L("已取消本次生成（结果未写入文章库）", "Run cancelled (nothing saved to the article library)");
+    } else {
+      state.live.status = "error"; state.live.err = L("网络错误：", "Network error: ") + e.message;
+    }
+  }
+  _runAbort = null;
   state.live.elapsed = ((Date.now() - state.live.t0) / 1000).toFixed(1);
   renderLiveChip();
   const st2 = $("#liveStat");
@@ -2340,11 +2531,13 @@ async function startLiveRun(material, label, book, override){
 function manualOverrideRun(){
   const m = state.live && state.live.material;
   if(!m){ toast(L("无素材可放行","No material to override")); return; }
-  if(!confirm(L("该素材已被 AI 敏感排查判定为排除。确认人工放行并继续生成？（原判定会保留记录）",
-    "This material was excluded by the AI sensitivity screen. Confirm manual override and continue? (the original verdict stays on record)"))){
-    return;
-  }
-  startLiveRun(m, state.live.label || "", state.live.book || "", true);
+  askConfirm({
+    title: L("人工放行该素材？","Override this material?"),
+    body: L("该素材已被 AI 敏感排查判定为<b>排除</b>。人工放行后会跳过闸门继续生成，<b>原 AI 判定仍会留存在记录里</b>（敏感原因中标注「人工放行」）。",
+      "This material was <b>excluded</b> by the AI sensitivity screen. Overriding skips the gate and continues generation; <b>the original AI verdict is still kept on record</b> (marked as a manual override)."),
+    okText: L("人工放行并继续","Override and continue"),
+    onOk: function(){ startLiveRun(m, state.live.label || "", state.live.book || "", true); },
+  });
 }
 /* 内容生成：用已抽取的事实卡喂「生成专用」工作流，产出 4 档文章 + 练习题 + 校验（~77s）。
    与事实抽取分开调用，各自有各自的预计用时，避免用户在事实抽取环节干等 1 分钟。 */
@@ -2378,6 +2571,7 @@ async function runGeneration(){
       method: "POST",
       headers: { "Authorization": "Bearer " + AIWF_GEN.appKey, "Content-Type": "application/json" },
       body: JSON.stringify({ inputs: wfInputs, response_mode: "streaming", user: AIWF_GEN.user }),
+      signal: _abortSignal,
     });
     if(!resp.ok || !resp.body){
       let emsg = "HTTP " + resp.status;
@@ -2385,6 +2579,8 @@ async function runGeneration(){
       throw new Error(emsg);
     }
     let wfData = null, wfErr = null, nodeDone = 0;
+    _runAbort = new AbortController();
+    const _abortSignal = _runAbort.signal;
     const rd = resp.body.getReader(), dec = new TextDecoder();
     let sbuf = "";
     for(;;){
@@ -2399,6 +2595,7 @@ async function runGeneration(){
           let ev; try { ev = JSON.parse(line.slice(6)); } catch(e3) { continue; }
           if(ev.event === "node_finished"){
             nodeDone++;
+            state.live.nodes = nodeDone;
             const st2 = $("#liveStat");
             if(st2) st2.textContent = L("正在生成 4 档文章…（已完成 " + nodeDone + " 个节点）", "Generating 4 levels… (" + nodeDone + " nodes done)");
           } else if(ev.event === "workflow_finished"){
@@ -2412,6 +2609,7 @@ async function runGeneration(){
     const data = wfData
       ? { data: wfData }
       : { data: { status: "failed", error: wfErr || L("流式响应中断：未收到 workflow_finished，请重试", "Stream ended without workflow_finished — please retry") } };
+    _runAbort = null;
     const stt = data && data.data && data.data.status;
     if(stt === "succeeded" || (data && data.data && data.data.outputs)){
       state.live.run = data; state.live.status = "done";
@@ -2437,11 +2635,21 @@ async function runGeneration(){
   }
   render();
 }
+/* A3 真实进度：原实现 pct=elapsed/预估，GEN 实测 110–180s 而预估 90s，
+   于是进度顶在 100% 不动，看起来像卡死。改为「挂钟与真实节点数取大者」，
+   并封顶 96%，把最后 4% 留给 workflow_finished —— 不再出现「卡在 100%」。 */
+function runPct(est, nodes, nodeEst){
+  const t = +state.live.elapsed || 0;
+  const byTime = est > 0 ? (t / est * 100) : 0;
+  const byNode = (nodes && nodeEst) ? (nodes / nodeEst * 100) : 0;
+  return Math.min(96, Math.round(Math.max(byTime, byNode)));
+}
+function runOverdue(est){ return (+state.live.elapsed || 0) > est * 1.15; }
 function refreshRunViz(){
   const s = state.live;
   const box = document.getElementById("s4live");
   if(box){
-    const pctF = Math.min(100, Math.round((+s.elapsed || 0) / FACT_EST * 100));
+    const pctF = runPct(FACT_EST, s.nodes, FACT_NODE_EST);
     const t = box.querySelector('[data-r="time"]'); if(t) t.textContent = s.elapsed + "s";
     const b = box.querySelector('[data-r="bar"]'); if(b) b.style.width = pctF + "%";
   }
@@ -2449,11 +2657,24 @@ function refreshRunViz(){
   const gbox = document.getElementById("s6run");
   if(gbox){
     const extracting = !(state.factsCache && state.factsCache.summary);
-    const denomG = extracting ? FACT_EST : GEN_EST;
-    const pctG = Math.min(100, Math.round((+s.elapsed || 0) / denomG * 100));
+    const pctG = extracting ? runPct(FACT_EST, s.nodes, FACT_NODE_EST) : runPct(GEN_EST, s.nodes, GEN_NODE_EST);
     const b2 = gbox.querySelector('[data-r="bar"]'); if(b2) b2.style.width = pctG + "%";
   }
   document.querySelectorAll('[data-r="mini-time"]').forEach(el => { el.textContent = s.elapsed + "s"; });
+  document.querySelectorAll('[data-r="node-n"]').forEach(el => { el.textContent = s.nodes ? String(s.nodes) : "—"; });
+}
+/* 取消当前生成/抽取：中断 fetch 流并明确告知结果未入库 */
+let _runAbort = null;
+function cancelLiveRun(){
+  const s = state.live;
+  if(s.status !== "running") return;
+  if(_runAbort){ try{ _runAbort.abort(); }catch(e){} }
+  _runAbort = null;
+  s.status = "error";
+  s.err = L("已取消本次运行（结果未写入文章库）", "Run cancelled (nothing saved to the article library)");
+  s.nodes = 0;
+  renderLiveChip(); render();
+  toast(L("已取消本次运行", "Run cancelled"));
 }
 setInterval(() => {
   if(state.live.status === "running"){
@@ -2591,6 +2812,8 @@ function applyLive(){
       paras: paras.map(function(p){ return [p]; }), metrics: metrics, used: used,
     };
   });
+  /* A2：若本机存有同一素材的段落草稿，合并回来（指纹不一致则忽略，避免串素材） */
+  restoreParaDraft();
   if(vj && Array.isArray(vj.results)){
     const names = [];
     vj.results.forEach(function(r){ (r.checks || []).forEach(function(c){ if(!names.includes(c.name)) names.push(c.name); }); });
@@ -2598,7 +2821,7 @@ function applyLive(){
       const st = vj.results.map(function(r){ return ((r.checks || []).find(function(c){ return c.name === n; }) || {}).status || "pass"; });
       const worst = st.includes("fail") ? "warn" : st.includes("warn") ? "warn" : "pass";
       const detail = vj.results.map(function(r, ix){ return nkDisp(r.level) + " " + (st[ix] === "pass" ? "✓" : st[ix] === "warn" ? "!" : "✕"); }).join(" · ");
-      return ["V" + (i + 1), { zh: n, en: n }, worst, detail];
+      return [L("校验 ", "Check ") + (i + 1), { zh: n, en: n }, worst, detail];
     });
   }
   /* 工作流跑完后，为当前素材实时生成专属封面（异步，失败回退主题封面图） */
@@ -2719,7 +2942,9 @@ function seUseMaterial(){
 
 /* ---- 各环节预计用时（拆分后每个环节是独立调用，各显示各的）---- */
 const FACT_EST = 10;   // 事实抽取（含敏感排查+分级）实测 ~5-11s
-const GEN_EST = 90;    // 内容生成（含练习题+校验）实测 ~77s，留余量
+const GEN_EST = 150;   // 内容生成（含练习题+校验）实测 110–180s；旧值 90 会让进度提前顶到 100%
+const FACT_NODE_EST = 9;    // FACT 图节点数（用于节点进度）
+const GEN_NODE_EST = 21;    // GEN 图节点数（用于节点进度）
 
 let RUN_SUB = "";
 function s6LiveInner(sub, key, simple){
@@ -2730,8 +2955,9 @@ function s6LiveInner(sub, key, simple){
   return `<div class="genrun">
     <div class="gr-head">
       <div class="gr-spinner"></div>
-      <div class="gr-txt"><b>${subText}</b></div>
+      <div class="gr-txt"><b>${subText}</b>${runOverdue(FACT_EST) ? ' <span class="gr-over">' + L("仍在运行，已用 " + s.elapsed + "s", "Still running — " + s.elapsed + "s elapsed") + '</span>' : ""}</div>
       <div class="gr-time" data-r="time">${s.elapsed}s</div>
+      <button class="btn sec tiny gr-cancel" onclick="cancelLiveRun()">${L("取消","Cancel")}</button>
     </div>
     <div class="gr-bar"><i data-r="bar" style="width:${pct}%"></i></div>
   </div>`;
@@ -2768,12 +2994,26 @@ function s2LiveInner(){
    entry = 登录后落脚点（职责起点）；其余步骤仍按 ROLE_OPS 判断是否可操作。
    注：曾用 from/to 表示「连续权限区间」，但区间无法表达 produce 的 [0-9,11]，
    且全文件无任何代码读取它，属死字段，已删除，避免误导后续改动者。 */
+/* B7：三张角色卡原先只列步骤名、信息量差一倍（5 vs 9 个标签）、三个按钮长得一模一样。
+   现在每张卡补一句「这个角色做什么」、标签换成能力短语、并把最常用的教研角色设为主按钮。 */
 const ROLES = [
-  {id:"source", color:"#E65425", name:"市场老师", nameEn:"Marketing",
+  {id:"source", color:"#E65425", name:"市场老师", nameEn:"Marketing", primary:false,
+   duty:"找素材：扫热点、筛敏感、打标签、存素材库，不生成文章。",
+   dutyEn:"Finds material: scans trends, screens sensitivity, tags and files it. Does not generate articles.",
+   caps:["热点搜集","敏感排查","选题打标","素材入库"],
+   capsEn:["Trend scan","Sensitivity","Tagging","Filing"],
    scope:L1("素材创建 01–04 + 素材库", "Material creation 01–04 + Material library"), user:"market_zhang", pass:((window.WB_CFG && window.WB_CFG.DEMO_PASS)||""), entry:0},
-  {id:"produce", color:"#E65425", name:"教研老师", nameEn:"Curriculum",
+  {id:"produce", color:"#E65425", name:"教研老师", nameEn:"Curriculum", primary:true,
+   duty:"做文章：抽事实卡、定分级标准、生成 4 档文章、校对正文与题目。",
+   dutyEn:"Produces articles: extracts fact cards, sets level specs, generates 4 graded versions, proofreads text and quizzes.",
+   caps:["事实抽取","分级标准","4 档生成","段落校对"],
+   capsEn:["Fact extraction","Level specs","4-level generation","Proofreading"],
    scope:L1("素材创建 + 文章生产 + 文章库", "Material creation + Article production + Article library"), user:"curriculum_li", pass:((window.WB_CFG && window.WB_CFG.DEMO_PASS)||""), entry:0},
-  {id:"review", color:"#E65425", name:"审核老师", nameEn:"Reviewer",
+  {id:"review", color:"#E65425", name:"审核老师", nameEn:"Reviewer", primary:false,
+   duty:"把关：逐段审核 4 档文章，通过或驳回并留痕；可用全部 12 步。",
+   dutyEn:"Reviews: checks each paragraph across levels, approves or rejects with a record. All 12 steps available.",
+   caps:["逐段审核","通过 / 驳回","审核留痕","文章库管理"],
+   capsEn:["Paragraph review","Approve / reject","Audit trail","Library management"],
    scope:L1("全部权限 · 全流程", "Full access · whole flow"), user:"review_wang", pass:((window.WB_CFG && window.WB_CFG.DEMO_PASS)||""), entry:0},
 ];
 /* stage index -> 该步骤的「主要」职能（仅用于视觉标注 owner dot / label） */
@@ -2865,6 +3105,17 @@ function buildRail(){
       });
     }
   });
+  /* C3：侧栏只有 4 项，下方近三分之二空白。补一个底部区（快捷入口 + 版本），
+     而不是让屏幕左侧三分之一空着。 */
+  const foot = document.createElement("div");
+  foot.className = "railfoot";
+  foot.innerHTML =
+    '<div class="rf-h">' + L("快捷入口","Quick links") + '</div>'
+    + '<button class="rf-b" onclick="pickRoute(\'trend\')">' + L("热点搜集","Trend discovery") + '</button>'
+    + '<button class="rf-b" onclick="go(11)">' + L("文章库","Article library") + '</button>'
+    + '<button class="rf-b" onclick="go(0)">' + L("素材创建","Material creation") + '</button>'
+    + '<div class="rf-v">ReadPal · ' + L("演示环境","demo build") + '</div>';
+  rail.appendChild(foot);
   refreshRail();
 }
 function toggleSection(id){ if(expandedSections.has(id)) expandedSections.delete(id); else expandedSections.add(id); buildRail(); }
@@ -2899,7 +3150,7 @@ function renderLogin(){
   ov.innerHTML = `<div class="lwrap">
     <div class="lhead">
       <div class="lgo">ReadPal</div>
-      <h1>${L("ReadPal 内容生产平台","ReadPal Content Platform")}</h1>
+      <h1>${L("内容生产平台","Content Platform")}</h1>
       <div class="langctl" style="display:inline-flex;margin-top:22px">
         <button id="btnZh2" class="${LANG==="zh"?"on":""}" onclick="setLang('zh')">中文</button>
         <button id="btnEn2" class="${LANG==="en"?"on":""}" onclick="setLang('en')">EN</button>
@@ -2907,16 +3158,17 @@ function renderLogin(){
     </div>
     <div class="lroles">
       ${ROLES.map((r,idx)=>`<div class="lrole" id="lr-${r.id}" style="animation-delay:${idx*.07}s" onclick="openLogin('${r.id}')">
-        <h4>${L(r.name,r.nameEn)}</h4>
-        <div class="rmods">${roleSteps(r).map(s=>`<span>${L(s.zh,s.en)}</span>`).join("")}</div>
-        <button class="rbtn">${L("登录","Log in")}</button>
+        <h4>${L(r.name,r.nameEn)}${r.primary?`<span class="lpri">${L("常用","frequent")}</span>`:""}</h4>
+        <p class="rduty">${L(r.duty, r.dutyEn)}</p>
+        <div class="rmods">${(r.caps||[]).map((s,si)=>`<span>${L(s, (r.capsEn||[])[si] || s)}</span>`).join("")}</div>
+        <button class="rbtn${r.primary?"":" sec"}">${L("登录","Log in")}</button>
         <div class="lform" onclick="event.stopPropagation()">
           <h4>${L(r.name,r.nameEn)} · ${L("登录","Log in")}</h4>
           <div class="lsub">${L("使用演示账号直接登录","Use the demo account below")}</div>
           <label>${L("账号","Username")}</label>
-          <input id="lu-${r.id}" value="${r.user}" spellcheck="false" autocomplete="off">
+          <input id="lu-${r.id}" value="${r.user}" spellcheck="false" autocomplete="off" onkeydown="if(event.key==='Enter'){doLogin('${r.id}')}">
           <label>${L("密码","Password")}</label>
-          <input id="lp-${r.id}" type="password" value="${r.pass}">
+          <input id="lp-${r.id}" type="password" value="${r.pass}" onkeydown="if(event.key==='Enter'){doLogin('${r.id}')}">
           <div class="row">
             <button class="ok" onclick="doLogin('${r.id}')">${L("登录","Log in")}</button>
             <button class="cancel" onclick="closeLogin('${r.id}')">${L("取消","Cancel")}</button>
@@ -2945,11 +3197,48 @@ function doLogin(id){
   toast(L("已登录："+L(r.name,r.nameEn)+" · "+r.user,"Signed in as "+L(r.name,r.nameEn)));
   go(r.entry);
 }
+/* ---------- 品牌化确认弹窗（替代原生 confirm：原生弹窗跳出品牌样式、无法本地化排版） ---------- */
+let _confirmCb = null;
+function askConfirm(o){
+  o = o || {};
+  _confirmCb = o.onOk || null;
+  const ov = document.getElementById("confirmOv");
+  if(!ov) return;
+  ov.innerHTML = '<div class="cfm" role="dialog" aria-modal="true">'
+    + '<h3>' + (o.title || L("请确认","Please confirm")) + '</h3>'
+    + '<p>' + (o.body || "") + '</p>'
+    + '<div class="cfm-btns">'
+    + '<button class="btn sec" onclick="closeConfirm()">' + (o.cancelText || L("取消","Cancel")) + '</button>'
+    + '<button class="btn" onclick="confirmOk()">' + (o.okText || L("确定","Confirm")) + '</button>'
+    + '</div></div>';
+  ov.style.display = "flex";
+  const b = ov.querySelector(".cfm-btns .btn:last-child"); if(b) b.focus();
+}
+function confirmOk(){ const cb = _confirmCb; _confirmCb = null; closeConfirm(); if(cb) cb(); }
+function closeConfirm(){ const ov = document.getElementById("confirmOv"); if(ov){ ov.style.display = "none"; ov.innerHTML = ""; } _confirmCb = null; }
 function logout(){
-  state.user = null;
-  refreshUserChip(); buildRail();
-  renderLogin();
-  toast(L("已退出登录","Signed out"));
+  /* B8：退出会清空会话，未入库的生成结果与运行中的任务都会消失 —— 必须先确认 */
+  const running = state.live.status === "running";
+  const hasWork = Object.keys(GEN || {}).some(function(k){ return GEN[k] && GEN[k].paras && GEN[k].paras.length; }) || _draftDirty;
+  const doOut = function(){
+    dropParaDraft();
+    state.user = null;
+    refreshUserChip(); buildRail();
+    renderLogin();
+    toast(L("已退出登录","Signed out"));
+  };
+  if(running || hasWork){
+    askConfirm({
+      title: L("确认退出？","Log out?"),
+      body: running
+        ? L("当前有 AI 任务正在运行，退出后本次运行结果会丢失。","An AI run is in progress — logging out discards its result.")
+        : L("当前生成结果 <b>尚未存入文章库</b>，退出后会丢失；本机段落草稿也会一并清除。","The current article is <b>not saved to the article library</b> yet and will be lost; locally auto-saved paragraph drafts are cleared too."),
+      okText: L("仍然退出","Log out"),
+      onOk: doOut,
+    });
+    return;
+  }
+  doOut();
 }
 function refreshUserChip(){
   const chip = $("#userChip");
@@ -2957,7 +3246,7 @@ function refreshUserChip(){
   const r = curRole();
   chip.style.display="flex";
   chip.innerHTML = `<span class="uico" style="background:${r.color}">${LANG==="zh"?r.name.charAt(0):r.nameEn.charAt(0)}</span>
-    <div class="uinfo"><b>${L(r.name,r.nameEn)}</b><span>${state.user.name} · ${L("已登录","Signed in")}</span></div>
+    <div class="uinfo"><b title="${escAttr(L(r.name,r.nameEn))}">${L(r.name,r.nameEn)}</b><span title="${escAttr(state.user.name + " · " + L("已登录","Signed in"))}">${state.user.name} · ${L("已登录","Signed in")}</span></div>
     <button class="uout" onclick="logout()">${L("退出","Log out")}</button>`;
 }
 buildRail();
@@ -2966,7 +3255,7 @@ function setLang(lg){
   LANG = lg;
   $("#btnZh").classList.toggle("on", lg==="zh");
   $("#btnEn").classList.toggle("on", lg==="en");
-  $("#tbTitle").textContent = L("ReadPal 内容生产平台","ReadPal Content Platform");
+  $("#tbTitle").textContent = L("内容生产平台","Content Platform");
   $("#tbBadge").textContent = L("演示 Demo","Demo");
   renderKpis();
   buildRail();
@@ -3048,6 +3337,7 @@ function go(i){
   cur = i;
   state.view = null;      /* 切换步骤时退出「查看原文」等独立视图，避免页面串台 */
   refreshRail();
+  if(typeof closeRail === "function") closeRail();   /* A1：窄屏抽屉跳转后自动收起 */
   stage.scrollTop = 0; render();
 }
 
@@ -3085,6 +3375,28 @@ function railGo(i){
   if(i === 0 && state.route) state.route = null;
   go(i);
 }
+/* A1：≤860px 时左侧栏是可唤起的抽屉（页面里已有 #drawer 组件，但那是右侧详情抽屉，语义不同） */
+function toggleRail(){
+  const r = document.getElementById("rail"), o = document.getElementById("railOverlay");
+  if(!r || !o) return;
+  const open = r.classList.toggle("open");
+  o.classList.toggle("open", open);
+}
+function closeRail(){
+  const r = document.getElementById("rail"), o = document.getElementById("railOverlay");
+  if(r) r.classList.remove("open");
+  if(o) o.classList.remove("open");
+}
+/* B9：全站键盘通道。原先抽屉与弹窗都关不掉（实测派发 Escape 后抽屉仍是 open），
+   而全站 aria-* 为 0、keydown 只有 1 处。这里统一按优先级处理 Escape。 */
+document.addEventListener("keydown", function(e){
+  if(e.key !== "Escape" && e.key !== "Esc") return;
+  const co = document.getElementById("confirmOv");
+  if(co && co.style.display === "flex"){ closeConfirm(); return; }
+  const d = document.getElementById("drawer");
+  if(d && d.classList.contains("open")){ closeDrawer(); return; }
+  closeRail();
+});
 
 function nextBtnPart(label, labelEn){
   const nxt = cur+1;
@@ -3106,13 +3418,16 @@ function head(no, title, sub){
   </div></div>`;
 }
 /* workflow footer strip (bottom of every page) */
+/* B3：底部这条原先只是「看起来像导航、点了一条也不动」的装饰，与页内可点的 artWorkflowBar 两套并存。
+   现在统一为可点击跳转，并去掉 01–12 编号（侧边栏已按品牌规范去编号，两处应一致）。 */
 function wfStrip(){
   const curIdx = (cur>=0 && cur<12) ? cur : -1;
   return `<div class="wfstrip">
-    <div class="wfstrip-h">${L("完整工作流 · 12 步（当前高亮）","Full workflow · 12 steps (current highlighted)")}</div>
+    <div class="wfstrip-h">${L("完整工作流（当前高亮，点击可跳转）","Full workflow (current highlighted — click to jump)")}</div>
     <div class="wfstrip-bar">${STAGES.map((s,i)=>{
       const st = i===curIdx ? "cur" : (i<curIdx ? "done" : "wait");
-      return `<div class="wfnode ${st}"><span class="wfn-no">${s.no}</span><span class="wfn-t">${L(s.t,s.tEn)}</span></div>`;
+      const tt = esc(L("跳到：", "Go to: ") + L(s.t, s.tEn));
+      return `<div class="wfnode ${st} wfclick" role="button" tabindex="0" title="${tt}" onclick="go(${i})" onkeydown="if(event.key==='Enter'){go(${i})}"><span class="wfn-t">${L(s.t,s.tEn)}</span></div>`;
     }).join("")}</div>
   </div>`;
 }
@@ -3228,12 +3543,12 @@ function s0(){
   /* 第一步：尚未选择入口 → 只展示三大入口选择卡片 */
   if(!state.route){
     return head("01", L("素材选择","Material Selection"), L("第一步 · 选择素材来源","Step 1 · pick a source")) +
-    `<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px">
+    `<div class="routegrid">
       ${ROUTES.map((r,i)=>`<div class="srccard" style="animation-delay:${.06*i}s;padding:22px 20px" onclick="pickRoute('${r.id}')">
         <div style="font-size:30px;margin-bottom:8px">${r.ico}</div>
         <h4 style="font-size:16px">${L(r.name,r.nameEn)}</h4>
         <p style="min-height:76px">${L(r.desc,r.descEn)}</p>
-        <div style="display:flex;gap:6px;flex-wrap:wrap;margin:8px 0 10px">${r.items.map((it,ii)=>`<span class="tint" style="background:var(--bg);color:var(--sub)">${L(it, r.itemsEn[ii])}</span>`).join("")}</div>
+        <div class="srccard-items">${L("包含：","Includes: ")}${r.items.map((it,ii)=>L(it, r.itemsEn[ii])).join(" · ")}</div>
         <div class="foot" style="color:${r.color}">${r.id==="trend" ? L("需要事实抽取 → 走完整 12 步","Fact extraction → full 12 steps") : L("跳过事实抽取","Skips sources & fact extraction")}</div>
       </div>`).join("")}
     </div>
@@ -3391,7 +3706,28 @@ function removeSource(i){
   state.customHots = null; state.customScanNote = null;
   _saveSourceStore();
   render();
-  toast(L("已移除该信源","Source removed"));
+  /* C5：原先删除后无处可退（预置信源删掉就回不来）。提示一次可恢复。 */
+  toast(L("已移除该信源 · 可用「恢复默认信源」找回预置项","Source removed — use \"Restore presets\" to bring preset sources back"));
+}
+/* C5：把该角色的预置信源补回来（已存在的按 URL 去重，不动用户自己加的） */
+function resetSources(){
+  if(!state.user) return;
+  const role = state.user.role;
+  const presets = SOURCE_PRESETS[role] || [];
+  if(!presets.length){ toast(L("该角色没有预置信源","No preset sources for this role")); return; }
+  const have = new Set((state.user.sources || []).map(s => _normSrcUrl(s.url)));
+  let added = 0;
+  presets.forEach(function(p){
+    if(have.has(_normSrcUrl(p.url))) return;
+    state.user.sources.push({ type:p.type, name:p.name, tag:{...(p.tag||{zh:"未分类",en:"General"})}, url:p.url });
+    added++;
+  });
+  state.customHots = null; state.customScanNote = null;
+  const ok = _saveSourceStore();
+  render();
+  toast(added
+    ? L("已恢复 " + added + " 个预置信源", "Restored " + added + " preset source(s)")
+    : L("预置信源都还在", "All preset sources are already present"));
 }
 /* ---------- 信源发现报告 → 人话（docs/29 §6）----------
    后端为每个来源产出一份报告：找到了什么、怎么找到的、为什么没找到。
@@ -3563,7 +3899,7 @@ function s1(){
         const T = SRC_TYPES[s.type] || SRC_TYPES.other;
         return `<div class="srcrow"><span class="sico" style="background:${T.color}1A;color:${T.color}">${T.ico}</span>
           <div class="sinfo"><b>${s.name}</b><span>${L(T.zh,T.en)} · ${L(s.tag.zh,s.tag.en)} · ${s.url}</span></div>
-          <button class="sdel" onclick="removeSource(${i})" title="remove">✕</button></div>`;
+          <button class="sdel" onclick="removeSource(${i})" title="${L("移除该信源","Remove this source")}" aria-label="${L("移除该信源","Remove this source")}">✕</button></div>`;
       }).join("")
     : `<div class="srclist-empty">${L("还没有自定义信源，添加第一个吧","No custom sources yet — add your first one")}</div>`;
   return head("02", L("热点搜集","Trend Discovery"), "Agent-Reach · cross-source scan") +
@@ -3587,12 +3923,13 @@ function s1(){
     <div class="srccfg-head">
       <div class="t">${L("我的自定义信源","My Custom Sources")}</div>
       <button class="btn mini" onclick="runCustomScan()" ${state.customScanning?"disabled":""}>${state.customScanning ? L("抓取中…","Fetching…") : L("同步扫描","Scan now")}</button>
+      ${(SOURCE_PRESETS[(state.user&&state.user.role)||""]||[]).length ? `<button class="btn mini sec" onclick="resetSources()" title="${L("把预置信源恢复回来","Restore the preset sources")}">↺ ${L("恢复默认信源","Restore presets")}</button>` : ""}
     </div>
     <div class="srcform">
       <select onchange="srcFormUpdate('type',this.value)">${types}</select>
       <input class="sn" placeholder="${L("名称 · 如 TED-Ed","Name · e.g. TED-Ed")}" value="${f.name}" oninput="srcFormUpdate('name',this.value)" spellcheck="false">
       <input class="st" placeholder="${L("领域 · 如 教育","Focus · e.g. Education")}" value="${f.tag}" oninput="srcFormUpdate('tag',this.value)" spellcheck="false">
-      <input class="su" placeholder="${L("网址 / 频道链接","URL / channel link")}" value="${f.url}" oninput="srcFormUpdate('url',this.value)" spellcheck="false">
+      <input class="su" placeholder="${L("网址 / 频道链接","URL / channel link")}" value="${f.url}" oninput="srcFormUpdate('url',this.value)" onkeydown="if(event.key==='Enter'){addSource()}" spellcheck="false">
       <button class="btn mini sec" onclick="addSource()">＋ ${L("添加","Add")}</button>
     </div>
     <div class="srclist" id="srclist">${list}</div>
@@ -4147,13 +4484,15 @@ function s4(){
   const running = state.live.status === "running";
   const ready = (hasLive || state.extracted) && !liveExcluded();
   const factCards = facts.map((f, i) => {
-    const tcolor = {DATA:"danger",QUOTE:"warn",EVENT:"teal",BACKGROUND:"purple"}[f.type] || "teal";
+    /* C6：原先 QUOTE 与 EVENT 同色、变量名还叫 teal/purple（值却是橙红），后人极易误加绿色。
+       现在只保留品牌橙的深浅梯度，类型靠文字徽标区分。 */
+    const tcolor = {DATA:"danger",QUOTE:"warn",EVENT:"pri",BACKGROUND:"neutral"}[f.type] || "neutral";
     const conf = (f.conf==null ? 0.9 : f.conf);
     /* 生成后回填：该卡被哪些段落引用；绑定存在却未被引用 → 标黄提示 */
     const cb = hasLive ? factCitedBy(i+1) : "";
     const uncited = hasLive && !!liveFactMap() && !cb;
     return `<div class="fcard${uncited ? " uncited" : ""}">
-      <div class="top"><span class="tint ${tcolor}">${f.type}</span><span class="fid">FC-${i+1}</span>${uncited?`<span class="tint warn">${L("未被引用","UNCITED")}</span>`:""}</div>
+      <div class="top"><span class="tint ${tcolor}">${f.type}</span><span class="fid" title="${L("事实卡内部编号","internal fact-card id")}">${L("事实卡 ","Fact ")}${i+1}</span>${uncited?`<span class="tint warn">${L("未被引用","UNCITED")}</span>`:""}</div>
       <div class="stmt">${esc(f.stmt)}</div>
       ${f.zh ? `<div class="zh">${esc(f.zh)}</div>` : ""}
       <div class="meta"><span>${L("置信","confidence")}</span><div class="confbar ${conf<0.9?"low":""}"><i style="width:${(conf*100).toFixed(0)}%"></i></div><b>${conf.toFixed(2)}</b>
@@ -4205,7 +4544,13 @@ function s4(){
         : L("建议：先点「重新抽取」重试一次；仍为空则回到 01 换一条原文完整的素材。","Tip: retry once; if still empty, go back to step 01 and pick a material with full text.")}</div>
       <div style="margin-bottom:10px"><button class="btn" onclick="extract()">${L("重新抽取","Retry extraction")}</button></div>` + factCards;
   } else {
-    factBody = `<button class="btn" onclick="extract()">${L("运行抽取 Workflow","Run workflow")} · E1–E9</button>`;
+    /* A5：无素材时按钮必须禁用 —— 原先算了 ready 却没用上，点下去报的是「抽取失败」，
+       与真实原因（没选素材）不符，用户会以为系统坏了。 */
+    const noMat = !text || !text.trim();
+    factBody = noMat
+      ? `<div class="blockgate">${L("尚未选择素材：请先到「01 素材选择」挑一条原文完整的素材，再回来运行事实抽取。","No material selected yet — pick a material in step 01 first, then run fact extraction.")}</div>`
+        + `<div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap;align-items:center"><button class="btn" disabled>${L("运行事实抽取","Run fact extraction")}</button><button class="btn sec" onclick="go(0)">${L("去 01 选择素材","Go to step 01")} →</button></div>`
+      : `<button class="btn" onclick="extract()">${L("运行事实抽取","Run fact extraction")}</button>`;
   }
   return head("06", L("事实抽取","Fact Extraction"), "AI fact extraction") +
     artWorkflowBar() +
@@ -4238,8 +4583,8 @@ function s5(){
   const sp = specOf(state.lvl);
   return head("07", L("知识库与分级标准","KB & CEFR Specs"), "Seven libraries · versioned snapshots") +
     artWorkflowBar() +
-  `<p class="lede">${L("教研知识库（KB1–KB7）是生成与审核的唯一标准来源，代码不硬编码任何教研标准；每篇文章固化引用知识库版本快照，可复现、可审计。",
-    "The teaching KB (KB1–KB7) is the single standard for generation and review — never hardcoded. Each article pins a KB version snapshot for auditability.")}</p>
+  `<p class="lede">${L("教研知识库是生成与审核的唯一标准来源，代码不硬编码任何教研标准；每篇文章固化引用知识库版本快照，可复现、可审计。<span class='hintcode' title='KB1–KB7 为本平台知识库的内部条目编号，仅在技术排查时需要'>（内部编号 KB1–KB7）</span>",
+    "The teaching KB is the single standard for generation and review — never hardcoded. Each article pins a KB version snapshot for auditability. <span class='hintcode' title='KB1–KB7 are internal knowledge-base item ids, only needed for troubleshooting'>(internal ids KB1–KB7)</span>")}</p>
   ${(!curMaterialText() && !curMaterialLabel()) ? `<div class="note pri-note">${L("尚未有素材选取，您可以直接点击","No material selected yet — click ")}<a href="#" onclick="go(0);return false;" style="color:#E65425;font-weight:700;text-decoration:underline;cursor:pointer">${L("素材选择","Material Selection")}</a>${L("，进行内容生成工作流。"," to run the content generation workflow.")}</div>` : ""}
   <div class="kbgrid">
     <div class="kbitem"><div class="n">KB1</div><h5>${L("分级语言标准","Level specs")}</h5><p>${L("词表 / 句长 / 时态","Wordlists · syntax")}</p></div>
@@ -4261,21 +4606,23 @@ function setlvl(k){ state.lvl = k; state.lvlManual = true; render(); }
 
 /* ---------- Stage 7 ---------- */
 /* ---------- 写作风格（7 位名人，Dify nodeStyle 映射） ---------- */
+/* B10：原先只有 en 名字、没有英文描述，切到 EN 后风格名与描述仍是中文。
+   descEn 为英文描述；渲染时统一走 L()。 */
 const STYLES = [
-  {key:"default",     name:"默认",      en:"Default",     desc:"AI 原生 · 标准分级"},
-  {key:"hemingway",   name:"海明威",    en:"Hemingway",   desc:"简洁短句 · 克制"},
-  {key:"zhuziqing",   name:"朱自清",    en:"Zhu Ziqing",  desc:"优美抒情 · 细腻"},
-  {key:"ohenry",      name:"欧·亨利",   en:"O. Henry",    desc:"幽默 · 意外反转"},
-  {key:"twain",       name:"马克·吐温", en:"Mark Twain",  desc:"幽默讽刺 · 口语"},
-  {key:"murakami",    name:"村上春树",  en:"Murakami",    desc:"平静意象 · 留白"},
-  {key:"luxun",       name:"鲁迅",      en:"Lu Xun",      desc:"犀利深刻 · 反思"},
-  {key:"shakespeare", name:"莎士比亚",  en:"Shakespeare", desc:"华丽修辞 · 诗意"},
+  {key:"default",     name:"默认",      en:"Default",     desc:"AI 原生 · 标准分级",      descEn:"Native AI · standard grading"},
+  {key:"hemingway",   name:"海明威",    en:"Hemingway",   desc:"简洁短句 · 克制",         descEn:"Short, restrained sentences"},
+  {key:"zhuziqing",   name:"朱自清",    en:"Zhu Ziqing",  desc:"优美抒情 · 细腻",         descEn:"Lyrical, delicate prose"},
+  {key:"ohenry",      name:"欧·亨利",   en:"O. Henry",    desc:"幽默 · 意外反转",         descEn:"Humour with a twist"},
+  {key:"twain",       name:"马克·吐温", en:"Mark Twain",  desc:"幽默讽刺 · 口语",         descEn:"Satire in colloquial voice"},
+  {key:"murakami",    name:"村上春树",  en:"Murakami",    desc:"平静意象 · 留白",         descEn:"Calm imagery, wide gaps"},
+  {key:"luxun",       name:"鲁迅",      en:"Lu Xun",      desc:"犀利深刻 · 反思",         descEn:"Sharp, reflective critique"},
+  {key:"shakespeare", name:"莎士比亚",  en:"Shakespeare", desc:"华丽修辞 · 诗意",         descEn:"Ornate, poetic rhetoric"},
 ];
 function styleBarHTML(){
   const cur = state.style || "default";
   return `<div class="stylebar"><div class="sb-label">${L("写作风格","Writing style")}</div>
     ${STYLES.map(s=>`<div class="stylecard ${cur===s.key?"sel":""}" onclick="setStyle('${s.key}')">
-      <div class="smeta"><div class="sname">${s.name}<small>${s.en}</small></div><div class="sdesc">${s.desc}</div></div>
+      <div class="smeta"><div class="sname">${L(s.name,s.en)}<small>${L(s.en,s.name)}</small></div><div class="sdesc">${L(s.desc, s.descEn || s.desc)}</div></div>
     </div>`).join("")}
   </div>`;
 }
@@ -4295,17 +4642,18 @@ function s6(){
       /* 先抽事实卡、再接续生成：进度文案与分母按当前阶段区分，避免「生成」文案配「抽取」阶段造成困惑 */
       const extracting = !(state.factsCache && state.factsCache.summary);
       const denom = extracting ? FACT_EST : GEN_EST;
-      const pct = Math.min(100, Math.round((+state.live.elapsed || 0) / denom * 100));
+      const pct = extracting ? runPct(FACT_EST, state.live.nodes, FACT_NODE_EST) : runPct(GEN_EST, state.live.nodes, GEN_NODE_EST);
       const runTxt = extracting
         ? L("正在抽取事实卡 · 预计 5–10 秒，完成后自动接续生成","Extracting fact cards · ~5–10s, then auto-generates")
-        : L("正在生成 4 档文章 · 预计约 77 秒，完成后自动刷新","Generating 4 levels · ~77s, auto-refreshes on completion");
+        : L("正在生成 4 档文章 · 预计约 2–3 分钟，完成后自动刷新","Generating 4 levels · about 2–3 min, auto-refreshes on completion");
       return head("08", L("内容生成","Graded Generation"), "Same facts · 4 levels") +
     artWorkflowBar() +
         `<div class="genrun" id="s6run" style="margin:16px 0">
           <div class="gr-head">
             <div class="gr-spinner"></div>
-            <div class="gr-txt"><b>${runTxt}</b></div>
+            <div class="gr-txt"><b>${runTxt}</b>${runOverdue(denom) ? ' <span class="gr-over">' + L("仍在运行，已用 " + state.live.elapsed + "s", "Still running — " + state.live.elapsed + "s elapsed") + '</span>' : ""}</div>
             <div class="gr-time" data-r="mini-time">${state.live.elapsed}s</div>
+            <button class="btn sec tiny gr-cancel" onclick="cancelLiveRun()">${L("取消本次生成","Cancel")}</button>
           </div>
           <div class="gr-bar"><i data-r="bar" style="width:${pct}%"></i></div>
         </div>
@@ -4574,12 +4922,73 @@ function paraText(k,i){
   if(Array.isArray(p)) return p.join(" ");
   return (p.en || p.zh || "").toString();
 }
+/* ---- A2 段落修改草稿：落盘 localStorage，误刷新/误关标签不丢 ----
+   背景：原先 paraEdit() 只写内存 GEN，全站 localStorage 不含草稿、无 beforeunload，
+   老师改十几段后刷新即全部丢失，且全程无任何提示。 */
+const DRAFT_KEY = "wb_para_draft_v1";
+let _draftDirty = false, _draftTimer = null;
+function _draftSig(){
+  const m = (state.live && state.live.material) || "";
+  return (m.length + ":" + m.slice(0, 80));
+}
+function saveParaDraft(silent){
+  try{
+    const gen = {};
+    allKeys().forEach(function(k){
+      if(GEN[k] && GEN[k].paras && GEN[k].paras.length) gen[k] = { title: GEN[k].title || "", paras: GEN[k].paras };
+    });
+    if(!Object.keys(gen).length) return false;
+    localStorage.setItem(DRAFT_KEY, JSON.stringify({ v:1, sig:_draftSig(), at:Date.now(), gen:gen }));
+    if(!silent) markDraftStat();
+    return true;
+  }catch(e){ return false; }
+}
+function queueDraftSave(){
+  _draftDirty = true;
+  clearTimeout(_draftTimer);
+  _draftTimer = setTimeout(function(){ saveParaDraft(false); }, 700);
+}
+/* 生成结束后把本机草稿合并回 GEN（仅当素材指纹一致，避免串到别的素材上） */
+function restoreParaDraft(){
+  let d = null;
+  try{ d = JSON.parse(localStorage.getItem(DRAFT_KEY) || "null"); }catch(e){ d = null; }
+  if(!d || !d.gen || d.sig !== _draftSig()) return false;
+  let n = 0;
+  allKeys().forEach(function(k){
+    if(d.gen[k] && Array.isArray(d.gen[k].paras) && GEN[k]){
+      GEN[k].paras = d.gen[k].paras;
+      if(d.gen[k].title) GEN[k].title = d.gen[k].title;
+      n++;
+    }
+  });
+  if(n) _draftDirty = false;
+  return !!n;
+}
+function dropParaDraft(){
+  try{ localStorage.removeItem(DRAFT_KEY); }catch(e){}
+  _draftDirty = false;
+}
+function markDraftStat(){
+  const el = document.getElementById("draftStat"); if(!el) return;
+  const d = new Date();
+  const hh = String(d.getHours()).padStart(2,"0"), mm = String(d.getMinutes()).padStart(2,"0");
+  el.textContent = L("已自动保存到本机 " + hh + ":" + mm, "Auto-saved locally " + hh + ":" + mm);
+  el.style.color = "#667085";
+}
+window.addEventListener("beforeunload", function(e){
+  if(_draftDirty){
+    e.preventDefault();
+    e.returnValue = L("段落修改尚未写入文章库，确定离开？", "Edits have not been saved to the article library — leave anyway?");
+    return e.returnValue;
+  }
+});
 function paraEdit(el){
   const k = el.getAttribute("data-k"), i = +el.getAttribute("data-i");
   const g = GEN[k]; if(!g || !g.paras || !g.paras[i]) return;
   const txt = el.innerText.replace(/\u00a0/g," ").trim();
   if(Array.isArray(g.paras[i])) g.paras[i][0] = txt; else g.paras[i].en = txt;
   const card = el.closest(".pcard"); if(card){ const wc = card.querySelector(".pword"); if(wc){ const n = (txt.match(/[A-Za-z][A-Za-z''-]*/g)||[]).length; wc.textContent = n + " " + L("词","words"); } }
+  queueDraftSave();
 }
 function paraCard(k,i,editable){
   const txt = paraText(k,i);
@@ -4588,7 +4997,7 @@ function paraCard(k,i,editable){
   const edit = editable !== false;
   return '<div class="pcard" data-k="'+k+'" data-i="'+i+'">'+
     '<div class="ph"><span class="pno">'+dispOf(k)+'</span><span class="ptag">'+L("第 "+(i+1)+" 段","Para "+(i+1))+'</span><span class="pword">'+wc+' '+L("词","words")+'</span></div>'+
-    '<div class="pbody"'+(edit?' contenteditable="true" spellcheck="false" oninput="paraEdit(this)"':'')+'>'+esc(txt)+'</div>'+
+    '<div class="pbody"'+(edit?' contenteditable="true" spellcheck="true" oninput="paraEdit(this)"':'')+'>'+esc(txt)+'</div>'+
     factCiteHTML(k,i)+'</div>';
 }
 /* 本大档无内容时的空态卡片（切分 / 校对 / 审核共用）。
@@ -4604,34 +5013,55 @@ function emptyGroupHTML(){
       : L("尚未有生成文章，请先运行内容生成工作流","No article generated yet — run the content generation workflow first"))
     + '</div></div>';
 }
+/* B5：1440px 下四栏对照每栏只剩 ≈180px，一行只放 3–5 个词，读起来眼睛来回跳。
+   加一个「4 档对照 / 单档全文」开关：单档时整幅宽度显示当前档，适合逐字校对与改稿。 */
+function alignModeBarHTML(){
+  const m = state.alignMode === "single" ? "single" : "grid";
+  return '<div class="alignmode"><span class="am-l">' + L("视图","View") + '</span>'
+    + '<button class="am-b' + (m === "grid" ? " sel" : "") + '" onclick="setAlignMode(\'grid\')">' + L("4 档对照","Compare 4") + '</button>'
+    + '<button class="am-b' + (m === "single" ? " sel" : "") + '" onclick="setAlignMode(\'single\')">' + L("单档全文","Single level") + '</button>'
+    + (m === "single" ? '<span class="am-h">' + L("当前：","now: ") + nkDisp(state.lvl) + '</span>' : "")
+    + '</div>';
+}
+function setAlignMode(m){ state.alignMode = m; render(); }
+/* 段落视图主体：按当前视图模式渲染（空态卡片始终保留，避免档位切换死锁） */
+function alignBodyHTML(editable){
+  const lvls = allKeys();
+  const maxP = Math.max(0, ...lvls.map(function(k){ return (GEN[k] && GEN[k].paras) ? GEN[k].paras.length : 0; }));
+  if(!maxP) return emptyGroupHTML();
+  if(state.alignMode === "single"){
+    const k = LEVEL_BY_KEY[state.lvl] ? state.lvl : lvls[0];
+    const n = (GEN[k] && GEN[k].paras) ? GEN[k].paras.length : 0;
+    if(!n) return emptyGroupHTML();
+    let h = '<div class="alignsingle">';
+    for(let i=0;i<n;i++) h += paraCard(k, i, editable);
+    return h + '</div>';
+  }
+  let h = '<div class="aligngrid">';
+  for(let i=0;i<maxP;i++){ h += '<div class="alignrow"><div class="arow-no">#'+(i+1)+'</div>' + lvls.map(function(k){ return paraCard(k,i,editable); }).join("") + '</div>'; }
+  return h + '</div>';
+}
 /* 4 档对齐段落视图（切分/对齐/校对/审核环节复用）：全文完整展示，editable=false 只读 */
 function alignedViewHTML(editable){
   const lvls=allKeys();
   const has = lvls.some(k=>GEN[k]&&GEN[k].paras&&GEN[k].paras.length);
-  const maxP=Math.max(0,...lvls.map(k=>GEN[k]&&GEN[k].paras?GEN[k].paras.length:0));
+  /* B4：原先这里还有一排纯展示的 .plvlbar，与上方可点击的 bigbar 外观几乎一致，
+     用户分不清哪个能点。段数已并入 bigbar 的计数徽标（如「B1 中级 · 7 段」），此处不再重复。 */
   let h=bigBarOnce();
-  h+='<div class="plvlbar">'+lvls.map(k=>{const n=GEN[k]&&GEN[k].paras?GEN[k].paras.length:0;const m=LVL_META[k]||{color:"#E65425"};return '<div class="plvl-pill"><span class="dot" style="background:'+m.color+'"></span><b>'+dispOf(k)+'</b><span>'+n+' '+L("段","paras")+'</span></div>';}).join("")+'</div>';
-  if(!has) return h+emptyGroupHTML();   /* 切换条与空态始终保留 —— 这是修死锁的关键一行 */
-  h+='<div class="aligngrid">';
-  for(let i=0;i<maxP;i++){ h+='<div class="alignrow"><div class="arow-no">#'+(i+1)+'</div>'+lvls.map(k=>paraCard(k,i,editable)).join("")+'</div>'; }
-  h+='</div>';
+  if(!has) return h+emptyGroupHTML();
+  h+=alignModeBarHTML()+alignBodyHTML(editable);
   return h;
-}
-function s9(){
+}function s9(){
   if(!liveReady()) return head("10",L("段落校对","Paragraph Proofread"),"Auto-split + proofread")+"<div class=note>"+L("请先运行工作流","Run workflow first")+"</div>"+wfStrip();
   const lvls=allKeys();
   const maxP=Math.max(...lvls.map(k=>GEN[k]&&GEN[k].paras?GEN[k].paras.length:0));
   let html=head("10",L("段落校对","Paragraph Proofread"),L("AI 自动切分 + 人工校对 · 同一编号即同一语义段落，可直接编辑","Auto-split + human proofread · same number = same meaning, editable"));
   html+=artWorkflowBar();
   html+=bigBarOnce();
-  html+='<p class="lede">'+L("AI 已自动切分并对齐4 档的段落，请在下方逐段校读并修正——点击任意段落文字即可编辑，修改自动保存。","AI has auto-split and aligned the four levels of this group — proofread and fix each paragraph below; click any text to edit, changes auto-save.")+'</p>';
-  html+='<div class="plvlbar">'+lvls.map(k=>{const n=GEN[k]&&GEN[k].paras?GEN[k].paras.length:0;const m=LVL_META[k]||{color:"#E65425"};return '<div class="plvl-pill"><span class="dot" style="background:'+m.color+'"></span><b>'+dispOf(k)+'</b><span>'+n+' '+L("段","paras")+'</span></div>';}).join("")+'</div>';
-  if(maxP===0){ html+=emptyGroupHTML(); }
-  else {
-  html+='<div class="aligngrid">';
-  for(let i=0;i<maxP;i++){ html+='<div class="alignrow"><div class="arow-no">#'+(i+1)+'</div>'+lvls.map(k=>paraCard(k,i,true)).join("")+'</div>'; }
-  html+='</div>';
-  }
+  html+='<p class="lede">'+L("AI 已自动切分并对齐 4 档的段落，请在下方逐段校读并修正——点击任意段落文字即可编辑，改动会自动保存到本机，误刷新不会丢；写入文章库后才算定稿。","AI has auto-split and aligned the four levels of this group — click any paragraph text to edit. Edits auto-save to this browser, so an accidental refresh will not lose them; they are final only once saved to the article library.")+' <span id="draftStat" class="draftstat"></span></p>';
+  /* B4：段数已并入 bigbar 计数徽标，不再另起一排纯展示 pill */
+  html+=alignModeBarHTML();
+  html+=alignBodyHTML(true);
   html+='<div class="note">'+L("AI 切分 + 人工校对 = 双重保障，确保用户切换难度时体验无缝。","AI split + human proofreading = double guarantee for seamless difficulty switching.")+'</div>';
   html+=quizAlignedHTML();
   html+=guideCardHTML();
@@ -4645,15 +5075,11 @@ function s10(){
   const maxP=Math.max(...lvls.map(k=>GEN[k]&&GEN[k].paras?GEN[k].paras.length:0));
   let html=head("10",L("人工校对","Manual Proofreading"),L("逐段校对并修正 · 原文完整展示，可直接编辑","Proofread each paragraph · full text shown and editable"));
   html+=bigBarOnce();
-  html+='<p class="lede">'+L("校对老师逐段校读4 档文章，检查拼写、语法、语义与对齐质量，必要时直接点击段落文字修正；修改自动保存。","Proofread each paragraph across the four levels of this group — check spelling, grammar, meaning and alignment; click any text to fix; changes auto-save.")+'</p>';
+  html+='<p class="lede">'+L("校对老师逐段校读 4 档文章，检查拼写、语法、语义与对齐质量，必要时直接点击段落文字修正；改动会自动保存到本机，误刷新不会丢，写入文章库后才算定稿。","Proofread each paragraph across the four levels of this group — check spelling, grammar, meaning and alignment; click any text to fix. Edits auto-save to this browser, so an accidental refresh will not lose them; they are final only once saved to the article library.")+'</p>';
   html+='<div class="pedit-hint"> '+L("所有段落原文已完整展示，点击任意段落文字即可编辑修改。","All paragraphs are shown in full — click any text to edit.")+'</div>';
-  html+='<div class="plvlbar">'+lvls.map(k=>{const n=GEN[k]&&GEN[k].paras?GEN[k].paras.length:0;const m=LVL_META[k]||{color:"#E65425"};return '<div class="plvl-pill"><span class="dot" style="background:'+m.color+'"></span><b>'+dispOf(k)+'</b><span>'+n+' '+L("段","paras")+'</span></div>';}).join("")+'</div>';
-  if(maxP===0){ html+=emptyGroupHTML(); }
-  else {
-  html+='<div class="aligngrid">';
-  for(let i=0;i<maxP;i++){ html+='<div class="alignrow"><div class="arow-no">#'+(i+1)+'</div>'+lvls.map(k=>paraCard(k,i,true)).join("")+'</div>'; }
-  html+='</div>';
-  }
+  /* B4：段数已并入 bigbar 计数徽标，不再另起一排纯展示 pill */
+  html+=alignModeBarHTML();
+  html+=alignBodyHTML(true);
   html+='<div class="note">'+L("AI 切分 + 人工校对 = 双重保障，确保用户切换难度时体验无缝。","AI split + human proofreading = double guarantee for seamless difficulty switching.")+'</div>';
   html+=quizAlignedHTML();
   html+=guideCardHTML();
@@ -4971,7 +5397,7 @@ function buildBankArticle(){
 const ART_STATUS = ["pending","approved","rejected"];
 const ART_STATUS_ZH = ["待审核","已通过","已驳回"];
 const ART_STATUS_EN = ["Pending","Approved","Rejected"];
-const ART_STATUS_COLORS = {pending:"#F79009", approved:"#F79009", rejected:"#A32D2D"};
+const ART_STATUS_COLORS = {pending:"#C2421C", approved:"#C2421C", rejected:"#A32D2D"};
 const ART_PAGE_SIZE = 15;
 function artStatus(a){
   if(a.reviewResult === "rejected") return "rejected";
@@ -5278,6 +5704,17 @@ function sArticleBank(){
   const mKey = new Date().toISOString().slice(0,7);
   const monthCount = bank.filter(a => a.createdAt && new Date(a.createdAt).toISOString().slice(0,7) === mKey).length;
 
+  /* A4：空库时给引导型空态，而不是「统计卡全 0 + 暂无匹配 + 分页 1/1」三件套 */
+  if(!total){
+    return head("", L("文章库","Article Library"), "All articles · review & track")
+      + '<div class="guide-empty">'
+      + '<div class="ge-t">' + L("文章库还是空的","No articles yet") + '</div>'
+      + '<div class="ge-d">' + L("文章在「文章生产」里产出：抽取事实卡 → 生成 4 档文章 → 段落校对，确认无误后点「存入文章库」，审核老师就能在这里看到。","Articles are produced in Article Production: extract fact cards, generate 4 levels, proofread, then hit <b>Save to article bank</b> — reviewers will see them here.") + '</div>'
+      + '<div class="ge-btns"><button class="btn" onclick="go(5)">' + L("去文章生产","Go to Article Production") + ' →</button>'
+      + '<button class="btn sec" onclick="go(0)">' + L("先选素材","Pick a material first") + '</button></div></div>'
+      + wfStrip();
+  }
+
   /* 统计卡即筛选器：点卡片 = 按该状态筛选，选中态高亮（不再另设一行小按钮） */
   function statCard(num, lbl, val, color){
     const active = artFilter.status === val;
@@ -5290,10 +5727,10 @@ function sArticleBank(){
 
 
   /* 统计卡片行 */
-  html += `<div class="mat-stats">
+  html += `<div class="mat-stats c5">
     ${statCard(total, L("全部文章","All articles"), "", "#E65425")}
-    ${statCard(pendCount, L("待审核","Pending"), "pending", "#F79009")}
-    ${statCard(appCount, L("已通过","Approved"), "approved", "#F79009")}
+    ${statCard(pendCount, L("待审核","Pending"), "pending", "#C2421C")}
+    ${statCard(appCount, L("已通过","Approved"), "approved", "#C2421C")}
     ${statCard(rejCount, L("已驳回","Rejected"), "rejected", "#A32D2D")}
     ${statCard(monthCount, L("本月新增","New this month"), "__month__", "#E65425")}
   </div>`;
@@ -5307,6 +5744,7 @@ function sArticleBank(){
         ${creators.map(c => `<option value="${esc(c)}"${artFilter.creator===c?" selected":""}>${esc(roleNameOf(c))}</option>`).join("")}
       </select>
     </div>
+    ${bankFilterExtras("art", filtered.length, total, !!(artFilter.keyword || artFilter.status || artFilter.creator))}
   </div>`;
 
   /* 表格 */
@@ -5323,7 +5761,7 @@ function sArticleBank(){
     </tr></thead>
     <tbody>${paged.map(a => {
       const st = artStatus(a);
-      const sc = ART_STATUS_COLORS[st] || "#98A2B3";
+      const sc = ART_STATUS_COLORS[st] || "#667085";
       const src = (a.material && a.material.source) || L("—","—");
       const canReview = canOperate(10) && (st === "pending" || st === "rejected");
       const actBtn = canReview
@@ -5372,7 +5810,7 @@ function showArticleDetail(id){
   const a = loadBank().find(x => x.id === id);
   if(!a){ toast(L("未找到该文章","Article not found")); return; }
   const st = artStatus(a);
-  const sc = ART_STATUS_COLORS[st] || "#98A2B3";
+  const sc = ART_STATUS_COLORS[st] || "#667085";
   const rows = [
     [L("文章 ID","Article ID"), a.id || "—"],
     [L("来源","Source"), (a.material && a.material.source) || "—"],
@@ -5479,7 +5917,7 @@ function sArticleSource(){
          + `<div class="svfoot"><button class="btn" onclick="closeArticleSource()">${L("返回文章库","Back to library")}</button></div>`;
   }
   const st = artStatus(a);
-  const sc = ART_STATUS_COLORS[st] || "#98A2B3";
+  const sc = ART_STATUS_COLORS[st] || "#667085";
   const srcText = (a.material && a.material.text) || "";
   const srcName = (a.material && a.material.source) || L("—","—");
   const srcUrl  = (a.material && a.material.url) || "";
@@ -5517,7 +5955,7 @@ function sArticleSource(){
 /* ---------- 素材库状态常量 ---------- */
 const MAT_STATUS = ["pending_collect","collected","screening","tagged","blocked","discarded","in_production"];
 const MAT_STATUS_ZH = ["待采集","已采集","筛选中","已打标","已屏蔽","已废弃","生产中"];
-const MAT_STATUS_COLORS = {pending_collect:"#98A2B3", collected:"#E65425", screening:"#F79009", tagged:"#F79009", blocked:"#A32D2D", discarded:"#98A2B3", in_production:"#E65425"};
+const MAT_STATUS_COLORS = {pending_collect:"#667085", collected:"#E65425", screening:"#C2421C", tagged:"#C2421C", blocked:"#A32D2D", discarded:"#667085", in_production:"#E65425"};
 const MAT_PAGE_SIZE = 15;
 
 /* ---------- 素材库筛选状态 ---------- */
@@ -5543,6 +5981,9 @@ function sMaterialBank(){
   }
   if(matFilter.status === "__pending__"){
     filtered = filtered.filter(m => ["pending_collect","collected","screening"].indexOf(m.status) >= 0);
+  } else if(matFilter.status === "__month__"){
+    const mk = new Date().toISOString().slice(0,7);
+    filtered = filtered.filter(m => m.collectedAt && new Date(m.collectedAt).toISOString().slice(0,7) === mk);
   } else if(matFilter.status) filtered = filtered.filter(m => m.status === matFilter.status);
   if(matFilter.collector) filtered = filtered.filter(m => m.collectedBy === matFilter.collector);
 
@@ -5557,6 +5998,20 @@ function sMaterialBank(){
   const pendingCount = list.filter(m => m.status==="pending_collect"||m.status==="collected"||m.status==="screening").length;
   const taggedCount = list.filter(m => m.status==="tagged").length;
   const inProdCount = list.filter(m => m.status==="in_production").length;
+  const mKey = new Date().toISOString().slice(0,7);
+  const monthCount = list.filter(m => m.collectedAt && new Date(m.collectedAt).toISOString().slice(0,7) === mKey).length;
+
+  /* A4：空库时不要同时出现「统计卡全 0 + 暂无匹配 + 分页 1/1」三件套（看着像坏了、也不知道下一步做什么），
+     改为引导型空态，直接给出下一步出口。 */
+  if(!total){
+    return head("", L("素材库","Material Library"), "Manage collected materials · filter & batch")
+      + '<div class="guide-empty">'
+      + '<div class="ge-t">' + L("素材库还是空的","No materials yet") + '</div>'
+      + '<div class="ge-d">' + L("素材来自「素材创建」：从全网热点里挑一条<b>原文完整</b>的新闻，或粘贴自有 / 公版书素材，打上内容标签后存入这里。素材库里的每一条都能直接拿去生成文章。","Materials come from Material Creation — pick a trend that has <b>full source text</b>, or paste licensed / public-domain content, tag it, then file it here. Everything in this library can go straight into generation.") + '</div>'
+      + '<div class="ge-btns"><button class="btn" onclick="go(0)">' + L("去素材创建","Go to Material Creation") + ' →</button>'
+      + '<button class="btn sec" onclick="pickRoute(\'trend\')">' + L("先看热点搜集","Browse trends") + '</button></div></div>'
+      + wfStrip();
+  }
 
   /* 统计卡即筛选器：点卡片 = 按该状态筛选，选中态高亮（不再另设一行小按钮） */
   function statCard(num, lbl, val, color){
@@ -5571,9 +6026,10 @@ function sMaterialBank(){
   /* 统计卡片行 */
   html += `<div class="mat-stats c5">
     ${statCard(total, L("全部素材","All materials"), "", "#E65425")}
-    ${statCard(pendingCount, L("待处理","Pending"), "__pending__", "#F79009")}
-    ${statCard(taggedCount, L("已打标","Tagged"), "tagged", "#F79009")}
+    ${statCard(pendingCount, L("待处理","Pending"), "__pending__", "#C2421C")}
+    ${statCard(taggedCount, L("已打标","Tagged"), "tagged", "#C2421C")}
     ${statCard(inProdCount, L("生产中","In prod."), "in_production", "#E65425")}
+    ${statCard(monthCount, L("本月新增","New this month"), "__month__", "#E65425")}
   </div>`;
 
   /* 搜索 + 筛选栏 */
@@ -5585,6 +6041,7 @@ function sMaterialBank(){
         ${collectors.map(c => `<option value="${esc(c)}"${matFilter.collector===c?" selected":""}>${esc(c)}</option>`).join("")}
       </select>
     </div>
+    ${bankFilterExtras("mat", filtered.length, total, !!(matFilter.keyword || matFilter.status || matFilter.collector))}
   </div>`;
 
   /* 表格 */
@@ -5602,10 +6059,12 @@ function sMaterialBank(){
     <tbody>${paged.map(m => {
       const si = MAT_STATUS.indexOf(m.status||"pending_collect");
       const statusZh = MAT_STATUS_ZH[si>=0?si:0];
-      const sc = MAT_STATUS_COLORS[m.status]||"#98A2B3";
-      const theme = m.theme || (m.tagContent && m.tagContent[0] ? (TOPIC_CATS.find(x=>x.key===String(m.tagContent[0]).split("|")[0])||{}).zh||"" : "");
+      const sc = MAT_STATUS_COLORS[m.status]||"#667085";
+      const _tc = m.theme || (m.tagContent && m.tagContent[0] ? String(m.tagContent[0]).split("|")[0] : "");
+      const _tco = TOPIC_CATS.find(x=>x.key===_tc);
+      const theme = _tco ? L(_tco.zh, _tco.en) : (m.theme || "");
       return `<tr>
-        <td class="mat-title-cell" onclick="showMaterialDetail('${esc(m.uuid)}')"><b>${esc(m.label||m.title||"未命名素材")}</b></td>
+        <td class="mat-title-cell" onclick="showMaterialDetail('${esc(m.uuid)}')"><b>${esc(m.label||m.title||L("未命名素材","Untitled material"))}</b></td>
         <td class="mat-muted">${esc(m.sourceType||m.sourceName||"—")}</td>
         <td><span class="mat-status-badge" style="background:${sc}15;color:${sc};border-color:${sc}40">${L(statusZh,m.status)}</span></td>
         <td class="mat-muted"><code style="font-size:11px">${esc(m.id||"—")}</code></td>
@@ -5640,19 +6099,21 @@ function showMaterialDetail(uuid){
   if(!m){ toast(L("素材未找到","Material not found")); return; }
   const si = MAT_STATUS.indexOf(m.status||"pending_collect");
   const statusZh = MAT_STATUS_ZH[si>=0?si:0];
-  const sc = MAT_STATUS_COLORS[m.status]||"#98A2B3";
+  const sc = MAT_STATUS_COLORS[m.status]||"#667085";
   const tags = (m.tagContent||[]).map(k => {
     const p = String(k).split("|");
     const c = taxoCatOf(p[0]) || TOPIC_CATS.find(x => x.key === p[0]);
-    return (c ? c.zh : p[0]) + " · " + (p[1]||"");
+    return (c ? L(c.zh, c.en) : p[0]) + " · " + (p[1]||"");
   });
-  const freeTags = (m.tagFree||[]).join("、");
-  const theme = m.theme || (m.tagContent&&m.tagContent[0] ? ((TOPIC_CATS.find(x=>x.key===String(m.tagContent[0]).split("|")[0])||{}).zh||"") : "");
+  const freeTags = (m.tagFree||[]).join(L("、",", "));
+  const _tc2 = m.theme || (m.tagContent && m.tagContent[0] ? String(m.tagContent[0]).split("|")[0] : "");
+  const _tco2 = TOPIC_CATS.find(x=>x.key===_tc2);
+  const theme = _tco2 ? L(_tco2.zh, _tco2.en) : (m.theme || "");
 
   openDrawer(L("素材详情","Material detail"), `
     <div class="mat-detail">
       <div class="mat-detail-h">
-        <h3>${esc(m.label||"素材")}</h3>
+        <h3>${esc(m.label||L("素材","Material"))}</h3>
         <span class="mat-status-badge" style="background:${sc}15;color:${sc};border-color:${sc}40">${L(statusZh,m.status)}</span>
       </div>
       <div class="mat-detail-meta">
@@ -5708,6 +6169,20 @@ function pageMat(p){
   matPage = p;
   render();
 }
+/* C10：筛选栏右侧统一显示「筛出多少 / 共多少」，并提供一键清空（原先只能逐个改回） */
+function bankFilterExtras(which, shown, total, active){
+  const txt = active
+    ? L("筛出 " + shown + " / 共 " + total + " 条", "Filtered " + shown + " of " + total)
+    : L("共 " + total + " 条", total + " items");
+  return '<div class="mat-filter-extra"><span class="mf-count">' + txt + '</span>'
+    + (active ? '<button class="btn sec tiny" onclick="clearBankFilter(\'' + which + '\')">' + L("清空筛选","Clear filters") + '</button>' : "")
+    + '</div>';
+}
+function clearBankFilter(which){
+  if(which === "mat"){ matFilter = { keyword:"", status:"", collector:"" }; matPage = 0; }
+  else { artFilter = { keyword:"", status:"", creator:"" }; artPage = 0; }
+  render();
+}
 
 /* ---------- router ---------- */
 function render(){
@@ -5738,7 +6213,8 @@ function render(){
   }
 }
 function showReadingPreviewFull(){
-  const g=GEN[state.lvl]; if(!g||!g.paras) return alert("No content");
+  const g=GEN[state.lvl];
+  if(!g||!g.paras){ toast(L("还没有生成内容，请先运行工作流","No content yet — run the workflow first")); return; }
   let cp=0,cl=state.lvl||"B1_2"; const lv=allKeys();
   function r(){
     const P=GEN[cl]&&GEN[cl].paras?GEN[cl].paras:[]; const p=P[cp]||{en:"",zh:""};
