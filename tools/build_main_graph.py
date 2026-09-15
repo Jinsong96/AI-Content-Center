@@ -80,6 +80,7 @@ FROM_GEN = [
     'nodeAgg',        # ⑤ 聚合+身份记录
     'nodeQuiz',       # ⑥ 练习题生成（12 档 × 3 题）
     'nodeValidate',   # ⑦ 8 项校验 × 12 档
+    'nodeGistCheck',  # ⑨ 大意复核（12 档 × 主线一致性）
     'nodeEnd',        # 结束
 ]
 
@@ -122,8 +123,10 @@ EDGES = [
     ('nodeGenB2p', 'nodeAgg', 'source'),
     ('nodeAgg', 'nodeQuiz', 'source'),
     ('nodeAgg', 'nodeValidate', 'source'),
+    ('nodeAgg', 'nodeGistCheck', 'source'),
     ('nodeQuiz', 'nodeEnd', 'source'),
     ('nodeValidate', 'nodeEnd', 'source'),
+    ('nodeGistCheck', 'nodeEnd', 'source'),
 ]
 
 # GEN 侧生成链路整体下移，避免与抽取链路在画布上叠在一起
@@ -131,8 +134,7 @@ Y_OFFSET_GEN = 520.0
 
 LLM_OUTPUTS = {'text', 'reasoning_content', 'usage', 'finish_reason'}
 KB_OUTPUTS = {'result'}
-LEVELS12 = ['A1.1', 'A1.2', 'A1.3', 'A2.1', 'A2.2', 'A2.3',
-            'B1.1', 'B1.2', 'B1.3', 'B2+.1', 'B2+.2', 'B2+.3']
+LEVELS12 = ['A1', 'A2', 'B1', 'B2']
 REQUIRED_MODEL = 'deepseek-ai/DeepSeek-V4-Flash'
 
 
@@ -209,6 +211,18 @@ def build():
             nd['positionAbsolute'] = {'x': nd['positionAbsolute'].get('x', 0),
                                       'y': nd['positionAbsolute'].get('y', 0) + Y_OFFSET_GEN}
         nodes.append(nd)
+
+    # MAIN 的 nodeClean 取自 FACT 版（带档位区间等额外字段），GEN 版 nodeClean 没有这些输出，
+    # 所以 nodeEnd 必须补挂，否则区间元数据与大意基准在 MAIN 的产出里会静默丢失。
+    endn = next(n for n in nodes if n['id'] == 'nodeEnd')
+    have = {o.get('variable') for o in endn['data'].get('outputs') or []}
+    added = []
+    for var in ['level_lo', 'level_hi', 'info_points', 'gist']:
+        if var not in have:
+            endn['data']['outputs'].append({'value_selector': ['nodeClean', var], 'variable': var})
+            added.append(var)
+    if added:
+        log.append('  %-14s 补挂输出 %s（来源 nodeClean）' % ('nodeEnd', ','.join(added)))
 
     ntype = {n['id']: n['data'].get('type') for n in nodes}
     edges = []
@@ -344,7 +358,7 @@ def check(g):
         if 'thinking' in cp:
             errs.append('%s 残留了错误的参数名 `thinking`（会被 Dify 静默丢弃）' % nid)
 
-    # 6) 12 档下拉选项
+    # 6) 4 档下拉选项
     for nid, n in nodes.items():
         if n['data'].get('type') != 'start':
             continue
@@ -352,7 +366,7 @@ def check(g):
             if v.get('variable') == 'level':
                 got = v.get('options') or []
                 if got != LEVELS12:
-                    errs.append('start.level 选项不是 12 档：%s' % got)
+                    errs.append('start.level 选项不是 4 档：%s' % got)
 
     # 7) 无遗留旧三档字样
     #    注意：「三档」本身是合法措辞（同一大档内的三个子档，如 A2.1/A2.2/A2.3），
@@ -362,8 +376,8 @@ def check(g):
         if bad.replace(' ', '') in flat:
             errs.append('图里还有旧三档体系的痕迹：%s' % bad)
 
-    # 8) 生成节点标题必须点明 12 子档
-    want = {'nodeGenA1': 'A1.1', 'nodeGenA2': 'A2.1', 'nodeGenB1': 'B1.1', 'nodeGenB2p': 'B2+.1'}
+    # 8) 生成节点标题必须点明档位
+    want = {'nodeGenA1': 'A1', 'nodeGenA2': 'A2', 'nodeGenB1': 'B1', 'nodeGenB2p': 'B2'}
     for nid, marker in want.items():
         if nid in nodes:
             t = nodes[nid]['data'].get('title') or ''
@@ -399,7 +413,7 @@ def main():
             print('  ✗ ' + e)
         print('\n✗ 校验失败（%d 项），未写出文件' % len(errs))
         return 1
-    print('  ✅ 全部通过：引用可解析、无死节点、全部从 start 可达、模型与思考开关正确、12 档选项完整')
+    print('  ✅ 全部通过：引用可解析、无死节点、全部从 start 可达、模型与思考开关正确、4 档选项完整')
 
     if '--check' in sys.argv:
         print('\n[--check] 仅校验，未写文件')
