@@ -746,7 +746,7 @@ body{font-family:var(--font);color:var(--text);background:var(--bg);overflow:hid
 @media(max-width:1080px){.lroles{gap:14px}}
 @media(max-width:820px){.lroles{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:520px){.lroles{grid-template-columns:1fr}.lrole{padding:22px 18px}}
-.lrole{background:#fff;border:1px solid var(--border);border-radius:20px;padding:26px 24px;cursor:pointer;transition:all .15s;box-shadow:var(--shadow);position:relative;width:100%;animation:rise .45s both;display:flex;flex-direction:column}
+.lrole{background:#fff;border:1px solid var(--border);border-radius:20px;padding:26px 24px;min-height:280px;cursor:pointer;transition:all .15s;box-shadow:var(--shadow);position:relative;width:100%;animation:rise .45s both;display:flex;flex-direction:column}
 .lrole:hover{transform:translateY(-3px);box-shadow:var(--shadow-lg);border-color:var(--border2)}
 .lrole h4{font-size:19px;font-weight:800;margin-bottom:10px}
 
@@ -2772,9 +2772,9 @@ const ROLES = [
   {id:"source", color:"#E65425", name:"市场老师", nameEn:"Marketing",
    scope:L1("素材创建 01–04 + 素材库", "Material creation 01–04 + Material library"), user:"market_zhang", pass:((window.WB_CFG && window.WB_CFG.DEMO_PASS)||""), entry:0},
   {id:"produce", color:"#E65425", name:"教研老师", nameEn:"Curriculum",
-   scope:L1("素材创建 + 文章生产 + 文章库", "Material creation + Article production + Article library"), user:"curriculum_li", pass:((window.WB_CFG && window.WB_CFG.DEMO_PASS)||""), entry:5},
+   scope:L1("素材创建 + 文章生产 + 文章库", "Material creation + Article production + Article library"), user:"curriculum_li", pass:((window.WB_CFG && window.WB_CFG.DEMO_PASS)||""), entry:0},
   {id:"review", color:"#E65425", name:"审核老师", nameEn:"Reviewer",
-   scope:L1("全部权限 · 全流程", "Full access · whole flow"), user:"review_wang", pass:((window.WB_CFG && window.WB_CFG.DEMO_PASS)||""), entry:11},
+   scope:L1("全部权限 · 全流程", "Full access · whole flow"), user:"review_wang", pass:((window.WB_CFG && window.WB_CFG.DEMO_PASS)||""), entry:0},
 ];
 /* stage index -> 该步骤的「主要」职能（仅用于视觉标注 owner dot / label） */
 const STEP_OWNER = {
@@ -4434,7 +4434,7 @@ function s7(){
   <div class="validate"><div id="vcol"></div><div id="vcol2"></div></div>
   <div id="vsum"></div>
   <div id="videntity"></div>
-  ${state.validated ? nextBtn("提交人工审核","Submit to review") : `<div class="nextbar"><div></div><button class="btn sec" onclick="runValidate()">${L("查看校验结果","View validation")} · 8×3</button></div>`}` + wfStrip();
+  ${state.validated ? nextBtn("提交人工审核","Submit to review") : `<div class="nextbar"><div></div><button class="btn sec" onclick="runValidate()">${L("查看校验结果","View validation")} · 8×4</button></div>`}` + wfStrip();
 }
 let validating = false;
 function runValidate(){
@@ -4472,12 +4472,12 @@ function runValidate(){
 function showVSum(){
   const s=$("#vsum");
   let big="—";
-  let txt=`${L("尚未运行 AI 工作流，暂无真实校验结果。运行后此处展示 8 项 × 3 档共 24 项的真实校验得分。","No AI run yet — no real validation. Run the workflow to see the real 8×3=24 check score.")}`;
+  let txt=`${L("尚未运行 AI 工作流，暂无真实校验结果。运行后此处展示 8 项 × 4 档共 32 项的真实校验得分。","No AI run yet — no real validation. Run the workflow to see the real 8×4=32 check score.")}`;
   const vj = liveVJ();
   if(liveReady() && vj){
     big = (vj.total_pass||0) + "/" + (vj.total_checks||24);
     const warns = (vj.results||[]).flatMap(r => (r.fail_reasons||[]));
-    txt = `<b>${L("AI 真实校验：","AI LIVE validation: ")}${big} ${L("项通过","checks passed")}${warns.length ? " · " + L("告警项：","warnings: ") + esc(warns.join("；").slice(0,120)) : " · " + L("全部通过","all passed")}</b>——${L("数据来自 AI 工作流 8 项校验节点（×12 档位），真实运行 ","From the workflow's 8-check validator (×4 levels). Run time ")}${state.live.elapsed}s。`;
+    txt = `<b>${L("AI 真实校验：","AI LIVE validation: ")}${big} ${L("项通过","checks passed")}${warns.length ? " · " + L("告警项：","warnings: ") + esc(warns.join("；").slice(0,120)) : " · " + L("全部通过","all passed")}</b>——${L("数据来自 AI 工作流 8 项校验节点（×4 档位），真实运行 ","From the workflow's 8-check validator (×4 levels). Run time ")}${state.live.elapsed}s。`;
   }
   s.innerHTML=`<div class="big">${big}</div><div class="txt">${txt}</div>`;
   s.style.animation="pop .5s both";
@@ -4792,7 +4792,7 @@ function audioFullUrl(rel){
   return AGENT_REACH_API + (rel.charAt(0) === "/" ? rel : "/" + rel);
 }
 function escAttr(s){ return esc(s).replace(/"/g, "&quot;").replace(/'/g, "&#39;"); }
-/* 统计一篇文章已生成的音频文件数（最多 3 档 × 2 口音 = 6） */
+/* 统计当前档位已生成的音频文件数（单档 × 2 口音 us/uk） */
 function bankAudioCount(a){
   let n = 0;
   subKeys(bigOf(a && a.level) || curBig()).forEach(function(k){
