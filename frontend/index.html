@@ -237,7 +237,6 @@ body{font-family:var(--font);color:var(--text);background:var(--bg);overflow:hid
 .int-trend.up{color:#A32D2D}
 .int-trend.down{color:#F79009}
 .int-trend.flat{color:var(--muted)}
-.int-foot{font-size:11.5px;color:var(--sub);margin-top:11px;padding-top:11px;border-top:1px dashed var(--border2)}
 @media (max-width:720px){.introw{flex-wrap:wrap}.int-heat{width:100%;order:5}.int-reads{width:auto;margin-left:auto}}
 .hotcard.custom{border-style:dashed;border-color:#FFDFCF}
 .hotcard.custom .rank{color:#E65425}
@@ -1078,11 +1077,8 @@ body{font-family:var(--font);color:var(--text);background:var(--bg);overflow:hid
 .wfnode.wfclick:hover{border-color:var(--pri);background:#FFF9F5;color:var(--pri-tx)}
 .wfnode.wfclick:focus{outline:2px solid var(--pri);outline-offset:1px}
 /* B7 角色卡 */
-.lrole .lpri{margin-left:8px;font-size:10.5px;font-weight:700;color:var(--pri-tx);background:var(--pri-t);border:1px solid #FFDFCF;border-radius:99px;padding:2px 8px;vertical-align:2px}
 .lrole .rduty{font-size:12.5px;line-height:1.75;color:var(--sub);margin:0 0 14px;min-height:44px}
 .lrole .rmods{min-height:0;margin-bottom:20px}
-.lrole .rbtn.sec{background:#fff;color:var(--text);border:1px solid var(--border2)}
-.lrole .rbtn.sec:hover{background:var(--bg);opacity:1}
 /* C4 入口卡说明改纯文本（原先的 chip 看着像能点） */
 .srccard .srccard-items{font-size:12px;line-height:1.7;color:var(--sub);margin:8px 0 10px;min-height:42px}
 /* C5 信源删除按钮热区（触控线 44px，原先 24px） */
@@ -1126,12 +1122,6 @@ body{font-family:var(--font);color:var(--text);background:var(--bg);overflow:hid
 .rstep .t .lk{font-size:11px}
 .srcrow .sinfo span{font-size:11.5px}
 .empty-state{font-size:13.5px}
-/* C3 侧栏底部区（原先 4 项之下大片空白） */
-.railfoot{margin-top:auto;border-top:1px solid var(--border);padding:12px 6px 4px}
-.railfoot .rf-h{font-size:11px;font-weight:700;color:var(--muted);letter-spacing:.08em;margin:0 4px 8px}
-.railfoot .rf-b{display:block;width:100%;text-align:left;font-family:var(--font);font-size:12.5px;font-weight:600;color:var(--sub);background:none;border:none;padding:7px 10px;border-radius:8px;cursor:pointer;transition:background .12s}
-.railfoot .rf-b:hover{background:#FFF5F1;color:var(--pri-tx)}
-.railfoot .rf-v{margin:10px 4px 0;font-size:11px;color:var(--muted)}
 #rail{display:flex;flex-direction:column}
 </style>
 </head>
@@ -2567,6 +2557,8 @@ async function runGeneration(){
     /* 用流式（SSE）而不是 blocking —— Dify 网关对 blocking 约 120s 硬超时，
        4 档生成实测 77s 已贴近该阈值（更早的渠道 145s 时实测直接 504 静默失败）。
        流式既避开超时，又能顺带给出逐节点进度。 */
+    _runAbort = new AbortController();
+    const _abortSignal = _runAbort.signal;
     const resp = await fetch(AIWF_GEN.apiBase + "/workflows/run", {
       method: "POST",
       headers: { "Authorization": "Bearer " + AIWF_GEN.appKey, "Content-Type": "application/json" },
@@ -2579,8 +2571,6 @@ async function runGeneration(){
       throw new Error(emsg);
     }
     let wfData = null, wfErr = null, nodeDone = 0;
-    _runAbort = new AbortController();
-    const _abortSignal = _runAbort.signal;
     const rd = resp.body.getReader(), dec = new TextDecoder();
     let sbuf = "";
     for(;;){
@@ -2995,21 +2985,21 @@ function s2LiveInner(){
    注：曾用 from/to 表示「连续权限区间」，但区间无法表达 produce 的 [0-9,11]，
    且全文件无任何代码读取它，属死字段，已删除，避免误导后续改动者。 */
 /* B7：三张角色卡原先只列步骤名、信息量差一倍（5 vs 9 个标签）、三个按钮长得一模一样。
-   现在每张卡补一句「这个角色做什么」、标签换成能力短语、并把最常用的教研角色设为主按钮。 */
+   现在每张卡补一句「这个角色做什么」、标签换成能力短语。 */
 const ROLES = [
-  {id:"source", color:"#E65425", name:"市场老师", nameEn:"Marketing", primary:false,
+  {id:"source", color:"#E65425", name:"市场老师", nameEn:"Marketing",
    duty:"找素材：扫热点、筛敏感、打标签、存素材库，不生成文章。",
    dutyEn:"Finds material: scans trends, screens sensitivity, tags and files it. Does not generate articles.",
    caps:["热点搜集","敏感排查","选题打标","素材入库"],
    capsEn:["Trend scan","Sensitivity","Tagging","Filing"],
    scope:L1("素材创建 01–04 + 素材库", "Material creation 01–04 + Material library"), user:"market_zhang", pass:((window.WB_CFG && window.WB_CFG.DEMO_PASS)||""), entry:0},
-  {id:"produce", color:"#E65425", name:"教研老师", nameEn:"Curriculum", primary:true,
+  {id:"produce", color:"#E65425", name:"教研老师", nameEn:"Curriculum",
    duty:"做文章：抽事实卡、定分级标准、生成 4 档文章、校对正文与题目。",
    dutyEn:"Produces articles: extracts fact cards, sets level specs, generates 4 graded versions, proofreads text and quizzes.",
    caps:["事实抽取","分级标准","4 档生成","段落校对"],
    capsEn:["Fact extraction","Level specs","4-level generation","Proofreading"],
    scope:L1("素材创建 + 文章生产 + 文章库", "Material creation + Article production + Article library"), user:"curriculum_li", pass:((window.WB_CFG && window.WB_CFG.DEMO_PASS)||""), entry:0},
-  {id:"review", color:"#E65425", name:"审核老师", nameEn:"Reviewer", primary:false,
+  {id:"review", color:"#E65425", name:"审核老师", nameEn:"Reviewer",
    duty:"把关：逐段审核 4 档文章，通过或驳回并留痕；可用全部 12 步。",
    dutyEn:"Reviews: checks each paragraph across levels, approves or rejects with a record. All 12 steps available.",
    caps:["逐段审核","通过 / 驳回","审核留痕","文章库管理"],
@@ -3105,17 +3095,6 @@ function buildRail(){
       });
     }
   });
-  /* C3：侧栏只有 4 项，下方近三分之二空白。补一个底部区（快捷入口 + 版本），
-     而不是让屏幕左侧三分之一空着。 */
-  const foot = document.createElement("div");
-  foot.className = "railfoot";
-  foot.innerHTML =
-    '<div class="rf-h">' + L("快捷入口","Quick links") + '</div>'
-    + '<button class="rf-b" onclick="pickRoute(\'trend\')">' + L("热点搜集","Trend discovery") + '</button>'
-    + '<button class="rf-b" onclick="go(11)">' + L("文章库","Article library") + '</button>'
-    + '<button class="rf-b" onclick="go(0)">' + L("素材创建","Material creation") + '</button>'
-    + '<div class="rf-v">ReadPal · ' + L("演示环境","demo build") + '</div>';
-  rail.appendChild(foot);
   refreshRail();
 }
 function toggleSection(id){ if(expandedSections.has(id)) expandedSections.delete(id); else expandedSections.add(id); buildRail(); }
@@ -3158,10 +3137,10 @@ function renderLogin(){
     </div>
     <div class="lroles">
       ${ROLES.map((r,idx)=>`<div class="lrole" id="lr-${r.id}" style="animation-delay:${idx*.07}s" onclick="openLogin('${r.id}')">
-        <h4>${L(r.name,r.nameEn)}${r.primary?`<span class="lpri">${L("常用","frequent")}</span>`:""}</h4>
+        <h4>${L(r.name,r.nameEn)}</h4>
         <p class="rduty">${L(r.duty, r.dutyEn)}</p>
         <div class="rmods">${(r.caps||[]).map((s,si)=>`<span>${L(s, (r.capsEn||[])[si] || s)}</span>`).join("")}</div>
-        <button class="rbtn${r.primary?"":" sec"}">${L("登录","Log in")}</button>
+        <button class="rbtn">${L("登录","Log in")}</button>
         <div class="lform" onclick="event.stopPropagation()">
           <h4>${L(r.name,r.nameEn)} · ${L("登录","Log in")}</h4>
           <div class="lsub">${L("使用演示账号直接登录","Use the demo account below")}</div>
@@ -3868,7 +3847,6 @@ function interestPanelHTML(){
         </div>`;
       }).join("")}
     </div>
-    <div class="int-foot"> ${L("内容生成同事可参考此榜单，优先生成读者感兴趣的话题。","Content teams can follow this list to prioritize topics readers love.")}</div>
   </div>`;
 }
 /* 抓取降级横幅：必须让用户分清「信源里没有内容」和「有信源失败了」——
