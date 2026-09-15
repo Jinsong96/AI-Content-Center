@@ -648,46 +648,32 @@ GEN_VALIDATE_CODE = r"""function main({ articles_json, plain_json, factcard, ide
 }"""
 
 
-# ---- 模型渠道：DeepSeek 官方 → 硅基流动
-# 2026-09-10 官方渠道余额耗尽（402 Insufficient Balance），切到已配置好的硅基流动。
-# 两边是同一个模型（DeepSeek-V4-Flash / Pro），只换调用渠道；温度 / max_tokens 等参数原样保留。
-SF_PROVIDER = 'langgenius/siliconflow/siliconflow'
-
-# ⚠️ 硅基流动上的实测吞吐（并发 4 路、900 词长文）：
-#     DeepSeek-V4-Flash      81.9 t/s   ← 唯一可用
-#     DeepSeek-V3.1-Terminus 24.3 t/s   太慢
-#     Pro/DeepSeek-V3.2      21.6 t/s   专用通道并没有更快
-#     DeepSeek-V4-Pro         4.4 t/s   900 tokens 的请求 120s 都跑不完，完全不可用
-#     GLM-5.3                 180s 超时  不可用
-# 结论：全部节点统一走 DeepSeek-V4-Flash（也与原设计的 flash 档一致）。
-MODEL_REPOINT = {
-    'deepseek-v4-flash': 'deepseek-ai/DeepSeek-V4-Flash',
-    'deepseek-v4-pro': 'deepseek-ai/DeepSeek-V4-Flash',
-}
+# ---- 模型渠道：DeepSeek 官方（2026-09-15 官方 API 已更新可用）
+# 2026-09-10 官方渠道曾余额耗尽（402 Insufficient Balance），临时切到硅基流动；
+# 现已切回 DeepSeek 官方。所有 LLM 节点的 model 定义本就是官方渠道
+# （deepseek-v4-flash / deepseek-v4-pro，参数含 thinking:False），无需再改指渠道。
+DS_PROVIDER = 'langgenius/deepseek/deepseek'
 
 
 def repoint_models(g):
-    """把所有 LLM 节点指到硅基流动，并修正 completion_params 的参数名，返回改写数量。"""
+    """保持 DeepSeek 官方渠道，仅修正 completion_params 参数名，返回改写数量。"""
     n = 0
     for nd in g['nodes']:
         if (nd.get('type') or nd['data'].get('type')) != 'llm':
             continue
         m = nd['data'].get('model') or {}
-        if m.get('name') in MODEL_REPOINT:
-            m['provider'] = SF_PROVIDER
-            m['name'] = MODEL_REPOINT[m['name']]
+        # 防御：历史图若残留硅基流动定义则改回官方（SF 模型名带 deepseek-ai/ 前缀）
+        if m.get('provider') != DS_PROVIDER:
+            m['provider'] = DS_PROVIDER
+            nm = m.get('name', '').lower()
+            m['name'] = 'deepseek-v4-pro' if 'pro' in nm else 'deepseek-v4-flash'
             n += 1
         cp = m.get('completion_params')
         if isinstance(cp, dict):
-            # ⚠️🔴 踩坑记录：Dify 硅基流动插件的参数名是 **enable_thinking**（boolean，默认 false），
-            #    写成 thinking 会被 Dify **静默丢弃**，导致模型按 SF 默认开思考。
-            #    实测（400 词长文，max_tokens=1600）：
-            #      思考开 → 54.0s / completion=10641 tokens / reasoning 30335 字符
-            #      思考关 →  8.0s / completion=  533 tokens / reasoning 0    （快 6.75x，token 少 20x）
-            #    GEN 要出 2.5 万 token，思考开着会直接把工作流拖到十几分钟（表现为「零首字节卡死」）。
-            #    另注：SF 原生 API 直接传 thinking=false 会 400，只有 enable_thinking 有效。
-            cp.pop('thinking', None)
-            cp.setdefault('enable_thinking', False)
+            # DeepSeek 官方渠道的思考参数名是 thinking（不是硅基流动的 enable_thinking）。
+            # 统一显式关思考：实测开思考慢 6.75x、token 多 20x（GEN 会拖到十几分钟）。
+            cp.pop('enable_thinking', None)
+            cp.setdefault('thinking', False)
     return n
 
 
