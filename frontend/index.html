@@ -2617,6 +2617,15 @@ async function runGeneration(){
   state.live.elapsed = ((Date.now() - state.live.t0) / 1000).toFixed(1);
   renderLiveChip();
   applyLive();
+  /* Dify 偶发返回 status=succeeded 却缺 articles_json/paras_json → GEN 空。
+     不能静默跳回「生成文章」按钮（用户以为卡住/没反应），明确报错并给重试路径 */
+  if(state.live.status === "done" && !liveExcluded()){
+    const _anyGen = allKeys().some(function(k){ return GEN[k] && GEN[k].paras && GEN[k].paras.length; });
+    if(!_anyGen){
+      state.live.status = "error";
+      state.live.err = L("生成结果不完整：工作流返回成功但未产出文章，请重试","Incomplete result: workflow succeeded but produced no articles — please retry");
+    }
+  }
   /* 文章生成完立即后台生成音频（必须在 applyLive 之后，GEN 才填好） */
   if(state.live.status === "done" && !liveExcluded() && !Object.keys(state.audio || {}).length){
     genArticleAudio();
@@ -4634,6 +4643,12 @@ function s6(){
         <div class="note" style="text-align:center">${L("运行中可先浏览其他步骤，工作流在后台继续运行，完成后本页自动刷新。","You can browse other steps while it runs — this page refreshes automatically when done.")}</div>` + wfStrip();
     }
     const factsReady = !!(state.factsCache && state.factsCache.summary);
+    if(state.live.status === "error"){
+      return head("08", L("内容生成","Graded Generation"), "Same facts · 4 levels") +
+    artWorkflowBar() +
+        styleBarHTML() +
+        `<div class="note warn-note" style="padding:40px;text-align:center;margin:16px 0"><p style="margin:0 0 14px">${L("上次工作流运行失败：","Last run failed: ")}${esc(state.live.err || "")}</p><button class="btn" onclick="${factsReady ? "runGeneration()" : "extractThenGen()"}">${factsReady ? L("重试生成","Retry generation") : L("重试（抽取并生成）","Retry (extract & generate)")}</button></div>` + wfStrip();
+    }
     if(factsReady){
       return head("08", L("内容生成","Graded Generation"), "Same facts · 4 levels") +
     artWorkflowBar() +
@@ -4646,12 +4661,6 @@ function s6(){
     artWorkflowBar() +
         styleBarHTML() +
         `<div class="note" style="padding:40px;text-align:center;margin:16px 0"><p style="margin:0 0 14px">${L("素材「"+esc(state.live.label||"")+"」已就绪，尚未抽取事实。点击下方按钮，自动完成「抽取事实卡 → 生成文章」（约 90 秒）。","Material \""+esc(state.live.label||"")+"\" is ready but facts haven't been extracted. Click below — it will extract facts then auto-generate the 12 sub-level articles (~90s).")}</p><button class="btn" onclick="extractThenGen()">${L("抽取并生成","Extract & generate")}</button></div>` + wfStrip();
-    }
-    if(state.live.status === "error"){
-      return head("08", L("内容生成","Graded Generation"), "Same facts · 4 levels") +
-    artWorkflowBar() +
-        styleBarHTML() +
-        `<div class="note warn-note" style="padding:40px;text-align:center;margin:16px 0"><p style="margin:0 0 14px">${L("上次工作流运行失败：","Last run failed: ")}${esc(state.live.err || "")}</p><button class="btn" onclick="extractThenGen()">${L("重试（抽取并生成）","Retry (extract & generate)")}</button></div>` + wfStrip();
     }
     return head("08", L("内容生成","Graded Generation"), "Same facts · 4 levels") +
     artWorkflowBar() +
