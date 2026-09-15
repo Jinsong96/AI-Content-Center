@@ -4575,7 +4575,7 @@ function s5(){
     <div class="kbitem"><div class="n">KB4</div><h5>${L("中国文化术语库","CN-term glossary")}</h5><p>≥300 ${L("条标准译法","standard renderings")}</p></div>
     <div class="kbitem"><div class="n">KB5</div><h5>${L("敏感规范库","Sensitivity rules")}</h5><p>S0–S3</p></div>
   </div>
-  <div class="lvlpick">${BIG_GROUPS.map(g=>`<div class="lvl ${curBig()===g.big?"sel":""}" onclick="setBig('${g.big}')"><b>${g.big}</b><span>${L(g.zh,g.en)}</span></div>`).join("")}</div>
+  <div class="lvlpick">${BIG_GROUPS.map(g=>`<div class="lvl ${curBig()===g.big?"sel":""}" onclick="setBig('${g.big}')"><b>${nkDisp(g.big)}</b><span>${L(g.zh,g.en)}</span></div>`).join("")}</div>
   ${state.live && state.live.recommendedLevel ? `<div class="note" style="margin-top:10px">${L("AI 分级推荐档位","AI recommended level")}: <b>${state.live.recommendedLevel}</b> · ${state.lvlManual ? L("你已手动切换为 "+nkDisp(state.lvl)+"","you manually switched to "+nkDisp(state.lvl)) : L("已设为默认展示档位（基于知识库分级标准判定）","set as default (judged by KB grading standards)")}</div>` : ""}
   <div class="specgrid">
     <div class="spec"><h6>${L("词汇 VOCABULARY","VOCABULARY")}</h6><div class="row"><span>${L("词表范围","Wordlist")}</span><b>${L(sp.words,sp.en.words)}</b></div><div class="row"><span>${L("生词表词条","Vocabulary items")}</span><b>${L(sp.gloss,sp.en.gloss)}</b></div><div class="row"><span>${L("超纲词上限","Off-list cap")}</span><b>${offCap(state.lvl)}</b></div></div>
