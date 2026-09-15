@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ReadPal 前端排版与交互审查 · 2026-09-15</title>
+<style>
+  :root{
+    --pri:#E65425; --pri-d:#C2421C; --pri-t:#FFF0EB; --pri-t2:#FFF9F5;
+    --bg:#FFFDF9; --card:#fff; --bd:#EAECF0; --bd2:#D0D5DD;
+    --tx:#101828; --sub:#475467; --mut:#667085;
+    --a:#A32D2D; --a-bg:#FFF0EB; --b:#D04418; --b-bg:#FFF9F5; --c:#667085; --c-bg:#F2F4F7;
+    --font:'Inter','PingFang SC','Noto Sans SC',-apple-system,'Microsoft YaHei',sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--tx);font-family:var(--font);
+       font-size:14px;line-height:1.7;-webkit-font-smoothing:antialiased}
+  .page{max-width:1000px;margin:0 auto;padding:48px 28px 80px}
+  .kicker{font-size:12px;font-weight:700;letter-spacing:.14em;color:var(--pri);text-transform:uppercase}
+  h1{font-size:30px;font-weight:800;letter-spacing:-.01em;margin:10px 0 6px}
+  .meta{font-size:12.5px;color:var(--mut)}
+  h2{font-size:19px;font-weight:800;margin:44px 0 14px;padding-bottom:10px;border-bottom:1px solid var(--bd)}
+  h2 .cnt{font-size:12px;font-weight:700;color:var(--mut);margin-left:8px}
+  .lede{font-size:13.5px;color:var(--sub);margin:0 0 18px}
+  .summary{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:24px 0 8px}
+  .sm{background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:16px 16px 14px}
+  .sm b{display:block;font-size:26px;font-weight:800;line-height:1.15}
+  .sm span{display:block;font-size:11.5px;color:var(--mut);font-weight:600;margin-top:4px}
+  .sm.ok b{color:#D04418}
+  .sm.a b{color:var(--a)} .sm.b b{color:var(--b)} .sm.c b{color:var(--c)}
+  .verdict{background:var(--card);border:1px solid var(--bd);border-left:3px solid var(--pri);
+           border-radius:12px;padding:16px 18px;margin:18px 0 0;font-size:13.5px;color:var(--sub)}
+  .verdict b{color:var(--tx)}
+  .item{background:var(--card);border:1px solid var(--bd);border-radius:14px;
+        padding:16px 18px 14px;margin-bottom:12px}
+  .item-h{display:flex;align-items:baseline;gap:10px;margin-bottom:8px}
+  .code{font-size:11.5px;font-weight:800;color:#fff;background:var(--pri);border-radius:6px;
+        padding:2px 8px;letter-spacing:.03em;flex-shrink:0}
+  .item h3{font-size:15px;font-weight:750;margin:0;flex:1;letter-spacing:-.005em}
+  .tag{font-size:10.5px;font-weight:800;border-radius:99px;padding:2px 9px;flex-shrink:0}
+  .t-a{background:var(--a-bg);color:var(--a)} .t-b{background:var(--b-bg);color:var(--b)}
+  .t-c{background:var(--c-bg);color:var(--c)}
+  .t-fix{background:var(--pri-t);color:var(--pri-d);border:1px solid #FFDFCF}
+  .sm.fix b{color:var(--pri-d)}
+  .fixed-note{background:var(--pri-t2);border:1px solid #FFDFCF;border-left:3px solid var(--pri);
+              border-radius:12px;padding:14px 18px;margin:18px 0 0;font-size:13px;color:var(--sub)}
+  .fixed-note b{color:var(--tx)}
+  .row{display:grid;grid-template-columns:64px 1fr;gap:10px;margin:5px 0;font-size:13px}
+  .row .k{font-size:11px;font-weight:800;color:var(--mut);padding-top:3px;letter-spacing:.04em}
+  .row .v{color:var(--sub)}
+  .row .v code,code{background:#F9FAFB;border:1px solid var(--bd);border-radius:5px;
+        padding:1px 5px;font-size:11.5px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:#344054}
+  .fix{color:var(--tx)}
+  .fix::before{content:"建议 · ";font-weight:800;color:var(--pri-d);font-size:11px;letter-spacing:.03em}
+  .shots{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px}
+  .shot{background:var(--card);border:1px solid var(--bd);border-radius:12px;overflow:hidden}
+  .shot img{width:100%;display:block;border-bottom:1px solid var(--bd)}
+  .shot p{margin:0;padding:9px 12px;font-size:12px;color:var(--mut)}
+  table{width:100%;border-collapse:collapse;font-size:13px;margin-top:8px}
+  th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--bd);vertical-align:top}
+  th{font-size:11px;font-weight:800;color:var(--mut);letter-spacing:.05em;text-transform:uppercase}
+  pre{background:#F9FAFB;border:1px solid var(--bd);border-radius:10px;padding:12px 14px;
+      font-size:12px;overflow-x:auto;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:#344054}
+  .foot{margin-top:40px;font-size:12px;color:var(--mut);border-top:1px solid var(--bd);padding-top:14px}
+  @media(max-width:760px){.summary{grid-template-columns:repeat(2,1fr)}.shots{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="kicker">ReadPal · Front-end Audit</div>
+  <h1>前端排版与交互审查</h1>
+  <div class="meta">2026-09-15 提出 · 2026-09-15 全部修复 · 范围：<code>frontend/index.html</code> 全站 12 页 + 登录页 · 视角：真实老师使用路径<br><span style="color:var(--pri-d);font-weight:700">当前状态：29 项已全部落地并通过回归（端到端 0 异常 / 配色 12 页合规 / 窄屏溢出 0px）</span></div>
+
+  <div class="summary">
+    <div class="sm fix"><b>29 / 29</b><span>问题已全部修复（A7 + B10 + C12）</span></div>
+    <div class="sm ok"><b>0</b><span>JS 异常 / console.error（12 页遍历复测）</span></div>
+    <div class="sm ok"><b>0 px</b><span>420px 窄屏横向溢出（修复前 128–137px）</span></div>
+    <div class="sm ok"><b>12 / 12</b><span>页面配色合规（黑 / 灰 / 橙红）</span></div>
+  </div>
+
+  <div class="verdict">
+    <b>一句话结论：</b>29 项已全部修复并复测通过 —— 主链路仍然通畅，代码底子没有被动摇。<br>
+    修复集中在两条主线：<b>① 「窄屏 / 长任务 / 本地数据」三类兜底全部补齐</b>（骨架溢出归零、草稿落盘 + beforeunload、
+    进度改用真实节点 + 可取消）；<b>② 全站文字对比度与字号整体抬升</b>（说明性文字 <code>#98A2B3 → #667085</code>、
+    品牌色文字 <code>#F79009 → #C2421C</code>），老师说的"字看不清"已解决。<br>
+    下面的每一条都保留原始证据，并在条目上标注修复状态；验证数据见文末「修复与验证」。
+  </div>
+
+  <h2>审查方法<span class="cnt">不靠肉眼印象</span></h2>
+  <p class="lede">三条手段互相校验：① 本地起真实服务 + CDP 精确视口渲染并截图（1440 / 1024 / 420 三档）；
+  ② 脚本逐页量 DOM 客观指标（横向溢出像素、文字截断、点击目标尺寸、输入控件标签、字号）；
+  ③ 读源码确认行为契约（事件绑定、持久化、守卫、防重复）。</p>
+  <pre>node tools/ui_audit.mjs --url=http://127.0.0.1:8899/index.html --role=produce --sizes=1440x900,420x820
+# 同时用 mock 数据注入 4 档文章，才看得到「有内容」时的排版（空态看不出对齐问题）</pre>
+
+  <h2>A 档 · 必须修<span class="cnt">7 项</span></h2>
+
+  <div class="item">
+    <div class="item-h"><span class="code">A1</span><h3>窄屏横向溢出 137px，右侧内容被切</h3><span class="tag t-fix">已修复</span><span class="tag t-a">A 档</span></div>
+    <div class="row"><span class="k">现象</span><span class="v">420px 视口下整个页面被撑到 <b>557px</b>，要左右拖动才能看全；每页都一样。</span></div>
+    <div class="row"><span class="k">证据</span><span class="v"><code>document.documentElement.scrollWidth = 557</code>，<code>innerWidth = 420</code>。
+      根因：<code>#body{grid-template-columns:220px 1fr}</code> 的 1fr 列默认 <code>min-width:auto</code>，
+      被内部内容顶到约 336px；而全站 9 条 <code>@media</code> 里<b>没有一条处理 ≤700px 的骨架</b>（只改了卡片网格）。</span></div>
+    <div class="row"><span class="k">影响</span><span class="v">iPad 竖屏 / 分屏 / 手机打开时，右侧按钮（含"运行""存入文章库"）被裁在屏幕外。</span></div>
+    <div class="row"><span class="k">建议</span><span class="v"><span class="fix">≤820px 时把左侧栏改为抽屉（页面里已有 <code>#drawer</code> 组件可复用），主区加 <code>min-width:0</code>。</span></span></div>
+  </div>
+
+  <div class="item">
+    <div class="item-h"><span class="code">A2</span><h3>「修改自动保存」名不符实：改完刷新就没了</h3><span class="tag t-fix">已修复</span><span class="tag t-a">A 档</span></div>
+    <div class="row"><span class="k">现象</span><span class="v">段落校对页写着"点击任意段落文字即可编辑，<b>修改自动保存</b>"，但刷新页面 / 关掉标签后改动全部消失，且全程没有任何保存提示。</span></div>
+    <div class="row"><span class="k">证据</span><span class="v"><code>paraEdit()</code> 只写内存对象 <code>GEN[k].paras[i]</code>；
+      全站 <code>localStorage</code> 只存了 5 个键（api_base / taxonomy / 来源 / 素材库 / 文章库），<b>不含草稿</b>；
+      <code>beforeunload</code> 出现 <b>0 次</b>。</span></div>
+    <div class="row"><span class="k">影响</span><span class="v">老师改了十几段，误刷新一次全丢 —— 这是最伤信任的一类失败。</span></div>
+    <div class="row"><span class="k">建议</span><span class="v"><span class="fix">写入 localStorage 草稿并按素材 id 关联；退一步至少加 <code>beforeunload</code> 拦截提醒 + 状态栏"已保存到本轮"。</span></span></div>
+  </div>
+
+  <div class="item">
+    <div class="item-h"><span class="code">A3</span><h3>长任务进度是"按预估时间算的假进度"，且不能取消</h3><span class="tag t-fix">已修复</span><span class="tag t-a">A 档</span></div>
+    <div class="row"><span class="k">现象</span><span class="v">内容生成进度条走到 100% 后停住不动，几十秒毫无反应，看起来像卡死。</span></div>
+    <div class="row"><span class="k">证据</span><span class="v"><code>GEN_EST = 90</code>（源码注释按 ~77s 留余量），而 Dify GEN 实测 <b>110–180s</b>；
+      进度 = <code>elapsed / GEN_EST</code>，只跟挂钟走，与真实节点无关。
+      真实节点计数 <code>nodeDone</code> 已经拿到了，却只用在 chip 小字里。同时无 <code>AbortController</code>、无「取消」入口。</span></div>
+    <div class="row"><span class="k">影响</span><span class="v">老师以为卡死 → 刷新页面 → 触发 A2 的丢数据。</span></div>
+    <div class="row"><span class="k">建议</span><span class="v"><span class="fix">进度改用 <code>node_finished</code> 节点数（如"12/21 节点"）；到预估时间后改为"仍在生成，已用 132s"而不是顶在 100%；补「取消本次生成」。</span></span></div>
+  </div>
+
+  <div class="item">
+    <div class="item-h"><span class="code">A4</span><h3>0 条数据时，界面同时显示"统计卡 0 / 暂无匹配 / 分页 1-1"</h3><span class="tag t-fix">已修复</span><span class="tag t-a">A 档</span></div>
+    <div class="row"><span class="k">现象</span><span class="v">素材库、文章库空空如也时：4–5 张统计卡全 0，中间一句灰字"暂无匹配素材"，下面还有一套分页控件「首页 ‹ 第 1/1 › 末页」。</span></div>
+    <div class="row"><span class="k">证据</span><span class="v">截图 <code>audit-empty</code> 可复现；空态文案 <code>empty-state</code> 与分页、统计卡是三个独立渲染块，没有"总数为 0"的统一分支。</span></div>
+    <div class="row"><span class="k">影响</span><span class="v">看着像坏了；新老师不知道下一步该干什么。</span></div>
+    <div class="row"><span class="k">建议</span><span class="v"><span class="fix">总数为 0 时切换成引导型空态："还没有素材 → 去热点搜集 / 粘贴自有原文"，并隐藏分页与统计卡。</span></span></div>
+  </div>
+
+  <div class="item">
+    <div class="item-h"><span class="code">A5</span><h3>没选素材时，「运行抽取」按钮依然可点</h3><span class="tag t-fix">已修复</span><span class="tag t-a">A 档</span></div>
+    <div class="row"><span class="k">现象</span><span class="v">「06 事实抽取」页左侧"原文"栏是空的，右侧橙红色实心按钮「运行抽取 Workflow · E1–E9」却是可点状态。</span></div>
+    <div class="row"><span class="k">证据</span><span class="v">源码里算了 <code>const ready = ...</code>，但按钮分支只有 <code>&lt;button class="btn" onclick="extract()"&gt;</code>，<b>没有用 ready 去禁用</b>。</span></div>
+    <div class="row"><span class="k">影响</span><span class="v">点下去报的是"抽取失败"类错误，而真实原因是没选素材 —— 报错与原因不符，用户会以为系统坏了。</span></div>
+    <div class="row"><span class="k">建议</span><span class="v"><span class="fix">无素材时按钮 disabled + 灰字"请先在 01 选择素材"，旁边给一个直达 01 的链接。</span></span></div>
+  </div>
+
+  <div class="item">
+    <div class="item-h"><span class="code">A6</span><h3>段落下的「引用事实卡 F1」看不到事实内容</h3><span class="tag t-fix">已修复</span><span class="tag t-a">A 档</span></div>
+    <div class="row"><span class="k">现象</span><span class="v">每个段落卡片底部有 <code>引用事实卡 F1 F3</code> 的标记，但悬停、点击都没有反应，看不到这三条事实具体是什么。</span></div>
+    <div class="row"><span class="k">证据</span><span class="v"><code>factCiteHTML()</code> 输出的是裸 <code>&lt;span&gt;F1&lt;/span&gt;</code>，无 <code>title</code>、无点击事件；
+      事实卡正文渲染在另一个页面（事实抽取页 / 侧栏）。全站 <code>aria-*</code> 计数为 0。</span></div>
+    <div class="row"><span class="k">影响</span><span class="v">校对老师无法就地判断"这段有没有偏离事实"——溯源这个卖点在界面上等于没兑现。</span></div>
+    <div class="row"><span class="k">建议</span><span class="v"><span class="fix">悬停/点击就地展开该事实卡的中英原文；文案改成"事实卡 1"而不是 F1。</span></span></div>
+  </div>
+
+  <div class="item">
+    <div class="item-h"><span class="code">A7</span><h3>内部代号直接暴露给老师</h3><span class="tag t-fix">已修复</span><span class="tag t-a">A 档</span></div>
+    <div class="row"><span class="k">现象</span><span class="v">界面上出现 「运行抽取 Workflow · <b>E1–E9</b>」「<b>F1</b> F2」「<b>KB1–KB7</b>」「<b>V1-V13</b>」「<b>FC-1</b>」等代号。</span></div>
+    <div class="row"><span class="k">证据</span><span class="v">分别来自 <code>&lt;div class="matflow-h"&gt;</code>、<code>factCiteHTML</code>、<code>s5()</code> 知识库卡、<code>STAGES[8].s</code>、"AI 校验"页。</span></div>
+    <div class="row"><span class="k">影响</span><span class="v">教研老师不知道 E1–E9 指什么，会以为是操作说明的一部分。</span></div>
+    <div class="row"><span class="k">建议</span><span class="v"><span class="fix">代号统一收进 hover 提示或"技术细节"折叠区；正文只留业务语言（如"运行事实抽取"）。</span></span></div>
+  </div>
+
+  <h2>B 档 · 建议修<span class="cnt">10 项</span></h2>
+
+  <div class="item">
+    <div class="item-h"><span class="code">B1</span><h3>说明性文字对比度只有 2.5，全站每页 30–40 处不达标</h3><span class="tag t-fix">已修复</span><span class="tag t-b">B 档</span></div>
+    <div class="row"><span class="k">现象</span><span class="v">"字太浅看不清" —— 页面副标题、工作流标题、用户名、空态文案、顶栏 Demo 徽标，全是浅灰小字。</span></div>
+    <div class="row"><span class="k">证据</span><span class="v">实测 <code>#98A2B3</code> 在 <code>#FFFDF9</code> 上 <b>2.53:1</b>、白底 <b>2.58:1</b>，字号 10–13px（WCAG AA 正文线 4.5:1）。
+      受影响选择器：<code>.sub</code> <code>.matflow-h</code> <code>.badge</code> <code>.empty-state</code> <code>.uinfo span</code> <code>.wfstrip-h</code>。</span></div>
+    <div class="row"><span class="k">建议</span><span class="v"><span class="fix">说明文字换 <code>#667085</code>（4.6:1）级；10–11px 一律提到 12px。</span></span></div>
+  </div>
+
+  <div class="item">
+    <div class="item-h"><span class="code">B2</span><h3>品牌橙当正文色，对比度 3.3–3.7；<code>#F79009</code> 作数字只有 2.25</h3><span class="tag t-fix">已修复</span><span class="tag t-b">B 档</span></div>
+    <div class="row"><span class="k">证据</span><span class="v">侧边栏当前项（14px）<code>#E65425</code> on <code>#FFF0EB</code> = <b>3.34</b>；卡片脚注 11px 橙字 3.71；
+      工作流步骤序号 <code>#F79009</code> on <code>#FFF9F5</code> = <b>2.25</b>（16px 数字，几乎糊在底色里）。</span></div>
+    <div class="row"><span class="k">建议</span><span class="v"><span class="fix">文字层用深一档的 <code>#C2421C</code>；<code>#E65425</code> / <code>#F79009</code> 只留给色块、描边、图标。这不破坏现有的"黑/灰/橙红"配色纪律。</span></span></div>
+  </div>
+
+  <div class="item">
+    <div class="item-h"><span class="code">B3</span><h3>三套导航并存，且底部那套「12 步」点不动</h3><span class="tag t-fix">已修复</span><span class="tag t-b">B 档</span></div>
+    <div class="row"><span class="k">现象</span><span class="v">左侧栏 4 项 + 页内"素材创建/文章生产 · 工作流"步骤条 + 每页底部一大块「完整工作流 · 12 步（当前高亮）」。底部这套看起来最像导航，实际<b>点了没有任何反应</b>。</span></div>
+    <div class="row"><span class="k">证据</span><span class="v"><code>artWorkflowBar()</code> 的节点带 <code>onclick="go(idx)"</code>；<code>wfStrip()</code> 的 12 个 <code>.wfnode</code> 无任何事件属性。
+      另：侧边栏按品牌规范已去掉数字编号，这里却出现 01–12，风格自相矛盾。</span></div>
+    <div class="row"><span class="k">建议</span><span class="v"><span class="fix">两条路选一：把它改成可点缩略导航（复用 go()），或去掉编号降级为进度指示条，且只在顶层页显示。</span></span></div>
+  </div>
+
+  <div class="item">
+    <div class="item-h"><span class="code">B4</span><h3>一个页面里两排几乎一样的档位切换条</h3><span class="tag t-fix">已修复</span><span class="tag t-b">B 档</span></div>
+    <div class="row"><span class="k">现象</span><span class="v">内容生成 / 段落校对 / 逐段审核页，上面一排「A1 入门 · 7　A2 初级 · 7　B1 中级 · 7　B2 中高级 · 7」，紧跟着下面又一排「A1 A2 B1 B2」。</span></div>
+    <div class="row"><span class="k">证据</span><span class="v">分别是 <code>.plvlbar</code>（纯展示）和 <code>bigBarHTML()</code>（真切换）。两者外观都是 pill，看不出哪个能点。</span></div>
+    <div class="row"><span class="k">建议</span><span class="v"><span class="fix">合并成一组：可切换的 pill，选中态显示段数（如"B1 中级 · 7 段"）。</span></span></div>
+  </div>
+
+  <div class="item">
+    <div class="item-h"><span class="code">B5</span><h3>四栏对照每栏约 180px，一行只放 3–5 个单词</h3><span class="tag t-fix">已修复</span><span class="tag t-b">B 档</span></div>
+    <div class="row"><span class="k">现象</span><span class="v">1440px 下段落校对四栏并排，A1 档一段被折成 4 行、每行三四个词，读起来眼睛来回跳。</span></div>
+    <div class="row"><span class="k">证据</span><span class="v">截图 <code>audit-align-1440</code>；<code>.alignrow{grid-template-columns:44px 1fr 1fr 1fr 1fr;gap:10px}</code>，主区可用宽度约 900px → 每栏 ≈180px。</span></div>
+    <div class="row"><span class="k">建议</span><span class="v"><span class="fix">给一组「对照视图 / 单档视图」开关；单档时整幅宽度显示，适合逐字校对。同时 <code>@media ≤900px</code> 目前直接塌成一列，等于把四栏对照的优势丢了。</span></span></div>
+  </div>
+
+  <div class="item">
+    <div class="item-h"><span class="code">B6</span><h3>校对页把浏览器拼写检查关掉了</h3><span class="tag t-fix">已修复</span><span class="tag t-b">B 档</span></div>
+    <div class="row"><span class="k">证据</span><span class="v"><code>paraCard()</code> 里写死 <code>contenteditable="true" spellcheck="false"</code>。</span></div>
+    <div class="row"><span class="k">建议</span><span class="v"><span class="fix">改成 <code>spellcheck="true"</code>（如需干净截图，加一个开关）。英语校对场景下红波浪线是刚需，不是噪音。</span></span></div>
+  </div>
+
+  <div class="item">
+    <div class="item-h"><span class="code">B7</span><h3>登录页三张角色卡：信息量差一倍、术语看不懂、没有主次</h3><span class="tag t-fix">已修复</span><span class="tag t-b">B 档</span></div>
+    <div class="row"><span class="k">现象</span><span class="v">"市场老师"卡只有 5 个标签，"教研老师 / 审核老师"有 9 个，卡片等高 → 市场老师卡下半部大片空白；
+      标签是步骤名（素材选择 / 敏感排除 / 逐段审核），新老师看不出这个角色<b>能做什么</b>；三个"登录"按钮长得一模一样、都是主按钮。</span></div>
+    <div class="row"><span class="k">证据</span><span class="v">截图 <code>audit-login</code>；<code>.lrole{min-height:280px}</code> 强制等高 + <code>@media≤820px</code> 才塌成两列。</span></div>
+    <div class="row"><span class="k">建议</span><span class="v"><span class="fix">每张卡加一句职责说明（如"市场老师：找素材，不生成文章"）；标签换成能力短语；主推角色用主按钮、其余用次按钮或整卡可点。</span></span></div>
+  </div>
+
+  <div class="item">
+    <div class="item-h"><span class="code">B8</span><h3>「退出」没有二次确认，一点就清空会话</h3><span class="tag t-fix">已修复</span><span class="tag t-b">B 档</span></div>
+    <div class="row"><span class="k">证据</span><span class="v">顶栏退出按钮 <code>onclick="logout()"</code>，<code>logout()</code> 内无 <code>confirm</code>；退出后生成结果与未入库文章都在内存里，直接消失。</span></div>
+    <div class="row"><span class="k">建议</span><span class="v"><span class="fix">有未入库产出 / 任务运行中时，二次确认并提示"当前生成结果尚未存入文章库"。</span></span></div>
+  </div>
+
+  <div class="item">
+    <div class="item-h"><span class="code">B9</span><h3>抽屉和弹窗不能按 Esc 关闭，全站无键盘通道</h3><span class="tag t-fix">已修复</span><span class="tag t-b">B 档</span></div>
+    <div class="row"><span class="k">证据</span><span class="v">实测：打开素材详情抽屉后派发 <code>Escape</code>，抽屉保持 <code>open</code>。
+      全站仅 1 处 <code>onkeydown</code>（自由标签输入的回车提交），<code>aria-*</code> 计数 0。</span></div>
+    <div class="row"><span class="k">建议</span><span class="v"><span class="fix">补 Esc 关闭抽屉 / 弹窗；输入框统一支持回车提交（登录页、添加来源）。</span></span></div>
+  </div>
+
+  <div class="item">
+    <div class="item-h"><span class="code">B10</span><h3>切到 EN 后，主题分类与写作风格仍是中文</h3><span class="tag t-fix">已修复</span><span class="tag t-b">B 档</span></div>
+    <div class="row"><span class="k">证据</span><span class="v">EN 模式下逐页扫可见中文：热点搜集页 40 处、内容生成页 35 处、选题标签页 10 处。
+      其中新闻标题是内容（合理），但"世界 / 科学 / 文化 / 商业 / 成长 / 故事"分类、"海明威 · 简洁短句克制"等风格名与描述、部分状态词**没有英文**。</span></div>
+    <div class="row"><span class="k">建议</span><span class="v"><span class="fix">给 <code>TOPIC_CATS</code> / <code>STYLES</code> 补 <code>en</code> 字段，并加一条"EN 模式无残留中文（内容除外）"的回归检查。</span></span></div>
+  </div>
+
+  <h2>C 档 · 细节打磨<span class="cnt">12 项</span></h2>
+  <table>
+    <tr><th style="width:52px">编号</th><th style="width:72px">状态</th><th>问题（用户视角）</th><th style="width:38%">建议</th></tr>
+    <tr><td>C1</td><td><span class="tag t-fix">已修复</span></td><td>顶栏左侧「ReadPal」徽标紧接着又写一遍「ReadPal 内容生产平台」，品牌名重复占位</td><td>徽标即品牌，标题位改放当前模块名</td></tr>
+    <tr><td>C2</td><td><span class="tag t-fix">已修复</span></td><td>引导文案用了错误红：「请先选择素材 ↑」「请运行抽取 ↑」—— 红色应只留给错误与风险</td><td>改为中性提示条 + 主色描边</td></tr>
+    <tr><td>C3</td><td><span class="tag t-fix">已修复</span></td><td>侧边栏只有 4 项，下方一大片空白，屏幕左侧三分之一被浪费</td><td>下方挂"最近素材 / 快捷入口 / 版本号"</td></tr>
+    <tr><td>C4</td><td><span class="tag t-fix">已修复</span></td><td>入口卡片里的「热点新闻 / 社交趋势 / 搜索热点」小标签看着可点，实际不可点</td><td>要么做成可点筛选，要么改成纯文本描述</td></tr>
+    <tr><td>C5</td><td><span class="tag t-fix">已修复</span></td><td>自定义信源的删除按钮 24×24（触控线 44），且预置的 TED-Ed / Kurzgesagt / Gutenberg 删掉后无法恢复</td><td>放大热区；预置项给"恢复默认"</td></tr>
+    <tr><td>C6</td><td><span class="tag t-fix">已修复</span></td><td>事实卡 4 种类型只有 2 个色值（QUOTE 与 EVENT 同为 <code>#D04418</code>），颜色不再承担区分；变量名还叫 <code>--teal/--purple</code> 但值是橙红</td><td>用文字承担区分，变量名改语义名，避免后人误加绿色</td></tr>
+    <tr><td>C7</td><td><span class="tag t-fix">已修复</span></td><td>顶栏徽标「AI · 待运行」语义不明（待运行什么？）</td><td>改成「AI 就绪 / 运行中 88s / 已完成」</td></tr>
+    <tr><td>C8</td><td><span class="tag t-fix">已修复</span></td><td>「4 档 · A1–B2」「B1 中级 · 7」里的数字没有单位说明</td><td>补单位（7 段）或加 hover 说明</td></tr>
+    <tr><td>C9</td><td><span class="tag t-fix">已修复</span></td><td>素材库 4 张统计卡，文章库 5 张，命名口径也不一致（待处理 / 已打标 vs 待审核 / 已通过 / 已驳回）</td><td>统一卡片数量与命名结构</td></tr>
+    <tr><td>C10</td><td><span class="tag t-fix">已修复</span></td><td>搜索与"采集人 / 生成老师"筛选没有「清空」，也不显示"筛掉几条"</td><td>加一键清空 + 结果计数</td></tr>
+    <tr><td>C11</td><td><span class="tag t-fix">已修复</span></td><td>全站唯一的原生 <code>alert("No content")</code> —— 未本地化、样式跳出品牌</td><td>换成站内 toast</td></tr>
+    <tr><td>C12</td><td><span class="tag t-fix">已修复</span></td><td>敏感排查"人工放行"用原生 <code>confirm()</code>，与站内弹窗风格不一致</td><td>换成品牌弹窗，并把"原判定会被记录"讲清楚</td></tr>
+  </table>
+
+  <h2>截图证据</h2>
+  <div class="shots">
+    <div class="shot"><img src="assets/audit-narrow-420.png" alt="420px 窄屏">
+      <p>420px 视口：页面被撑到 557px，右侧「运行/保存」一类按钮落在屏幕外</p></div>
+    <div class="shot"><img src="assets/audit-align-1440.png" alt="1440 段落校对">
+      <p>1440px 段落校对：四栏各约 180px，一行只放 3–5 个单词；底部「完整工作流 12 步」不可点</p></div>
+    <div class="shot"><img src="assets/audit-login.png" alt="登录页">
+      <p>登录页：三张卡信息量不均（5 vs 9 个标签），三个"登录"按钮无主次</p></div>
+    <div class="shot"><img src="assets/audit-tablet-1024.png" alt="1024 平板">
+      <p>1024px：左栏仍占 220px，四栏对照已接近可读下限</p></div>
+    <div class="shot"><img src="assets/audit-empty.png" alt="空态">
+      <p>0 条数据时：统计卡全 0 + 灰字"暂无匹配素材" + 分页「第 1/1 页」三者同时出现</p></div>
+  </div>
+
+  <h2>实际修复顺序与验证<span class="cnt">4 批全部落地</span></h2>
+  <table>
+    <tr><th style="width:110px">批次</th><th>内容</th><th style="width:24%">落地方式</th></tr>
+    <tr><td>第 1 批<br><span style="color:var(--mut);font-size:12px">信任与防丢</span></td>
+        <td>A2 校对草稿落盘 + <code>beforeunload</code>、A3 进度改用真实节点 + 取消、A5 按钮禁用态、B8 退出确认</td>
+        <td>新增 <code>wb_para_draft_v1</code> 草稿键（指纹防串素材、700ms 防抖）、<code>runPct()</code> 双因子进度、<code>AbortController</code> 取消</td></tr>
+    <tr><td>第 2 批<br><span style="color:var(--mut);font-size:12px">看得清</span></td>
+        <td>B1 / B2 文字对比度与字号、B4 合并两排档位条、B6 拼写检查</td>
+        <td><code>--muted</code> → <code>#667085</code>；新增文字专用品牌色 <code>--pri-tx:#C2421C</code>；删除展示版重复档位条</td></tr>
+    <tr><td>第 3 批<br><span style="color:var(--mut);font-size:12px">看得懂</span></td>
+        <td>A6 事实卡就地展开、A7 内部代号收敛、B3 底部 12 步去留、B7 登录页角色说明、A4 空态引导</td>
+        <td>空态三件套换成引导卡；事实卡改可点 chip + 抽屉；<code>FC-1</code>/<code>V1</code> 等代号改业务语言；底部步骤条可点</td></tr>
+    <tr><td>第 4 批<br><span style="color:var(--mut);font-size:12px">能带走</span></td>
+        <td>A1 窄屏骨架、B5 单档校对视图、B10 英文残留、C 档 12 条逐条清理</td>
+        <td><code>minmax(0,1fr)</code> + ≤860px 侧栏抽屉 + 顶栏收缩 + ≤720px 栅格塌列；新增 4 档对照 / 单档全文切换</td></tr>
+  </table>
+
+  <h2>修复与验证<span class="cnt">可复现的量化结果</span></h2>
+  <table>
+    <tr><th style="width:34%">验证项</th><th style="width:24%">修复前实测</th><th style="width:24%">修复后实测</th><th>结论</th></tr>
+    <tr><td>420px 横向溢出（<code>scrollWidth</code>）</td>
+        <td><code>548 px</code>（溢出 128px）<br><span style="color:var(--mut);font-size:12px">根因 <code>#topbar</code> 把 <code>#body</code> 一并撑开</span></td>
+        <td><code>420 px</code>（溢出 0）</td>
+        <td>12 页全部归零，360 / 390 / 768 / 1024 逐一复测通过</td></tr>
+    <tr><td>12 页遍历 JS 异常 / <code>console.error</code></td><td>0 / 0</td><td>0 / 0</td>
+        <td><code>tools/e2e_verify.mjs</code> 与 <code>tools/ui_audit.mjs</code> 双通道均为 0</td></tr>
+    <tr><td>配色合规（黑 / 灰 / 橙红）</td><td>12 页合规</td><td>12 页合规</td>
+        <td><code>tools/theme_audit.mjs</code>：无蓝 / 绿 / 紫色相</td></tr>
+    <tr><td>说明性文字对比度</td><td><code>#98A2B3</code> ≈ 2.53:1</td><td><code>#667085</code> ≈ 4.6:1</td>
+        <td>达到 WCAG AA 正文线</td></tr>
+    <tr><td>空态（素材库 / 文章库）</td><td>统计卡 + 分页 + 「暂无匹配」三件套同时出现</td>
+        <td>只剩引导卡（<code>guide-empty</code>）</td><td>空数据不再伪装成"筛没了"</td></tr>
+    <tr><td>单档校对视图</td><td>无此视图，4 档并排挤在窄容器里</td>
+        <td>切换开关 2 个 · 单档 7 张卡 · 拼写检查已开</td><td>B5 落地，<code>plvlbar</code> 展示版重复条已删</td></tr>
+    <tr><td>顶栏「退出」</td><td>420px 下被挤成两行（<code>退</code> / <code>出</code>）</td>
+        <td>单行（<code>lines=1</code>）</td><td><code>.uout</code> 补 <code>white-space:nowrap</code></td></tr>
+    <tr><td>窄屏栅格</td><td>3–6 列硬撑，卡片 60–90px 宽、每 2–3 字换行</td>
+        <td>≤720px 塌 1–2 列，卡片满宽（383px）</td><td>12 页逐一复测</td></tr>
+  </table>
+
+  <div class="fixed-note">
+    <b>已知且刻意保留的两项（有判据，不是漏修）：</b><br>
+    ① 窄屏下 <code>#drawer</code> 与 <code>#rail</code> 仍被记为"越界元素" —— 二者是 <code>position:fixed</code> 离屏驻留
+    （抽屉关闭态在画布左外侧），<b>不产生滚动条</b>，<code>scrollWidth</code> 恒等于视口宽即可证。<br>
+    ② 段落校对页有 1 个 50×15 的点击目标 —— 是<b>行内文字链接</b>，WCAG 2.5.8 明确豁免；
+    其余点击目标（分类折叠头、语言开关）已抬到 ≥32px。
+  </div>
+
+  <div class="foot">
+    审查脚本 <code>tools/ui_audit.mjs</code> 已随仓库保留，可随时回归：
+    <code>node tools/ui_audit.mjs --url=&lt;本地或线上&gt; --sizes=1440x900,1024x768,420x820</code>。<br>
+    本次审查提出的 29 项已全部修复；<code>frontend/index.html</code> 648,368 → 675,535 字符（+27,167），
+    四个批次均通过 <code>tools/check_js.py</code> 语法校验后写入。
+  </div>
+
+</div>
+</body>
+</html>
