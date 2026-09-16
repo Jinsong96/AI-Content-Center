@@ -2273,6 +2273,44 @@ function resetTags(){
 const AIWF = { apiBase: "https://api.dify.ai/v1", appKey: (window.WB_CFG && window.WB_CFG.DIFY_WF_MAIN) || "", user: "frontend-demo" };
 const AIWF_GEN = { apiBase: "https://api.dify.ai/v1", appKey: (window.WB_CFG && window.WB_CFG.DIFY_WF_GEN) || "", user: "frontend-demo" };  /* 生成专用工作流：换风格只重跑生成 */
 const AIWF_FACT = { apiBase: "https://api.dify.ai/v1", appKey: (window.WB_CFG && window.WB_CFG.DIFY_WF_FACT) || "", user: "frontend-demo" };  /* 事实抽取专用：只抽事实+敏感+分级，不生成文章（~5-10s） */
+/* 统一 Dify 工作流调用：优先走桥接层同源代理（/api/dify/workflows/run，稳定，绕开浏览器直连
+   api.dify.ai 的 UA/频率风控与网络抖动——直连会偶发 fetch 报 "Failed to fetch"），
+   代理不可达或失败时回退直连公网。返回 Dify 原始 JSON（data.data.status / code 结构不变）。 */
+async function difyCall(wf, inputs, user, signal){
+  const cfg = (wf === "fact") ? AIWF_FACT : (wf === "gen" ? AIWF_GEN : AIWF);
+  const envName = (wf === "fact") ? "DIFY_WF_FACT" : (wf === "gen" ? "DIFY_WF_GEN" : "DIFY_WF_MAIN");
+  /* 1) 桥接层同源代理（本地 8787 / 线上 Railway 同源） */
+  try {
+    const r = await fetch(AGENT_REACH_API + "/api/dify/workflows/run", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ wf: wf, inputs: inputs, response_mode: "blocking", user: user }),
+      signal: signal,
+    });
+    const j = await r.json();
+    if(j && j.ok === false){
+      if(/missing upstream api key/i.test(j.error || "")){
+        throw new Error(L("服务端未配置 " + envName + " 密钥，请在部署平台（Railway → Variables）填入后重新部署。","Server missing " + envName + " key — add it in Railway → Variables and redeploy."));
+      }
+      return { code: "upstream_error", message: (j.error || "upstream error") + (j.detail ? " · " + String(j.detail).slice(0,200) : "") };
+    }
+    if(j && (j.data || j.code)) return j;   /* Dify 原始结构 */
+  } catch(e){
+    if(e && e.name === "AbortError") throw e;   /* 取消：原样抛给上层 */
+    console.warn("[ReadPal] 桥接层代理不可用，回退直连 Dify：", e && e.message);
+  }
+  /* 2) 直连兜底（需前端持有密钥） */
+  if(!cfg.appKey){
+    throw new Error(L("AI 未运行：既无桥接层、又缺 " + envName + " 密钥。请启动 backend/agent_reach_bridge.py，或在 Railway → Variables 填入密钥后重新部署。","AI not running: no bridge and no " + envName + " key. Start backend/agent_reach_bridge.py, or add the key in Railway → Variables."));
+  }
+  const r2 = await fetch(cfg.apiBase + "/workflows/run", {
+    method: "POST",
+    headers: { "Authorization": "Bearer " + cfg.appKey, "Content-Type": "application/json" },
+    body: JSON.stringify({ inputs: inputs, response_mode: "blocking", user: user }),
+    signal: signal,
+  });
+  return await r2.json();
+}
 
 /* 启动自检：密钥缺失时一次性列清，避免只看到 Dify/SiliconFlow 的英文报错不知所云 */
 (function(){
@@ -2463,17 +2501,8 @@ async function startLiveRun(material, label, book, override){
        也会把分级往偏好上带；省略该键 → nodeGrade 自行判区间，这才是设计意图。 */
     const wfInputs = { material: material.slice(0, 4800), style: state.style || "default" };
     if(override) wfInputs.override_sensitive = "true";   /* 人工放行：跳过敏感闸门，仍保留 AI 原判定留痕 */
-    if(!AIWF_FACT.appKey) throw new Error(L(
-      "AI 未运行：服务端未配置 DIFY_WF_FACT 密钥。请在部署平台（Railway → Variables）填入后重新部署。",
-      "AI not running: DIFY_WF_FACT key missing on server. Add it in Railway → Variables and redeploy."));
-    _runAbort = new AbortController();
-    const resp = await fetch(AIWF_FACT.apiBase + "/workflows/run", {
-      method: "POST",
-      headers: { "Authorization": "Bearer " + AIWF_FACT.appKey, "Content-Type": "application/json" },
-      body: JSON.stringify({ inputs: wfInputs, response_mode: "blocking", user: AIWF_FACT.user }),
-      signal: _runAbort.signal,
-    });
-    const data = await resp.json();
+        _runAbort = new AbortController();
+    const data = await difyCall("fact", wfInputs, AIWF_FACT.user, _runAbort.signal);
     const stt = data && data.data && data.data.status;
     if(stt === "succeeded" || (data && data.data && data.data.outputs)){
       state.live.run = data; state.live.status = "done";
@@ -2545,28 +2574,8 @@ async function runGeneration(){
     /* level 必须转成点式（A1.1 / B2+.1）——start.level 是 select，枚举值是点式；
        而 state.lvl 是内部下划线键（A1_1）。nkDisp 幂等，点式/下划线都能吃。 */
     const wfInputs = { summary: fc.summary, facts_text: fc.facts_text, angle: fc.angle, level: nkDisp(fc.level || state.lvl), style: state.style || "default", gist: fc.gist || "", facts_raw: fc.facts_raw || "" };
-    if(!AIWF_GEN.appKey) throw new Error(L(
-      "AI 未运行：服务端未配置 DIFY_WF_GEN 密钥。请在部署平台（Railway → Variables）填入后重新部署。",
-      "AI not running: DIFY_WF_GEN key missing on server. Add it in Railway → Variables and redeploy."));
-    /* 用流式（SSE）而不是 blocking —— Dify 网关对 blocking 约 120s 硬超时，
-       4 档生成实测 77s 已贴近该阈值（更早的渠道 145s 时实测直接 504 静默失败）。
-       流式既避开超时，又能顺带给出逐节点进度。 */
-    _runAbort = new AbortController();
-    const _abortSignal = _runAbort.signal;
-    const resp = await fetch(AIWF_GEN.apiBase + "/workflows/run", {
-      method: "POST",
-      headers: { "Authorization": "Bearer " + AIWF_GEN.appKey, "Content-Type": "application/json" },
-      body: JSON.stringify({ inputs: wfInputs, response_mode: "blocking", user: AIWF_GEN.user }),
-      signal: _abortSignal,
-    });
-    if(!resp.ok){
-      let emsg = "HTTP " + resp.status;
-      try { const et = await resp.text(); if(et) emsg += " · " + et.slice(0, 300); } catch(e2) {}
-      throw new Error(emsg);
-    }
-    /* blocking 一次性返回完整 JSON：规避浏览器直连 Dify 的流式长连接在网络不稳时被中断（network error）。
-       实测 GEN ~50s，远低于 blocking 的 120s 网关上限。进度由 setInterval 按挂钟估算。 */
-    const data = await resp.json();
+        _runAbort = new AbortController();
+    const data = await difyCall("gen", wfInputs, AIWF_GEN.user, _runAbort.signal);
     _runAbort = null;
     const stt = data && data.data && data.data.status;
     if(stt === "succeeded" || (data && data.data && data.data.outputs)){
@@ -3868,11 +3877,9 @@ function s1(){
     ${Object.keys(DIRS).map(k=>`<button class="tchip ${state.hotTheme===k?"sel":""}" onclick="setHotTheme('${k}')">${L(DIRS[k].zh,DIRS[k].en)}</button>`).join("")}
   </div>
   ${!Object.keys(DIRS).length ? `<div class="degraded" style="margin:10px 0 2px"><div class="dgb-h"> ${L("标签词表未加载（后端桥接未启动），无法按主题筛选","Taxonomy not loaded (backend bridge down) — theme filtering unavailable")}</div></div>` : ""}
-  <div class="themescan ${state.hotTheme?"on":""}"><span class="pulse"></span>${state.hotTheme
+  ${(state.hotTheme || state.bridgeOk === false) ? `<div class="themescan ${state.hotTheme?"on":""}"><span class="pulse"></span>${state.hotTheme
     ? L("Agent-Reach 已针对「"+DIRS[state.hotTheme].zh+"」主题定制扫描，下方为该主题相关热点","Agent-Reach customized the scan for theme 「"+DIRS[state.hotTheme].en+"」 — matching topics below")
-    : (state.bridgeOk === false
-        ? L("未检测到后端桥接 · 当前为内置演示热点（本机运行 python3 backend/agent_reach_bridge.py 即可真实抓取）"," Backend bridge not detected · showing built-in demo topics (run python3 backend/agent_reach_bridge.py locally to enable live fetch)")
-        : L("Agent-Reach 全主题扫描中 · 选择上方主题即可定制搜索","Agent-Reach scanning all themes · pick a theme above to customize"))}</div>
+    : L("未检测到后端桥接 · 当前为内置演示热点（本机运行 python3 backend/agent_reach_bridge.py 即可真实抓取）"," Backend bridge not detected · showing built-in demo topics (run python3 backend/agent_reach_bridge.py locally to enable live fetch)")}</div>` : ""}
   ${degradedBannerHTML()}
   <div class="srccfg">
     <div class="srccfg-head">
