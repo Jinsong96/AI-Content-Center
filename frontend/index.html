@@ -1914,50 +1914,6 @@ function guideCardHTML(){
 
 let VALS = [];
 
-/* 身份记录：基于当前选中素材动态生成（不再是固定 EV 演示数据） */
-function identityRecord(){
-  const h = curHot();
-  const tg = curTags();
-  const facts = curFacts();
-  const label = curMaterialLabel();
-  const source = curMaterialSource();
-  const url = curMaterialUrl();
-  const contentId = h
-    ? "ART-" + (h.date||"20260821").replace(/-/g,"") + "-" + String(h.rank).padStart(4,"0")
-    : "ART-20260821-0057";
-  const chain = [
-    {zh: (h?("热点 "+h.cn):(label||"授权素材")), en: (h?("Trend: "+h.topic):(label||"material"))},
-    {zh: (url?("原文链接"):("素材原文")), en: (url?"Source link":"Source text")},
-    {zh: "事实卡 ×"+facts.length, en: facts.length+" fact cards"},
-    {zh: "生成稿 "+nkDisp(state.lvl), en: "Draft "+nkDisp(state.lvl)},
-    {zh: "审核 · 教研", en: "Reviewer: teaching staff"},
-    {zh: "文章库", en: "Article bank"},
-  ];
-  const cells = [
-    ["Model / Prompt","qwen-max · GEN-v1.4"],
-    ["KB Snapshot","KB-2026.08.1"],
-    [L("事实卡","Fact cards"), L("共 ","") + facts.length + L(" 张"," cards")],
-    ["Generated", (h?h.date:"2026-08-21") + " 09:42"],
-  ];
-  const tg0 = curTags();
-  const contentLabel = (tg0.content || []).map(t => t.catZh + " · " + t.tag).join("、") || L("未选择","Not selected");
-  const contentLabelEn = (tg0.content || []).map(t => t.catEn + " · " + t.tagEn).join(", ") || "Not selected";
-  const freeLabel = (tg0.free || []).join("、") || L("无","none");
-  const freeLabelEn = (tg0.free || []).join(", ") || "none";
-  const tags = [
-    {k:{zh:"内容标签",en:"Content tags"}, v:{zh:contentLabel, en:contentLabelEn}},
-    {k:{zh:"自由标签",en:"Free tags"}, v:{zh:freeLabel, en:freeLabelEn}},
-    {k:{zh:"认知标签",en:"Cognitive tag"}, v:{zh:tg0.cognitive, en:({ "全年龄":"All ages","青少年向":"Teen","成人向":"Adult" })[tg0.cognitive] || tg0.cognitive}},
-    {k:{zh:"文章角度",en:"Article angle"}, v:{zh:tg.angle, en:tg.angleEn}},
-    {k:{zh:"格式 / 类型",en:"Format / type"}, v:{zh:tg.fmt, en:tg.fmtEn}},
-    {k:{zh:"语气",en:"Tone"}, v:{zh:"中性介绍",en:"Neutral informative"}},
-    {k:{zh:"保鲜期",en:"Shelf life"}, v:{zh:"fresh-now（热点时效 2 周）",en:"fresh-now (2-week window)"}},
-    {k:{zh:"工作流状态",en:"Workflow status"}, v:{zh:"待审核 → 已批准",en:"in review → approved"}},
-    {k:{zh:"发布适用性",en:"Release suitability"}, v:{zh:"flexible 槽位（备选 reserve）",en:"flexible slot (reserve backup)"}},
-    {k:{zh:"新鲜度备注",en:"Freshness notes"}, v:{zh:"无重叠冲突；60 天后需复核",en:"No overlap; recheck after 60 days"}},
-  ];
-  return { contentId, chain, cells, tags };
-}
 
 const KPIS = [
   [{zh:"周产能",en:"Weekly output"},{zh:"100+ 篇",en:"100+ / week"}],
@@ -4534,7 +4490,7 @@ function s5(){
     <div class="kbitem"><div class="n">KB5</div><h5>${L("敏感规范库","Sensitivity rules")}</h5><p>S0–S3</p></div>
   </div>
   <div class="lvlpick">${BIG_GROUPS.map(g=>`<div class="lvl ${curBig()===g.big?"sel":""}" onclick="setBig('${g.big}')"><b>${nkDisp(g.big)}</b><span>${L(g.zh,g.en)}</span></div>`).join("")}</div>
-    <div class="specgrid"><div class="specgrid">
+    <div class="specgrid">
     <div class="spec"><h6>${L("词汇 VOCABULARY","VOCABULARY")}</h6><div class="row"><span>${L("词表范围","Wordlist")}</span><b>${L(sp.words,sp.en.words)}</b></div><div class="row"><span>${L("生词表词条","Vocabulary items")}</span><b>${L(sp.gloss,sp.en.gloss)}</b></div><div class="row"><span>${L("超纲词上限","Off-list cap")}</span><b>${offCap(state.lvl)}</b></div></div>
     <div class="spec"><h6>${L("句法 SYNTAX","SYNTAX")}</h6><div class="row"><span>${L("平均句长","Avg sentence")}</span><b>${L(sp.avg,sp.en.avg)}</b></div><div class="row"><span>${L("最长句","Max sentence")}</span><b>${L(sp.max,sp.en.max)}</b></div><div class="row"><span>${L("从句限制","Clauses")}</span><b style="font-size:10.5px">${L(sp.clauses,sp.en.clauses)}</b></div></div>
     <div class="spec"><h6>${L("文本 TEXT","TEXT")}</h6><div class="row"><span>${L("时态范围","Tenses")}</span><b style="font-size:10.5px">${L(sp.tense,sp.en.tense)}</b></div><div class="row"><span>${L("蓝思值区间","Lexile band")}</span><b>${L(sp.lex,sp.en.lex)}</b></div><div class="row"><span>${L("正文篇幅","Length")}</span><b>${L(sp.len,sp.en.len)}</b></div></div>
@@ -4695,12 +4651,11 @@ function typewriter(){
 
 /* ---------- Stage 8 ---------- */
 function s7(){
-  return head("09", L("AI 校验与身份记录","Validation & Identity")) +
+  return head("09", L("AI 校验","AI Validation")) +
     artWorkflowBar() +
   `<div class="validate"><div id="vcol"></div><div id="vcol2"></div></div>
   <div id="vsum"></div>
-  <div id="videntity"></div>
-  ${state.validated ? nextBtn("提交人工审核","Submit to review") : `<div class="nextbar"><div></div><button class="btn sec" onclick="runValidate()">${L("查看校验结果","View validation")} · 8×4</button></div>`}` + wfStrip();
+  ${nextBtn("提交人工审核","Submit to review")}` + wfStrip();
 }
 let validating = false;
 function runValidate(){
@@ -4725,7 +4680,7 @@ function runValidate(){
   });
   setTimeout(()=>{
     validating = false;
-    showVSum(); showIdentity();
+    showVSum();
     /* swap the bottom bar to the "submit to review" button */
     const nb = $("#stage .nextbar");
     if(nb){
@@ -4748,27 +4703,6 @@ function showVSum(){
   s.innerHTML=`<div class="big">${big}</div><div class="txt">${txt}</div>`;
   s.style.animation="pop .5s both";
   s.scrollIntoView({behavior:"smooth",block:"nearest"});
-}
-function showIdentity(){
-  const ID = identityRecord();
-  const box=$("#videntity");
-  box.innerHTML=`<div class="idcard">
-    <div class="idhead"><h4>${L("身份记录 · Identity Record","Identity Record")}</h4><span class="cid">${ID.contentId}</span><span class="aibadge">${L("AI 生成内容标识","AI-GENERATED")}</span></div>
-    <div class="idcols">
-      <div class="idcol">
-        <div class="idcol-h">${L("① 合规溯源（对内对外）","① Compliance provenance")}</div>
-        <div class="chain">${ID.chain.map((c,i)=>`<span class="cnode">${L(c.zh,c.en)}</span>${i<ID.chain.length-1?'<span class="carrow">→</span>':""}`).join("")}</div>
-        <div class="idrow">${ID.cells.map(c=>`<div class="idcell"><div class="k">${c[0]}</div><div class="v">${c[1]}</div></div>`).join("")}</div>
-        <div class="idnote">${L("标识依据《生成式人工智能服务管理暂行办法》等内容标识要求：客户端展示 AI 生成标识；溯源链支持事后审计与错误回滚（事实卡证伪 → usage_log 反查 → 48h 修订）。","Per AI-content labeling regulations: the client displays an AI-generated badge; the provenance chain supports post-hoc audit and rollback (falsified fact → usage_log lookup → 48h fix).")}</div>
-      </div>
-      <div class="idcol">
-        <div class="idcol-h">${L("② 编辑标签（Content ID · 供文章库消费）","② Editorial tags (Content ID · for the article bank)")}</div>
-        <div class="tagrows">${ID.tags.map(t=>`<div class="tagrow"><span class="tk">${L(t.k.zh,t.k.en)}</span><span class="tv">${L(t.v.zh,t.v.en)}</span></div>`).join("")}</div>
-        <div class="idnote">${L("这组标签随文章一并入库，文章库据此完成库存图归类、冷却比对与槽位匹配——入库即打标，不依赖人工记忆。","These tags travel with the article into the bank, feeding the bank map, cooldown checks and slot matching — tagged on intake, never from memory.")}</div>
-      </div>
-    </div>
-  </div>`;
-  box.scrollIntoView({behavior:"smooth",block:"nearest"});
 }
 
 /* ---------- Stage 9 ---------- */
@@ -6239,14 +6173,14 @@ function render(){
   if(cur===0) renderBank();
   if(cur===1) renderHots();
   if(cur===7) typewriter();
-  if(cur===8&&state.validated){
+  if(cur===8){
     VALS.forEach((v,i)=>{
       const cols=[$("#vcol"),$("#vcol2")];
       const d=document.createElement("div"); d.className="vcheck on "+v[2];
       d.innerHTML=`<div class="tickbox">${v[2]==="pass"?"✓":"!"}</div><div class="vid">${v[0]}</div><div class="vname">${L(v[1].zh,v[1].en)}</div><div class="state">${v[2]==="pass"?"PASS ":"WARN "}${v[3]}</div>`;
       cols[i%2].appendChild(d);
     });
-    showVSum(); showIdentity();
+    showVSum();
   }
 }
 function showReadingPreviewFull(){
