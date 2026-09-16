@@ -1914,6 +1914,51 @@ function guideCardHTML(){
 
 let VALS = [];
 
+/* 身份记录：基于当前选中素材动态生成（不再是固定 EV 演示数据） */
+function identityRecord(){
+  const h = curHot();
+  const tg = curTags();
+  const facts = curFacts();
+  const label = curMaterialLabel();
+  const source = curMaterialSource();
+  const url = curMaterialUrl();
+  const contentId = h
+    ? "ART-" + (h.date||"20260821").replace(/-/g,"") + "-" + String(h.rank).padStart(4,"0")
+    : "ART-20260821-0057";
+  const chain = [
+    {zh: (h?("热点 "+h.cn):(label||"授权素材")), en: (h?("Trend: "+h.topic):(label||"material"))},
+    {zh: (url?("原文链接"):("素材原文")), en: (url?"Source link":"Source text")},
+    {zh: "事实卡 ×"+facts.length, en: facts.length+" fact cards"},
+    {zh: "生成稿 "+nkDisp(state.lvl), en: "Draft "+nkDisp(state.lvl)},
+    {zh: "审核 · 教研", en: "Reviewer: teaching staff"},
+    {zh: "文章库", en: "Article bank"},
+  ];
+  const cells = [
+    ["Model / Prompt","qwen-max · GEN-v1.4"],
+    ["KB Snapshot","KB-2026.08.1"],
+    [L("事实卡","Fact cards"), L("共 ","") + facts.length + L(" 张"," cards")],
+    ["Generated", (h?h.date:"2026-08-21") + " 09:42"],
+  ];
+  const tg0 = curTags();
+  const contentLabel = (tg0.content || []).map(t => t.catZh + " · " + t.tag).join("、") || L("未选择","Not selected");
+  const contentLabelEn = (tg0.content || []).map(t => t.catEn + " · " + t.tagEn).join(", ") || "Not selected";
+  const freeLabel = (tg0.free || []).join("、") || L("无","none");
+  const freeLabelEn = (tg0.free || []).join(", ") || "none";
+  const tags = [
+    {k:{zh:"内容标签",en:"Content tags"}, v:{zh:contentLabel, en:contentLabelEn}},
+    {k:{zh:"自由标签",en:"Free tags"}, v:{zh:freeLabel, en:freeLabelEn}},
+    {k:{zh:"认知标签",en:"Cognitive tag"}, v:{zh:tg0.cognitive, en:({ "全年龄":"All ages","青少年向":"Teen","成人向":"Adult" })[tg0.cognitive] || tg0.cognitive}},
+    {k:{zh:"文章角度",en:"Article angle"}, v:{zh:tg.angle, en:tg.angleEn}},
+    {k:{zh:"格式 / 类型",en:"Format / type"}, v:{zh:tg.fmt, en:tg.fmtEn}},
+    {k:{zh:"语气",en:"Tone"}, v:{zh:"中性介绍",en:"Neutral informative"}},
+    {k:{zh:"保鲜期",en:"Shelf life"}, v:{zh:"fresh-now（热点时效 2 周）",en:"fresh-now (2-week window)"}},
+    {k:{zh:"工作流状态",en:"Workflow status"}, v:{zh:"待审核 → 已批准",en:"in review → approved"}},
+    {k:{zh:"发布适用性",en:"Release suitability"}, v:{zh:"flexible 槽位（备选 reserve）",en:"flexible slot (reserve backup)"}},
+    {k:{zh:"新鲜度备注",en:"Freshness notes"}, v:{zh:"无重叠冲突；60 天后需复核",en:"No overlap; recheck after 60 days"}},
+  ];
+  return { contentId, chain, cells, tags };
+}
+
 
 const KPIS = [
   [{zh:"周产能",en:"Weekly output"},{zh:"100+ 篇",en:"100+ / week"}],
