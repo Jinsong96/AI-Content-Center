@@ -3518,9 +3518,7 @@ function bankPanelHTML(){
       <b style="font-size:15px">${L("自有素材库 · 《用英文讲好中国故事》","Licensed bank · The \"Telling China\'s Story\" series")}</b>
       <span class="tint" style="background:#FFF9F5;color:#D04418">${L("已完成授权 · 无需事实抽取","Licensed · no fact extraction")}</span>
     </div>
-    <p style="color:var(--sub);margin:0 0 12px;font-size:13px">${L("点击书架上的<b>一本书</b>进入章节，再点章节即选中，底部点击「进入敏感排除并运行工作流」一键生成 4 档文章。",
-      "Click a <b>book</b> on the shelf to open its chapters, then click a chapter to select it and hit the button below to run the workflow and generate 4 levels.")}</p>
-    <div id="bankGroups"></div>
+        <div id="bankGroups"></div>
   </div>`;
 }
 function intakeBackBar(){
@@ -3909,7 +3907,7 @@ function s1(){
           <div class="sinfo"><b>${s.name}</b><span>${L(T.zh,T.en)} · ${L(s.tag.zh,s.tag.en)} · ${s.url}</span></div>
           <button class="sdel" onclick="removeSource(${i})" title="${L("移除该信源","Remove this source")}" aria-label="${L("移除该信源","Remove this source")}">✕</button></div>`;
       }).join("")
-    : `<div class="srclist-empty">${L("还没有自定义信源，添加第一个吧","No custom sources yet — add your first one")}</div>`;
+    : "";
   return head("02", L("热点搜集","Trend Discovery")) +
   matWorkflowBar() +
   `<div class="agentbar"><span class="agent">Agent-Reach</span><div class="desc">${L(
@@ -3939,7 +3937,6 @@ function s1(){
       <button class="btn mini sec" onclick="addSource()">＋ ${L("添加","Add")}</button>
     </div>
     <div class="srclist" id="srclist">${list}</div>
-    <div class="srcnote">${L("<b>关于部分国际知名站点：</b>美联社、路透社等站点出于自身的访问限制策略，会对来自自动化程序的访问返回拒绝响应 —— 这是站点方的策略限制，并非本服务故障，因此暂时无法采集。遇到这类来源，可改用其它来源，或直接粘贴该站点具体文章的链接。", "<b>About certain international outlets:</b> AP, Reuters and similar sites apply their own access-restriction policies and refuse requests from automated programs. That is the site's own policy, not a fault of this service, so they cannot be collected for now. Use another source, or paste the URL of a specific article from that site.")}</div>
   </div>
   ${interestPanelHTML()}
   <div style="display:flex;align-items:center;gap:10px;margin:0 0 12px;flex-wrap:wrap">
@@ -4455,9 +4452,7 @@ function s3(){
 
   return head("04", L("选题标签","Topic Tagging")) +
   matWorkflowBar() +
-  `<p class="lede">${L("AI 先给出建议，你来确认与删减：<b>内容标签</b>多选，<b>自由标签</b>点选保留，<b>认知标签</b>单选。",
-    "AI proposes, you confirm: <b>content tags</b> multi-select, <b>free tags</b> keep or drop, <b>cognitive tag</b> single choice.")}</p>
-  ${materialCardHTML()}
+  `${materialCardHTML()}
   <div class="tagextract">
     <button class="btn" onclick="extractTagsAI()" ${state.tagExtracting ? "disabled" : ""}>${state.tagExtracting ? " " + L("提取中…","Extracting…") : " " + L("AI 提取标签","AI extract tags")}</button>
   </div>
