@@ -1069,7 +1069,6 @@ body{font-family:var(--font);color:var(--text);background:var(--bg);overflow:hid
 .fcite .fcref:focus{outline:2px solid var(--pri);outline-offset:1px}
 .fcbox .fcbox-en{font-size:14px;line-height:1.7;color:#1D2939;font-weight:600}
 .fcbox .fcbox-zh{font-size:13px;line-height:1.7;color:var(--sub);margin-top:8px;padding-left:10px;border-left:2px solid var(--border)}
-.fcbox .fcbox-note{font-size:11.5px;color:var(--muted);margin-top:14px;line-height:1.6}
 /* A7 内部代号：收进 hover 提示 */
 .hintcode{color:var(--muted);border-bottom:1px dotted var(--border2);cursor:help;font-size:12px}
 /* B3 底部工作流步骤条可点击 */
@@ -2457,7 +2456,7 @@ function showFactCard(n){
   openDrawer(L("事实卡 ", "Fact card ") + n,
     '<div class="fcbox"><div class="fcbox-en">' + esc(f.en || "") + '</div>'
     + (f.zh ? '<div class="fcbox-zh">' + esc(f.zh) + '</div>' : "")
-    + '<div class="fcbox-note">' + L("正文中标注「事实卡 n」的段落，即基于这条事实改写。","Paragraphs tagged with this fact card were rewritten from this fact.") + '</div></div>');
+    + '</div>');
 }
 /* s8 侧栏「事实卡引用」面板：有 fact_map 时按段落分组真实溯源，否则回退全量罗列 */
 function factTraceHTML(){
@@ -2762,7 +2761,14 @@ function applyLive(){
   /* 练习题（quiz_json.levels，12 键归一化）+ B2+.3 背景导读（quiz_json.guide） */
   if(qj){
     const lvq = nkObj(qj.levels);
-    if(Object.keys(lvq).length){ state.quiz = lvq; state.quizShow = {}; }
+    if(Object.keys(lvq).length){
+      /* 题目数量统一：每档固定 3 题。模型偶发多出题（type mix 是 1-2 区间）时截断到 3，
+         保证 4 档题目数量一致，不出现 A1 有 3 题、B2 有 4 题的情况。不足 3 题不硬补（无法凭空造题）。 */
+      Object.keys(lvq).forEach(function(k){
+        if(Array.isArray(lvq[k]) && lvq[k].length > 3) lvq[k] = lvq[k].slice(0, 3);
+      });
+      state.quiz = lvq; state.quizShow = {};
+    }
     const gdq = nkObj(qj.guide);
     if(Object.keys(gdq).length) state.guide = gdq;
   }
@@ -4795,7 +4801,7 @@ function showVSum(){
   if(liveReady() && vj){
     big = (vj.total_pass||0) + "/" + (vj.total_checks||24);
     const warns = (vj.results||[]).flatMap(r => (r.fail_reasons||[]));
-    txt = `<b>${L("AI 真实校验：","AI LIVE validation: ")}${big} ${L("项通过","checks passed")}${warns.length ? " · " + L("告警项：","warnings: ") + esc(warns.join("；").slice(0,120)) : " · " + L("全部通过","all passed")}</b>——${L("数据来自 AI 工作流 8 项校验节点（×4 档位），真实运行 ","From the workflow's 8-check validator (×4 levels). Run time ")}${state.live.elapsed}s。`;
+    txt = `<b>${L("AI 真实校验：","AI LIVE validation: ")}${big} ${L("项通过","checks passed")}${warns.length ? " · " + L("告警项：","warnings: ") + esc(warns.join("；").slice(0,120)) : " · " + L("全部通过","all passed")}</b>`;
   }
   s.innerHTML=`<div class="big">${big}</div><div class="txt">${txt}</div>`;
   s.style.animation="pop .5s both";
