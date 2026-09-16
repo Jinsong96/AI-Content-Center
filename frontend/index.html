@@ -130,9 +130,9 @@ body{font-family:var(--font);color:var(--text);background:var(--bg);overflow:hid
 /* 表格操作列按钮组：小按钮 + 统一间距，避免挤在一起 */
 .mat-actions{display:flex;align-items:center;gap:6px;white-space:nowrap}
 .mat-actions .btn{flex:0 0 auto}
-.nextbar{display:flex;justify-content:space-between;align-items:center;margin-top:32px;padding-top:18px;border-top:1px solid var(--border);animation:fadeIn .35s both}
+.nextbar{display:flex;justify-content:flex-end;align-items:center;margin-top:32px;padding-top:18px;border-top:1px solid var(--border);animation:fadeIn .35s both}
 .nextbar .hint{font-size:12.5px;color:var(--sub);font-weight:600;background:var(--bg);border:1px dashed var(--border2);border-radius:8px;padding:6px 12px}
-.nextbar .ctx{font-size:11.5px;color:var(--muted)}
+.nextbar .ctx{font-size:11.5px;color:var(--muted);margin-right:auto}
 .wfstrip{margin-top:28px;padding-top:16px;border-top:1px solid var(--border2,var(--border))}
 .wfstrip-h{font-size:11px;color:var(--muted);margin-bottom:10px;font-weight:600}
 .wfstrip-bar{display:flex;flex-wrap:wrap;gap:6px}
@@ -2447,13 +2447,14 @@ function renderLiveChip(){
 }
 
 async function startLiveRun(material, label, book, override){
-  if(state.live.status === "running") return;
+  if(state.live.status === "running"){ toast(L("AI 任务运行中，请稍候…","AI run in progress, please wait…")); return; }
   state.live = { status: "running", material, label: label || "", book: book || "", run: null, err: null, t0: Date.now(), elapsed: 0, nodes: 0 };
   state.factMap = null; state.unusedFacts = [];   /* 新一轮前清空上一轮的段落↔事实卡绑定 */
   GEN = {}; state.quiz = {}; state.quizShow = {};   /* 清空上一轮文章与题目（事实抽取不产出文章） */
   /* 清空上一轮音频：否则新素材会误以为"已有音频"而跳过生成，导致入库时才补、等 15s */
   state.audio = {}; state.audioMeta = null; state.audioPromise = null; state.audioGenerating = false;
   renderLiveChip();
+  render();
   const st = $("#liveStat"); if(st) st.textContent = L("已提交 AI，正在抽取事实…（约 5–10 秒）", "Submitted to AI… extracting facts (~5–10s)");
   try {
     /* 不传 level —— FACT start.level 的标签本就写着「可选，空则由分级节点判定」。
@@ -4460,12 +4461,6 @@ function s4(){
   } else if(state.live.status === "error"){
     factBody = `<div class="note warn-note" style="margin-bottom:10px">${L("AI 抽取失败：","AI extraction failed: ")}${esc(state.live.err || L("未知错误","unknown error"))}</div>
       <div style="margin-bottom:10px"><button class="btn" onclick="extract()">${L("重试抽取","Retry extraction")}</button></div>` + factCards;
-  } else if(liveExcluded()){
-    /* 素材被敏感排查排除：Dify 只回 status / sensitive_level / sensitive_reason，不带 facts_json。
-       必须如实说「被排除」，否则用户会以为只是没抽到卡而反复重试，永远走不下去。 */
-    factBody = `<div class="note warn-note" style="margin-bottom:10px">${L("该素材已被 AI 敏感排查判定为<b>排除</b>，工作流在此终止，不会产出事实卡。","This material was <b>excluded</b> by the AI sensitivity screen — the workflow stops here and produces no fact cards.")}</div>
-      <div style="margin-bottom:10px;font-size:12.5px;color:var(--sub)">${L("敏感等级","Sensitivity")}：<b>${esc(liveSensLevel() || "—")}</b> · ${L("判定理由","Reason")}：${esc(liveSensReason() || L("（工作流未返回理由）","(no reason returned)"))}</div>
-      <div style="margin-bottom:10px"><button class="btn" onclick="manualOverrideRun()">${L("人工放行继续","Manual override · continue")}</button> <a class="btn sec" href="#" onclick="go(0);return false;">${L("返回 01 更换素材","Back to step 01 · pick another material")}</a></div>`;
   } else if(state.extracted){
     /* 0 张卡有五种成因，按诊断结果给不同说明与出口；旧文案一律说「素材没有正文」会误导排查方向。 */
     const diag = liveFactDiag();
@@ -4516,9 +4511,7 @@ function s4(){
       ${ready?`<div class="note" style="margin-top:10px">${L("置信度 ≥0.85 自动通过 · 0.6–0.85 人工复核（黄）· 数据卡强制交叉验证；单一信源事实生成时须保留原文限定词（如 nearly / around）。","Confidence ≥0.85 auto-pass · 0.6–0.85 human review · DATA cards cross-checked. Single-source facts keep their qualifiers (e.g. nearly / around).")}</div>`:""}
     </div>
   </div>
-  ${liveExcluded()
-    ? `<div class="nextbar"><div class="ctx"> ${L("该素材已被 AI 判定为排除。可返回 01 更换，或人工放行继续。","This material was excluded by the AI — go back to step 01, or override to continue.")}</div><button class="btn" onclick="manualOverrideRun()">${L("人工放行继续","Manual override · continue")}</button></div>`
-    : (ready ? nextBtn("查看分级标准","KB & specs") : waitBtn(running ? L("工作流运行中…","Workflow running…") : L("点击运行抽取","Run extraction")))}` + wfStrip();
+  ${ready ? nextBtn("查看分级标准","KB & specs") : waitBtn(running ? L("工作流运行中…","Workflow running…") : L("点击运行抽取","Run extraction"))}` + wfStrip();
 }
 function extract(){
   if(state.live.status === "running"){ toast(L("工作流运行中，请稍候…","Workflow running, please wait…")); return; }
