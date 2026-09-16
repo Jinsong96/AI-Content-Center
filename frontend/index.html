@@ -4508,6 +4508,12 @@ function s4(){
   } else if(state.live.status === "error"){
     factBody = `<div class="note warn-note" style="margin-bottom:10px">${L("AI 抽取失败：","AI extraction failed: ")}${esc(state.live.err || L("未知错误","unknown error"))}</div>
       <div style="margin-bottom:10px"><button class="btn" onclick="extract()">${L("重试抽取","Retry extraction")}</button></div>` + factCards;
+  } else if(liveExcluded()){
+    /* 被敏感排查排除的素材：不该落进「0 张事实卡」分支，否则误导用户以为抽卡失败。
+       排除的出口在 02 敏感排查页（人工放行 / 更换），这里明确告知并给出直达放行按钮。 */
+    factBody = `<div class="note warn-note" style="margin-bottom:10px">${L("该素材已被 AI 敏感排查判定为排除（","This material was excluded by the AI sensitivity screen (")}${esc(liveSensLevel()||"")}${L("）· ",") · ")}${esc(liveSensReason()||"")}${L("，因此不产出事实卡。"," — so no fact cards were produced.")}</div>
+      <div style="margin-bottom:10px;font-size:12.5px;color:var(--sub)">${L("可在下方人工放行继续，或返回 01 更换素材。","Override below to continue, or go back to step 01 to pick another.")}</div>
+      <div style="margin-bottom:10px;display:flex;gap:10px;flex-wrap:wrap"><button class="btn" onclick="manualOverrideRun()">${L("人工放行继续","Manual override · continue")}</button><button class="btn sec" onclick="go(0)">${L("返回 01 更换素材","Go to step 01")} →</button></div>` + factCards;
   } else if(state.extracted){
     /* 0 张卡有五种成因，按诊断结果给不同说明与出口；旧文案一律说「素材没有正文」会误导排查方向。 */
     const diag = liveFactDiag();
