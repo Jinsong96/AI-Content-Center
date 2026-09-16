@@ -4193,7 +4193,7 @@ function renderHots(){
         d.innerHTML = `<div class="rank">#${i+1}</div>
           <h4>${esc(h.topic)}</h4>
           ${h.cn && h.cn !== h.topic ? `<div class="cn">${esc(h.cn)}</div>` : ""}
-          <div class="srctag"><i style="background:#D04418"></i>${L("真实热点","Real")} · ${esc(h.source)} · ${esc(h.date||"")}${subLabel ? " · " + esc(subLabel) : ""}</div>
+          <div class="srctag"><i style="background:#D04418"></i>${L("真实热点","Real")} · ${esc(h.source)}${subLabel ? " · " + esc(subLabel) : ""}</div>
           ${fulltextBadge(h)}
           <div class="heatbar"><i style="width:0" id="rb${i}"></i></div>
           <div class="meta"><span>${L("热度","Heat")} <b>${h.heat}</b></span><span>${L("信源","Sources")} <b>${h.srcs}</b></span></div>`;
@@ -4225,7 +4225,7 @@ function renderHots(){
         <div style="flex:1;min-width:0;cursor:pointer" onclick="state.hot=${idx};pickHot(${idx});render();">
           <div class="rank">#${h.rank}</div>
           <h4>${h.topic}</h4><div class="cn">${h.cn}</div>
-          ${h.source ? `<div class="srctag"><i style="background:#D04418"></i>${L("真实热点","Real")} · ${h.source} · ${h.date||""}</div>` : ""}
+          ${h.source ? `<div class="srctag"><i style="background:#D04418"></i>${L("真实热点","Real")} · ${h.source}</div>` : ""}
           <div class="heatbar"><i style="width:0" id="hb${idx}"></i></div>
           <div class="meta"><span>${L("热度","Heat")} <b>${h.heat}</b></span><span>${L("信源","Sources")} <b>${h.srcs}</b></span></div>
         </div>
