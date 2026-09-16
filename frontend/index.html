@@ -1161,21 +1161,21 @@ const BANK_URL = "https://67d2ca22bd34426b8e9721dd9fb440d3.sh2.agentos-app.net/"
 
 const STAGES = [
   // ===== PHASE 1: 素材采集 + 素材库（市场老师）=====
-  {no:"01", phase:1, t:"素材选择",     tEn:"Material Selection", s:"Trends · licensed · public"},
-  {no:"02", phase:1, t:"热点搜集",     tEn:"Trend Discovery",   s:"Agent-Reach scan"},
-  {no:"03", phase:1, t:"敏感排除",     tEn:"Sensitivity Screen", s:"KB5 · S0-S3"},
-  {no:"04", phase:1, t:"选题标签",     tEn:"Topic Tagging",      s:"Theme × sub-theme"},
-  {no:"05", phase:1, t:"素材库",       tEn:"Material Library",    s:"Browse · manage · select"},
+  {no:"01", phase:1, t:"素材选择",     tEn:"Material Selection"},
+  {no:"02", phase:1, t:"热点搜集",     tEn:"Trend Discovery"},
+  {no:"03", phase:1, t:"敏感排除",     tEn:"Sensitivity Screen"},
+  {no:"04", phase:1, t:"选题标签",     tEn:"Topic Tagging"},
+  {no:"05", phase:1, t:"素材库",       tEn:"Material Library"},
   // ===== PHASE 2: 内容生产（教研老师）=====
-  {no:"06", phase:2, t:"事实抽取",     tEn:"Fact Extraction",  s:"AI fact extraction"},
-  {no:"07", phase:2, t:"分级标准",     tEn:"KB & CEFR Specs",    s:"Versioned KB"},
-  {no:"08", phase:2, t:"内容生成",     tEn:"Graded Generation",  s:"A1–B2 by outline"},
-  {no:"09", phase:2, t:"AI 校验",      tEn:"AI Validate",    s:"13 项校验 + 存档"},
-  {no:"10", phase:2, t:"段落校对",     tEn:"Paragraph Proofread", s:"Auto-split + human proofread"},
+  {no:"06", phase:2, t:"事实抽取",     tEn:"Fact Extraction"},
+  {no:"07", phase:2, t:"分级标准",     tEn:"KB & CEFR Specs"},
+  {no:"08", phase:2, t:"内容生成",     tEn:"Graded Generation"},
+  {no:"09", phase:2, t:"AI 校验",      tEn:"AI Validate"},
+  {no:"10", phase:2, t:"段落校对",     tEn:"Paragraph Proofread"},
   // ===== PHASE 3: 审核（审核老师）=====
-  {no:"11", phase:3, t:"逐段审核",     tEn:"Segment Review",      s:"Per-segment check"},
+  {no:"11", phase:3, t:"逐段审核",     tEn:"Segment Review"},
   // ===== 文章库 =====
-  {no:"12", phase:2, t:"文章库",       tEn:"Article Library",     s:"Browse · archive"},
+  {no:"12", phase:2, t:"文章库",       tEn:"Article Library"},
 ];
 /* steps skipped when the licensed/copyright route is chosen (no fact extraction needed) */
 const SKIP_LICENSED = [];
@@ -2215,12 +2215,6 @@ function addFreeTag(){
 }
 function setCognitive(v){ state.tagCognitive = v; render(); }
 function toggleCatOpen(k){ state.tagOpenCats[k] = !state.tagOpenCats[k]; render(); }
-function toggleAllCats(){
-  const cats = taxoCats();
-  const allOpen = cats.every(c => state.tagOpenCats[c.key] !== false);
-  cats.forEach(c => { state.tagOpenCats[c.key] = !allOpen; });
-  render();
-}
 /* AI 提取三层标签：结果只作为「建议」写入，由人工确认与删减 */
 async function extractTagsAI(){
   /* 取数：正文优先；Hacker News 等源只有标题没有正文/摘要时，降级用标题兜底，
@@ -2560,43 +2554,17 @@ async function runGeneration(){
     const resp = await fetch(AIWF_GEN.apiBase + "/workflows/run", {
       method: "POST",
       headers: { "Authorization": "Bearer " + AIWF_GEN.appKey, "Content-Type": "application/json" },
-      body: JSON.stringify({ inputs: wfInputs, response_mode: "streaming", user: AIWF_GEN.user }),
+      body: JSON.stringify({ inputs: wfInputs, response_mode: "blocking", user: AIWF_GEN.user }),
       signal: _abortSignal,
     });
-    if(!resp.ok || !resp.body){
+    if(!resp.ok){
       let emsg = "HTTP " + resp.status;
       try { const et = await resp.text(); if(et) emsg += " · " + et.slice(0, 300); } catch(e2) {}
       throw new Error(emsg);
     }
-    let wfData = null, wfErr = null, nodeDone = 0;
-    const rd = resp.body.getReader(), dec = new TextDecoder();
-    let sbuf = "";
-    for(;;){
-      const chunk = await rd.read();
-      if(chunk.done) break;
-      sbuf += dec.decode(chunk.value, { stream: true });
-      const parts = sbuf.split("\n\n"); sbuf = parts.pop();
-      for(const part of parts){
-        const lines = part.split("\n");
-        for(const line of lines){
-          if(line.indexOf("data: ") !== 0) continue;
-          let ev; try { ev = JSON.parse(line.slice(6)); } catch(e3) { continue; }
-          if(ev.event === "node_finished"){
-            nodeDone++;
-            state.live.nodes = nodeDone;
-            const st2 = $("#liveStat");
-            if(st2) st2.textContent = L("正在生成 4 档文章…（已完成 " + nodeDone + " 个节点）", "Generating 4 levels… (" + nodeDone + " nodes done)");
-          } else if(ev.event === "workflow_finished"){
-            wfData = ev.data || null;
-          } else if(ev.event === "error"){
-            wfErr = (ev.data && (ev.data.message || ev.message)) || "stream error";
-          }
-        }
-      }
-    }
-    const data = wfData
-      ? { data: wfData }
-      : { data: { status: "failed", error: wfErr || L("流式响应中断：未收到 workflow_finished，请重试", "Stream ended without workflow_finished — please retry") } };
+    /* blocking 一次性返回完整 JSON：规避浏览器直连 Dify 的流式长连接在网络不稳时被中断（network error）。
+       实测 GEN ~50s，远低于 blocking 的 120s 网关上限。进度由 setInterval 按挂钟估算。 */
+    const data = await resp.json();
     _runAbort = null;
     const stt = data && data.data && data.data.status;
     if(stt === "succeeded" || (data && data.data && data.data.outputs)){
@@ -3392,14 +3360,14 @@ function nextBtnPart(label, labelEn){
     : `<button class="btn" disabled> ${L("下一步由「"+ownerLabel(nxt)+"」职能登录操作","Next step handled by "+ownerLabel(nxt))}</button>`;
 }
 function nextBtn(label, labelEn){
-  return `<div class="nextbar"><div class="ctx">AI-assisted · Human-verified · ${STAGES[cur].s}</div>${nextBtnPart(label,labelEn)}</div>`;
+  return `<div class="nextbar">${nextBtnPart(label,labelEn)}</div>`;
 }
 function waitBtn(msg){
   return `<div class="nextbar"><div></div><div class="hint">${msg} ↑</div></div>`;
 }
-function head(no, title, sub){
+function head(no, title){
   const ro = state.user && !canOperate(cur);
-  return `<div class="stagehead">${no?`<div class="num">${no}</div>`:""}<div><h2>${title}</h2><div class="sub">${sub}</div>
+  return `<div class="stagehead">${no?`<div class="num">${no}</div>`:""}<div><h2>${title}</h2>
     ${ro?`<span class="modtag ro-tag">${L("只读查看","Read-only")}</span>`:""}
   </div></div>`;
 }
@@ -3528,7 +3496,7 @@ function resetRoute(){ state.route = null; stage.scrollTop = 0; render(); }
 function s0(){
   /* 第一步：尚未选择入口 → 只展示三大入口选择卡片 */
   if(!state.route){
-    return head("01", L("素材选择","Material Selection"), L("第一步 · 选择素材来源","Step 1 · pick a source")) +
+    return head("01", L("素材选择","Material Selection")) +
     `<div class="routegrid">
       ${ROUTES.map((r,i)=>`<div class="srccard" style="animation-delay:${.06*i}s;padding:22px 20px" onclick="pickRoute('${r.id}')">
         <div style="font-size:30px;margin-bottom:8px">${r.ico}</div>
@@ -3551,7 +3519,7 @@ function s0(){
   }else if(state.route === "public"){
     body = sePanelHTML();
   }
-  return head("01", L("素材选择","Material Selection"), L("第二步 · 选择具体素材","Step 2 · pick a material")) +
+  return head("01", L("素材选择","Material Selection")) +
     matWorkflowBar() +
     intakeBackBar() + body +
     (state.route === "trend"
@@ -3565,9 +3533,9 @@ function s0EmbarkBtn(){
   }
   /* 只保留单一入口按钮：进入敏感排除（并运行工作流）；打标(04)与存入素材库在其后的流程页完成 */
   if(state.live.status === "done"){
-    return `<div class="nextbar" id="embarkBar"><div class="ctx">AI-assisted · Human-verified · ${STAGES[0].s}</div><button class="btn" onclick="go(2)">${L("进入敏感排除（已完成排查）","To sensitivity screen (done)")} →</button></div>`;
+    return `<div class="nextbar" id="embarkBar"><button class="btn" onclick="go(2)">${L("进入敏感排除（已完成排查）","To sensitivity screen (done)")} →</button></div>`;
   }
-  return `<div class="nextbar" id="embarkBar"><div class="ctx">AI-assisted · Human-verified · ${STAGES[0].s}</div><button class="btn" onclick="liveRunClick()">${L("进入敏感排除并运行工作流","To sensitivity & run workflow")} →</button></div>`;
+  return `<div class="nextbar" id="embarkBar"><button class="btn" onclick="liveRunClick()">${L("进入敏感排除并运行工作流","To sensitivity & run workflow")} →</button></div>`;
 }
 /* 选中章节/素材后，自动滚到底部「存入素材库 / 进入敏感排除」操作条 */
 function scrollToEmbark(){
@@ -3887,7 +3855,7 @@ function s1(){
           <button class="sdel" onclick="removeSource(${i})" title="${L("移除该信源","Remove this source")}" aria-label="${L("移除该信源","Remove this source")}">✕</button></div>`;
       }).join("")
     : `<div class="srclist-empty">${L("还没有自定义信源，添加第一个吧","No custom sources yet — add your first one")}</div>`;
-  return head("02", L("热点搜集","Trend Discovery"), "Agent-Reach · cross-source scan") +
+  return head("02", L("热点搜集","Trend Discovery")) +
   matWorkflowBar() +
   `<div class="agentbar"><span class="agent">Agent-Reach</span><div class="desc">${L(
     "调研 Agent 实时扫描全球新闻与社交热度，跨源聚合去重，输出带热度分的热点榜；点击主题或「刷新」获取最新。",
@@ -4338,7 +4306,7 @@ function s2(){
   const s = state.live;
   const idle = s.status === "idle";
   const hasMaterial = !!(curMaterialText());   /* 已有选中素材（含 pending / running / done）即展示原文卡片 */
-  return head("03", L("敏感排除","Sensitivity Screen"), "") +
+  return head("03", L("敏感排除","Sensitivity Screen")) +
   matWorkflowBar() +
   `<p class="lede">${L("素材进入选题前，先由 <b>AI 实时引擎</b> 按教研知识库 KB5 敏感规范逐条排查：<b>S0 红线直接排除</b>，S1/S2 视教育价值排除或降级，S3 灾难类做软处理标记。排查结果实时返回，机器初筛 + 人工终审不可豁免。",
     "Before selection, the <b>AI LIVE engine</b> screens every material against KB5 sensitivity rules: S0 red-line topics excluded; S1/S2 excluded or downgraded on educational value; S3 disaster topics soft-handled. Verdicts return live; automated pre-screen + human review are never skipped.")}</p>
@@ -4368,7 +4336,6 @@ function s3(){
   const layer1 = cats.length ? `<div class="tagsection">
     <div class="tagsec-h">${L("第一层 · 内容标签","Layer 1 · Content tags")}
       <span>${cats.length} ${L("类","categories")} · ${totalTags} ${L("个标签","tags")}</span>
-      <button class="btn mini" onclick="toggleAllCats()">${cats.every(c => state.tagOpenCats[c.key] !== false) ? L("全部折叠","Collapse all") : L("全部展开","Expand all")}</button>
     </div>
     ${cats.map((c, ci) => {
       const isOpen = state.tagOpenCats[c.key] !== undefined ? state.tagOpenCats[c.key] : (anyHit ? hitCats.has(c.key) : true);
@@ -4433,7 +4400,7 @@ function s3(){
   (state.tagFree || []).forEach(t => selSummary.push({ cls: "f", txt: t }));
   if(state.tagCognitive) selSummary.push({ cls: "g", txt: state.tagCognitive });
 
-  return head("04", L("选题标签","Topic Tagging"), "Content × free × cognitive") +
+  return head("04", L("选题标签","Topic Tagging")) +
   matWorkflowBar() +
   `<p class="lede">${L("AI 先给出建议，你来确认与删减：<b>内容标签</b>多选，<b>自由标签</b>点选保留，<b>认知标签</b>单选。",
     "AI proposes, you confirm: <b>content tags</b> multi-select, <b>free tags</b> keep or drop, <b>cognitive tag</b> single choice.")}</p>
@@ -4535,7 +4502,7 @@ function s4(){
         + `<div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap;align-items:center"><button class="btn" disabled>${L("运行事实抽取","Run fact extraction")}</button><button class="btn sec" onclick="go(0)">${L("去 01 选择素材","Go to step 01")} →</button></div>`
       : `<button class="btn" onclick="extract()">${L("运行事实抽取","Run fact extraction")}</button>`;
   }
-  return head("06", L("事实抽取","Fact Extraction"), "AI fact extraction") +
+  return head("06", L("事实抽取","Fact Extraction")) +
     artWorkflowBar() +
   `<div class="workbench">
     <div>
@@ -4564,11 +4531,9 @@ function extract(){
 /* ---------- Stage 6 ---------- */
 function s5(){
   const sp = specOf(state.lvl);
-  return head("07", L("知识库与分级标准","KB & CEFR Specs"), "Seven libraries · versioned snapshots") +
+  return head("07", L("知识库与分级标准","KB & CEFR Specs")) +
     artWorkflowBar() +
-  `<p class="lede">${L("教研知识库是生成与审核的唯一标准来源，代码不硬编码任何教研标准；每篇文章固化引用知识库版本快照，可复现、可审计。<span class='hintcode' title='KB1–KB7 为本平台知识库的内部条目编号，仅在技术排查时需要'>（内部编号 KB1–KB7）</span>",
-    "The teaching KB is the single standard for generation and review — never hardcoded. Each article pins a KB version snapshot for auditability. <span class='hintcode' title='KB1–KB7 are internal knowledge-base item ids, only needed for troubleshooting'>(internal ids KB1–KB7)</span>")}</p>
-  ${(!curMaterialText() && !curMaterialLabel()) ? `<div class="note pri-note">${L("尚未有素材选取，您可以直接点击","No material selected yet — click ")}<a href="#" onclick="go(0);return false;" style="color:#E65425;font-weight:700;text-decoration:underline;cursor:pointer">${L("素材选择","Material Selection")}</a>${L("，进行内容生成工作流。"," to run the content generation workflow.")}</div>` : ""}
+  `${(!curMaterialText() && !curMaterialLabel()) ? `<div class="note pri-note">${L("尚未有素材选取，您可以直接点击","No material selected yet — click ")}<a href="#" onclick="go(0);return false;" style="color:#E65425;font-weight:700;text-decoration:underline;cursor:pointer">${L("素材选择","Material Selection")}</a>${L("，进行内容生成工作流。"," to run the content generation workflow.")}</div>` : ""}
   <div class="kbgrid">
     <div class="kbitem"><div class="n">KB1</div><h5>${L("分级语言标准","Level specs")}</h5><p>${L("词表 / 句长 / 时态","Wordlists · syntax")}</p></div>
     <div class="kbitem"><div class="n">KB3</div><h5>${L("文体结构模板","Genre templates")}</h5><p>${L("倒金字塔 / 故事 / 说明文","News · story · explainer")}</p></div>
@@ -4576,13 +4541,11 @@ function s5(){
     <div class="kbitem"><div class="n">KB5</div><h5>${L("敏感规范库","Sensitivity rules")}</h5><p>S0–S3</p></div>
   </div>
   <div class="lvlpick">${BIG_GROUPS.map(g=>`<div class="lvl ${curBig()===g.big?"sel":""}" onclick="setBig('${g.big}')"><b>${nkDisp(g.big)}</b><span>${L(g.zh,g.en)}</span></div>`).join("")}</div>
-  ${state.live && state.live.recommendedLevel ? `<div class="note" style="margin-top:10px">${L("AI 分级推荐档位","AI recommended level")}: <b>${state.live.recommendedLevel}</b> · ${state.lvlManual ? L("你已手动切换为 "+nkDisp(state.lvl)+"","you manually switched to "+nkDisp(state.lvl)) : L("已设为默认展示档位（基于知识库分级标准判定）","set as default (judged by KB grading standards)")}</div>` : ""}
-  <div class="specgrid">
+    <div class="specgrid"><div class="specgrid">
     <div class="spec"><h6>${L("词汇 VOCABULARY","VOCABULARY")}</h6><div class="row"><span>${L("词表范围","Wordlist")}</span><b>${L(sp.words,sp.en.words)}</b></div><div class="row"><span>${L("生词表词条","Vocabulary items")}</span><b>${L(sp.gloss,sp.en.gloss)}</b></div><div class="row"><span>${L("超纲词上限","Off-list cap")}</span><b>${offCap(state.lvl)}</b></div></div>
     <div class="spec"><h6>${L("句法 SYNTAX","SYNTAX")}</h6><div class="row"><span>${L("平均句长","Avg sentence")}</span><b>${L(sp.avg,sp.en.avg)}</b></div><div class="row"><span>${L("最长句","Max sentence")}</span><b>${L(sp.max,sp.en.max)}</b></div><div class="row"><span>${L("从句限制","Clauses")}</span><b style="font-size:10.5px">${L(sp.clauses,sp.en.clauses)}</b></div></div>
     <div class="spec"><h6>${L("文本 TEXT","TEXT")}</h6><div class="row"><span>${L("时态范围","Tenses")}</span><b style="font-size:10.5px">${L(sp.tense,sp.en.tense)}</b></div><div class="row"><span>${L("蓝思值区间","Lexile band")}</span><b>${L(sp.lex,sp.en.lex)}</b></div><div class="row"><span>${L("正文篇幅","Length")}</span><b>${L(sp.len,sp.en.len)}</b></div></div>
   </div>
-  <div class="termbox"><h6>KB4 · ${L("中国文化术语库（示例）","CN-term glossary (sample)")}</h6>${curTerms().map(t=>`<span class="term">${t[0]} → <b>${t[1]}</b></span>`).join("") || L("（按所选素材自动提取术语）","(terms auto-extracted from your material)")}</div>
   ${nextBtn("生成分级内容","Generate")}` + wfStrip();
 }
 function setlvl(k){ state.lvl = k; state.lvlManual = true; render(); }
@@ -4629,7 +4592,7 @@ function s6(){
       const runTxt = extracting
         ? L("正在抽取事实卡 · 预计 5–10 秒，完成后自动接续生成","Extracting fact cards · ~5–10s, then auto-generates")
         : L("正在生成 4 档文章 · 预计约 2–3 分钟，完成后自动刷新","Generating 4 levels · about 2–3 min, auto-refreshes on completion");
-      return head("08", L("内容生成","Graded Generation"), "Same facts · 4 levels") +
+      return head("08", L("内容生成","Graded Generation")) +
     artWorkflowBar() +
         `<div class="genrun" id="s6run" style="margin:16px 0">
           <div class="gr-head">
@@ -4640,36 +4603,36 @@ function s6(){
           </div>
           <div class="gr-bar"><i data-r="bar" style="width:${pct}%"></i></div>
         </div>
-        <div class="note" style="text-align:center">${L("运行中可先浏览其他步骤，工作流在后台继续运行，完成后本页自动刷新。","You can browse other steps while it runs — this page refreshes automatically when done.")}</div>` + wfStrip();
+        ` + wfStrip();
     }
     const factsReady = !!(state.factsCache && state.factsCache.summary);
     if(state.live.status === "error"){
-      return head("08", L("内容生成","Graded Generation"), "Same facts · 4 levels") +
+      return head("08", L("内容生成","Graded Generation")) +
     artWorkflowBar() +
         styleBarHTML() +
         `<div class="note warn-note" style="padding:40px;text-align:center;margin:16px 0"><p style="margin:0 0 14px">${L("上次工作流运行失败：","Last run failed: ")}${esc(state.live.err || "")}</p><button class="btn" onclick="${factsReady ? "runGeneration()" : "extractThenGen()"}">${factsReady ? L("重试生成","Retry generation") : L("重试（抽取并生成）","Retry (extract & generate)")}</button></div>` + wfStrip();
     }
     if(factsReady){
-      return head("08", L("内容生成","Graded Generation"), "Same facts · 4 levels") +
+      return head("08", L("内容生成","Graded Generation")) +
     artWorkflowBar() +
         styleBarHTML() +
         `<div class="note" style="padding:40px;text-align:center;margin:16px 0"><p style="margin:0 0 14px">${L("事实卡已抽取完成，尚未生成文章。点击下方按钮，用这套事实卡生成 4 档文章（约 77 秒）。","Facts extracted — articles not generated yet. Click to generate 4 levels from these facts (~77s).")}</p><button class="btn" onclick="runGeneration()">${L("生成文章","Generate articles")}</button></div>` + wfStrip();
     }
     const pending = state.live.status === "pending" && state.live.material;
     if(pending){
-      return head("08", L("内容生成","Graded Generation"), "Same facts · 4 levels") +
+      return head("08", L("内容生成","Graded Generation")) +
     artWorkflowBar() +
         styleBarHTML() +
         `<div class="note" style="padding:40px;text-align:center;margin:16px 0"><p style="margin:0 0 14px">${L("素材「"+esc(state.live.label||"")+"」已就绪，尚未抽取事实。点击下方按钮，自动完成「抽取事实卡 → 生成文章」（约 90 秒）。","Material \""+esc(state.live.label||"")+"\" is ready but facts haven't been extracted. Click below — it will extract facts then auto-generate the 12 sub-level articles (~90s).")}</p><button class="btn" onclick="extractThenGen()">${L("抽取并生成","Extract & generate")}</button></div>` + wfStrip();
     }
-    return head("08", L("内容生成","Graded Generation"), "Same facts · 4 levels") +
+    return head("08", L("内容生成","Graded Generation")) +
     artWorkflowBar() +
       `<div class="note" style="padding:48px;text-align:center;margin:16px 0">${L("尚未选择素材。请先到 01 素材选择页选择素材并运行工作流，此处将展示真实生成的 4 档文章。","No material selected yet. Go to step 01 to pick a material and run the workflow first.")}</div>` + wfStrip();
   }
   const cap = offCap(state.lvl);
   const lf = liveFacts();
   const factTrace = factTraceHTML();
-  return head("08", L("内容生成","Graded Generation"), "Same facts · 4 levels") +
+  return head("08", L("内容生成","Graded Generation")) +
     artWorkflowBar() +
   `${styleBarHTML()}
   ${liveReady() ? `<div class="note" style="margin-bottom:12px"><b>${L("LIVE：","LIVE: ")}</b>${L("以下内容由 AI 工作流真实生成（","Generated for real by the AI workflow (")+state.live.elapsed+L("秒）。素材：","s). Material: ")+esc(state.live.label||"custom")}</div>` : (running ? `<div class="note" style="margin-bottom:12px;display:flex;align-items:center;gap:10px"><div class="spin"></div><span>${L("正在按所选风格重新生成…","Regenerating in selected style…")}</span> <span data-r="mini-time">${state.live.elapsed}s</span></div>` : "")}
@@ -4739,7 +4702,7 @@ function typewriter(){
 
 /* ---------- Stage 8 ---------- */
 function s7(){
-  return head("09", L("AI 校验与身份记录","Validation & Identity"), "8 checks × 4 levels · provenance chain") +
+  return head("09", L("AI 校验与身份记录","Validation & Identity")) +
     artWorkflowBar() +
   `<div class="validate"><div id="vcol"></div><div id="vcol2"></div></div>
   <div id="vsum"></div>
@@ -4773,7 +4736,7 @@ function runValidate(){
     /* swap the bottom bar to the "submit to review" button */
     const nb = $("#stage .nextbar");
     if(nb){
-      nb.innerHTML = `<div class="ctx">AI-assisted · Human-verified · ${STAGES[cur].s}</div>` + nextBtnPart(L("提交人工审核","Submit to review"));
+      nb.innerHTML = nextBtnPart(L("提交人工审核","Submit to review"));
       nb.style.animation = "none";
       requestAnimationFrame(()=>requestAnimationFrame(()=>{ nb.style.animation = "fadeIn .35s both"; }));
     }
@@ -4822,7 +4785,7 @@ function s12(){
   const bigBar = bigBarOnce();
   const parasHTML = alignedViewHTML(false);
   const parasBlock = `<div class="reviewparas"><div class="pane-h">${L("逐段原文 · 4 档对齐（全文完整展示）","Segment originals · 4 levels aligned, full text")}</div>${parasHTML}</div>`;
-  return head("11", L("逐段审核","Segment Review"), "Per-segment check") +
+  return head("11", L("逐段审核","Segment Review")) +
     artWorkflowBar() +
     reviewContextHTML() +
     bigBar +
@@ -5035,10 +4998,10 @@ function alignedViewHTML(editable){
   h+=alignModeBarHTML()+alignBodyHTML(editable);
   return h;
 }function s9(){
-  if(!liveReady()) return head("10",L("段落校对","Paragraph Proofread"),"Auto-split + proofread")+"<div class=note>"+L("请先运行工作流","Run workflow first")+"</div>"+wfStrip();
+  if(!liveReady()) return head("10",L("段落校对","Paragraph Proofread"))+"<div class=note>"+L("请先运行工作流","Run workflow first")+"</div>"+wfStrip();
   const lvls=allKeys();
   const maxP=Math.max(...lvls.map(k=>GEN[k]&&GEN[k].paras?GEN[k].paras.length:0));
-  let html=head("10",L("段落校对","Paragraph Proofread"),L("AI 自动切分 + 人工校对 · 同一编号即同一语义段落，可直接编辑","Auto-split + human proofread · same number = same meaning, editable"));
+  let html=head("10",L("段落校对","Paragraph Proofread"));
   html+=artWorkflowBar();
   html+=bigBarOnce();
   html+='<p class="lede">'+L("AI 已自动切分并对齐 4 档的段落，请在下方逐段校读并修正——点击任意段落文字即可编辑，改动会自动保存到本机，误刷新不会丢；写入文章库后才算定稿。","AI has auto-split and aligned the four levels of this group — click any paragraph text to edit. Edits auto-save to this browser, so an accidental refresh will not lose them; they are final only once saved to the article library.")+' <span id="draftStat" class="draftstat"></span></p>';
@@ -5053,10 +5016,10 @@ function alignedViewHTML(editable){
 
 /* Stage 10: Manual Proofreading */
 function s10(){
-  if(!liveReady()) return head("10",L("人工校对","Manual Proofreading"),"Fine-tune")+"<div class=note>"+L("请先运行工作流","Run workflow first")+"</div>"+wfStrip();
+  if(!liveReady()) return head("10",L("人工校对","Manual Proofreading"))+"<div class=note>"+L("请先运行工作流","Run workflow first")+"</div>"+wfStrip();
   const lvls=allKeys();
   const maxP=Math.max(...lvls.map(k=>GEN[k]&&GEN[k].paras?GEN[k].paras.length:0));
-  let html=head("10",L("人工校对","Manual Proofreading"),L("逐段校对并修正 · 原文完整展示，可直接编辑","Proofread each paragraph · full text shown and editable"));
+  let html=head("10",L("人工校对","Manual Proofreading"));
   html+=bigBarOnce();
   html+='<p class="lede">'+L("校对老师逐段校读 4 档文章，检查拼写、语法、语义与对齐质量，必要时直接点击段落文字修正；改动会自动保存到本机，误刷新不会丢，写入文章库后才算定稿。","Proofread each paragraph across the four levels of this group — check spelling, grammar, meaning and alignment; click any text to fix. Edits auto-save to this browser, so an accidental refresh will not lose them; they are final only once saved to the article library.")+'</p>';
   html+='<div class="pedit-hint"> '+L("所有段落原文已完整展示，点击任意段落文字即可编辑修改。","All paragraphs are shown in full — click any text to edit.")+'</div>';
@@ -5548,10 +5511,10 @@ function addMaterialToBank(m){
 }
 function removeMaterialFromBank(uuid){ saveMaterialBank(loadMaterialBank().filter(x=>x.uuid!==uuid)); render(); }
 function saveMaterialBankBar(){
-  return `<div class="nextbar"><div class="ctx">AI-assisted · Human-verified · ${STAGES[3].s}</div><button class="btn" onclick="saveCurrentMaterialToBank()">${L("存入素材库","Save to material bank")} →</button></div>`;
+  return `<div class="nextbar"><button class="btn" onclick="saveCurrentMaterialToBank()">${L("存入素材库","Save to material bank")} →</button></div>`;
 }
 function saveArticleBankBar(){
-  return `<div class="nextbar"><div class="ctx">AI-assisted · Human-verified · ${STAGES[8].s}</div><button class="btn" onclick="saveCurrentArticleToBank()">${L("存入文章库","Save to article bank")} →</button></div>`;
+  return `<div class="nextbar"><button class="btn" onclick="saveCurrentArticleToBank()">${L("存入文章库","Save to article bank")} →</button></div>`;
 }
 function saveCurrentArticleToBank(){
   const art = buildBankArticle();
@@ -5778,7 +5741,7 @@ function sArticleBank(){
 
   /* A4：空库时给引导型空态，而不是「统计卡全 0 + 暂无匹配 + 分页 1/1」三件套 */
   if(!total){
-    return head("", L("文章库","Article Library"), "All articles · review & track")
+    return head("", L("文章库","Article Library"))
       + '<div class="guide-empty">'
       + '<div class="ge-t">' + L("文章库还是空的","No articles yet") + '</div>'
       + '<div class="ge-d">' + L("文章在「文章生产」里产出：抽取事实卡 → 生成 4 档文章 → 段落校对，确认无误后点「存入文章库」，审核老师就能在这里看到。","Articles are produced in Article Production: extract fact cards, generate 4 levels, proofread, then hit <b>Save to article bank</b> — reviewers will see them here.") + '</div>'
@@ -5795,7 +5758,7 @@ function sArticleBank(){
       + `<div class="mat-stat-lbl"${active?` style="color:${color}"`:""}>${lbl}</div></div>`;
   }
 
-  let html = head("", L("文章库","Article Library"), "All articles · review & track");
+  let html = head("", L("文章库","Article Library"));
 
 
   /* 统计卡片行 */
@@ -6004,8 +5967,7 @@ function sArticleSource(){
   const srcName = (a.material && a.material.source) || L("—","—");
   const srcUrl  = (a.material && a.material.url) || "";
   const aligned = bankAlignedHTML(a);
-  return head("", L("查看原文 · 分档对照","View source · level-aligned"),
-              L("文章库 → 文章详情 → 原文分档对照","Library → detail → level-aligned source text"))
+  return head("", L("查看原文 · 分档对照","View source · level-aligned"))
     + `<div class="svbar">
         <div class="svbar-l">
           <div class="svbar-t">${esc(a.title||"Untitled")}</div>
@@ -6086,7 +6048,7 @@ function sMaterialBank(){
   /* A4：空库时不要同时出现「统计卡全 0 + 暂无匹配 + 分页 1/1」三件套（看着像坏了、也不知道下一步做什么），
      改为引导型空态，直接给出下一步出口。 */
   if(!total){
-    return head("", L("素材库","Material Library"), "Manage collected materials · filter & batch")
+    return head("", L("素材库","Material Library"))
       + '<div class="guide-empty">'
       + '<div class="ge-t">' + L("素材库还是空的","No materials yet") + '</div>'
       + '<div class="ge-d">' + L("素材来自「素材创建」：从全网热点里挑一条<b>原文完整</b>的新闻，或粘贴自有 / 公版书素材，打上内容标签后存入这里。素材库里的每一条都能直接拿去生成文章。","Materials come from Material Creation — pick a trend that has <b>full source text</b>, or paste licensed / public-domain content, tag it, then file it here. Everything in this library can go straight into generation.") + '</div>'
@@ -6103,7 +6065,7 @@ function sMaterialBank(){
       + `<div class="mat-stat-lbl"${active?` style="color:${color}"`:""}>${lbl}</div></div>`;
   }
 
-  let html = head("", L("素材库","Material Library"), "Manage collected materials · filter & batch");
+  let html = head("", L("素材库","Material Library"));
 
   /* 统计卡片行 */
   html += `<div class="mat-stats c5">
