@@ -2761,14 +2761,7 @@ function applyLive(){
   /* 练习题（quiz_json.levels，12 键归一化）+ B2+.3 背景导读（quiz_json.guide） */
   if(qj){
     const lvq = nkObj(qj.levels);
-    if(Object.keys(lvq).length){
-      /* 题目数量统一：每档固定 3 题。模型偶发多出题（type mix 是 1-2 区间）时截断到 3，
-         保证 4 档题目数量一致，不出现 A1 有 3 题、B2 有 4 题的情况。不足 3 题不硬补（无法凭空造题）。 */
-      Object.keys(lvq).forEach(function(k){
-        if(Array.isArray(lvq[k]) && lvq[k].length > 3) lvq[k] = lvq[k].slice(0, 3);
-      });
-      state.quiz = lvq; state.quizShow = {};
-    }
+    if(Object.keys(lvq).length){ state.quiz = lvq; state.quizShow = {}; }
     const gdq = nkObj(qj.guide);
     if(Object.keys(gdq).length) state.guide = gdq;
   }
