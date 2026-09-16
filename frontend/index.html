@@ -4266,7 +4266,7 @@ function renderCustomHots(g, immediate){
         <h4>${esc(h.topic)}</h4>
         ${h.summary ? `<div class="cn">${esc(h.summary)}</div>` : ""}
         ${fulltextBadge(h)}
-        <div class="meta"><span>${esc(h.source||"")}${h.date ? " · " + esc(h.date) : ""}</span><span>${link}</span></div>`;
+        <div class="meta"><span>${esc(h.source||"")}</span><span>${link}</span></div>`;
       g.appendChild(d);
     };
     if(immediate) make(); else setTimeout(make, 110*i);
