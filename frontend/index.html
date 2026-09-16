@@ -1985,7 +1985,7 @@ function curMaterialLabel(){
 }
 function curMaterialSource(){
   const h = curHot();
-  if(h) return h.source + " · " + (h.date||"");
+  if(h) return h.source;
   return state.live.book || state.live.label || "";
 }
 function curMaterialUrl(){
@@ -4145,7 +4145,7 @@ function pickRealHot(h){
   state.extracted = false;
   state.topicSel = null; resetTags();
   GEN = {};
-  startLiveRun(h.fulltext || h.summary || h.topic, h.topic, h.source + " · " + (h.date||""));
+  startLiveRun(h.fulltext || h.summary || h.topic, h.topic, h.source);
   if(state.user){ cur = 2; refreshRail(); stage.scrollTop = 0; render(); }
 }
 function renderHots(){
@@ -4280,7 +4280,7 @@ function pickHot(i){
   state.extracted = false;   /* 重置事实抽取状态，选中新热点后重新抽取 */
   state.topicSel = null;     /* 重置选题多选，让新热点按自身 tags 智能推荐 */ resetTags();
   GEN = {};           /* 兜底生成稿立即基于选中素材刷新（真实生成仍由 AI 覆盖） */
-  startLiveRun(h.fulltext || h.summary, h.topic, h.source + " · " + (h.date||""));
+  startLiveRun(h.fulltext || h.summary, h.topic, h.source);
   /* 跳转到 02 敏感排除页，实时展示排查过程与结果（原热点头条保留在热点页顶部） */
   if(state.user){ cur = 2; refreshRail(); stage.scrollTop = 0; render(); }
 }
