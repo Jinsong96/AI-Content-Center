@@ -2587,6 +2587,32 @@ function manualOverrideRun(){
 }
 /* 内容生成：用已抽取的事实卡喂「生成专用」工作流，产出 4 档文章 + 练习题 + 校验（~77s）。
    与事实抽取分开调用，各自有各自的预计用时，避免用户在事实抽取环节干等 1 分钟。 */
+/* 收集当前 4 档正文 + 生词表，用于词汇分级校验（EVP 词表） */
+function collectGenForVocab(){
+  const arts = {}, words = {};
+  allKeys().forEach(function(k){
+    const g = GEN[k];
+    if(g && g.paras && g.paras.length){
+      arts[k] = (g.title ? g.title + ". " : "") + g.paras.map(function(p){ return Array.isArray(p) ? p.join(" ") : p; }).join(" ");
+    }
+    const wl = (state.words12 && state.words12[k]) || [];
+    if(wl && wl.length){
+      words[k] = wl.map(function(x){ return String(x).split(" —")[0].split(" -")[0].trim(); }).filter(Boolean);
+    }
+  });
+  return { arts: arts, words: words };
+}
+/* 调后端词汇分级校验，返回 {ok, results, any_exceed}；失败返回 null（静默降级不阻塞） */
+async function vocabCheck(arts, words){
+  try {
+    const resp = await fetch(AGENT_REACH_API + "/api/vocab-check", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ articles: arts, words: words })
+    });
+    const j = await resp.json();
+    return (j && j.ok) ? j : null;
+  } catch(e){ return null; }
+}
 async function runGeneration(){
   const fc = state.factsCache;
   if(!fc || !fc.summary || !fc.facts_text){
@@ -2607,37 +2633,62 @@ async function runGeneration(){
     /* level 必须转成点式（A1.1 / B2+.1）——start.level 是 select，枚举值是点式；
        而 state.lvl 是内部下划线键（A1_1）。nkDisp 幂等，点式/下划线都能吃。 */
     const wfInputs = { summary: fc.summary, facts_text: fc.facts_text, angle: fc.angle, level: nkDisp(fc.level || state.lvl), style: state.style || "default", gist: fc.gist || "", facts_raw: fc.facts_raw || "" };
-        _runAbort = new AbortController();
-    const data = await difyCall("gen", wfInputs, AIWF_GEN.user, _runAbort.signal);
-    _runAbort = null;
-    const stt = data && data.data && data.data.status;
-    if(stt === "succeeded" || (data && data.data && data.data.outputs)){
-      state.live.run = data; state.live.status = "done";
-    } else if(data && data.code){
-      state.live.status = "error"; state.live.err = data.message || data.code;
-    } else {
-      const rawErr = (data && data.data && data.data.error) || "工作流执行失败";
-      if(/Insufficient Balance|insufficient_quota/i.test(rawErr)){
-        state.live.status = "error";
-        state.live.err = L("演示账户余额不足，请联系管理员充值后重试（详细错误已记录到浏览器 Console）","Demo account out of credits — contact admin to top up (details in Console)");
-        console.warn("[ReadPal] Dify:", rawErr);
-      } else {
-        state.live.status = "error"; state.live.err = rawErr;
+    const MAX_VOCAB_RETRY = 2;
+    state.live.vocab = null;
+    for(let attempt = 0; attempt <= MAX_VOCAB_RETRY; attempt++){
+      if(attempt > 0){
+        toast(L("词汇超纲，自动重试第 " + attempt + " 次（最多 " + MAX_VOCAB_RETRY + " 次）","Vocabulary over level — retrying " + attempt + "/" + MAX_VOCAB_RETRY));
+        state.live.status = "running"; state.live.t0 = Date.now(); state.live.elapsed = 0;
+        renderLiveChip();
+        const st2 = $("#liveStat"); if(st2) st2.textContent = L("词汇超纲，重新生成中…","Regenerating to fix vocabulary…");
+        render();
       }
+      _runAbort = new AbortController();
+      const data = await difyCall("gen", wfInputs, AIWF_GEN.user, _runAbort.signal);
+      _runAbort = null;
+      const stt = data && data.data && data.data.status;
+      if(stt === "succeeded" || (data && data.data && data.data.outputs)){
+        state.live.run = data; state.live.status = "done";
+      } else if(data && data.code){
+        state.live.status = "error"; state.live.err = data.message || data.code; break;
+      } else {
+        const rawErr = (data && data.data && data.data.error) || "工作流执行失败";
+        if(/Insufficient Balance|insufficient_quota/i.test(rawErr)){
+          state.live.status = "error";
+          state.live.err = L("演示账户余额不足，请联系管理员充值后重试（详细错误已记录到浏览器 Console）","Demo account out of credits — contact admin to top up (details in Console)");
+          console.warn("[ReadPal] Dify:", rawErr);
+        } else {
+          state.live.status = "error"; state.live.err = rawErr;
+        }
+        break;
+      }
+      state.live.elapsed = ((Date.now() - state.live.t0) / 1000).toFixed(1);
+      renderLiveChip();
+      applyLive();
+      /* Dify 偶发返回 status=succeeded 却缺 articles_json/paras_json → GEN 空。
+         不能静默跳回「生成文章」按钮（用户以为卡住/没反应），明确报错并给重试路径 */
+      if(state.live.status === "done" && !liveExcluded()){
+        const _anyGen = allKeys().some(function(k){ return GEN[k] && GEN[k].paras && GEN[k].paras.length; });
+        if(!_anyGen){
+          state.live.status = "error";
+          state.live.err = L("生成结果不完整：工作流返回成功但未产出文章，请重试","Incomplete result: workflow succeeded but produced no articles — please retry");
+          break;
+        }
+      }
+      /* 词汇分级校验（EVP）：超纲则重试（最多 2 次），仍超纲则记录超纲词供界面展示 */
+      if(state.live.status === "done" && !liveExcluded()){
+        const cv = collectGenForVocab();
+        const v = await vocabCheck(cv.arts, cv.words);
+        state.live.vocab = v;
+        if(v && v.any_exceed && attempt < MAX_VOCAB_RETRY){
+          continue;
+        }
+      }
+      break;
     }
   } catch(e){ state.live.status = "error"; state.live.err = "网络错误：" + e.message; }
   state.live.elapsed = ((Date.now() - state.live.t0) / 1000).toFixed(1);
   renderLiveChip();
-  applyLive();
-  /* Dify 偶发返回 status=succeeded 却缺 articles_json/paras_json → GEN 空。
-     不能静默跳回「生成文章」按钮（用户以为卡住/没反应），明确报错并给重试路径 */
-  if(state.live.status === "done" && !liveExcluded()){
-    const _anyGen = allKeys().some(function(k){ return GEN[k] && GEN[k].paras && GEN[k].paras.length; });
-    if(!_anyGen){
-      state.live.status = "error";
-      state.live.err = L("生成结果不完整：工作流返回成功但未产出文章，请重试","Incomplete result: workflow succeeded but produced no articles — please retry");
-    }
-  }
   /* 文章生成完立即后台生成音频（必须在 applyLive 之后，GEN 才填好） */
   if(state.live.status === "done" && !liveExcluded() && !Object.keys(state.audio || {}).length){
     genArticleAudio();
@@ -4808,6 +4859,18 @@ function showVSum(){
     else if(warns.length) status = " · " + L("告警项：","warnings: ") + esc(warns.join("；").slice(0,120));
     else status = " · " + L("部分通过，存在未达标项","some checks failed");
     txt = `<b>${L("AI 真实校验：","AI LIVE validation: ")}${big} ${L("项通过","checks passed")}${status}</b>`;
+    /* 词汇分级校验（EVP 词表）：超纲率 + 超纲词 */
+    const vcb = state.live && state.live.vocab;
+    if(vcb && vcb.results){
+      const parts = allKeys().map(function(k){
+        const r = vcb.results[k];
+        return r ? (k + " " + (r.over_rate*100).toFixed(1) + "%" + (r.exceed ? L("超纲"," OVER") : "")) : null;
+      }).filter(Boolean);
+      const overWords = [];
+      allKeys().forEach(function(k){ ((vcb.results[k]||{}).over_words||[]).forEach(function(w){ overWords.push(w[0]); }); });
+      const uniq = Array.from(new Set(overWords)).slice(0, 15);
+      txt += `<br><span class="vvocab">${L("词汇分级（EVP）：","Vocab (EVP): ")}${parts.join(" · ")}${vcb.any_exceed ? " · " + L("超纲词：","over-level: ") + esc(uniq.join("、")) : ""}</span>`;
+    }
   }
   s.innerHTML=`<div class="big">${big}</div><div class="txt">${txt}</div>`;
   s.style.animation="pop .5s both";
