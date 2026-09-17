@@ -5705,22 +5705,45 @@ function docxParagraph(text, style){
   const p = docxEscape(text);
   return '<w:p><w:pPr><w:pStyle w:val="' + style + '"/></w:pPr><w:r><w:t xml:space="preserve">' + p + '</w:t></w:r></w:p>';
 }
-/* MD 文本 → docx body XML：识别 # 标题（Heading1）、## 标题（Heading2）、空行分段、正文 */
-function mdToDocxBody(md){
+/* MD 文本 → docx body XML：标题（居中 DocTitle）、档位（加粗 DocLevel）、正文段落（带序号 ①②③）
+   withNumbers=true 时正文段落前加序号（文章用）；false 时纯段落（题目用，题目已有 Q1/A/B/C 编号） */
+const DOCX_CIRCLE = ["①","②","③","④","⑤","⑥","⑦","⑧","⑨","⑩","⑪","⑫","⑬","⑭","⑮","⑯","⑰","⑱","⑲","⑳"];
+function mdToDocxBody(md, withNumbers){
   const lines = String(md || "").split("\n");
   const paras = [];
+  let firstHeading = true;
+  let paraIndex = 0;
   lines.forEach(function(line){
     const t = line.replace(/\r$/, "");
-    if(/^#\s/.test(t)){ paras.push(docxParagraph(t.replace(/^#\s+/, ""), "Heading1")); }
-    else if(/^##\s/.test(t)){ paras.push(docxParagraph(t.replace(/^##\s+/, ""), "Heading2")); }
-    else if(t.trim()){ paras.push(docxParagraph(t, "Normal")); }
+    if(/^#\s/.test(t)){
+      const txt = t.replace(/^#\s+/, "").trim();
+      if(/^(A1|A2|B1|B2)$/.test(txt)){
+        paras.push(docxParagraph(nkDisp(txt), "DocLevel"));   /* 档位：加粗一级标题 */
+        paraIndex = 0;
+      } else if(firstHeading){
+        paras.push(docxParagraph(txt, "DocTitle"));           /* 第一个 # = 文章标题：居中 */
+        firstHeading = false;
+      } else {
+        paras.push(docxParagraph(txt, "DocLevel"));
+        paraIndex = 0;
+      }
+    } else if(t.trim()){
+      const c = t.trim();
+      if(withNumbers){
+        const prefix = paraIndex < DOCX_CIRCLE.length ? DOCX_CIRCLE[paraIndex] : ("(" + (paraIndex + 1) + ")");
+        paras.push(docxParagraph(prefix + " " + c, "Normal"));
+        paraIndex++;
+      } else {
+        paras.push(docxParagraph(c, "Normal"));
+      }
+    }
   });
   return paras.join("");
 }
-function buildDocxBlob(md){
+function buildDocxBlob(md, withNumbers){
   const xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
     '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">' +
-    '<w:body>' + mdToDocxBody(md) +
+    '<w:body>' + mdToDocxBody(md, withNumbers) +
     '<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440"/></w:sectPr>' +
     '</w:body></w:document>';
   const doc = new JSZip();
@@ -5739,9 +5762,9 @@ function buildDocxBlob(md){
   doc.folder("word").file("styles.xml",
     '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
     '<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">' +
-    '<w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/><w:rPr><w:rFonts w:ascii="Calibri" w:hAnsi="Calibri" w:eastAsia="Microsoft YaHei"/><w:sz w:val="22"/></w:rPr></w:style>' +
-    '<w:style w:type="paragraph" w:styleId="Heading1"><w:name w:val="heading 1"/><w:basedOn w:val="Normal"/><w:rPr><w:b/><w:sz w:val="32"/><w:color w:val="E65425"/></w:rPr></w:style>' +
-    '<w:style w:type="paragraph" w:styleId="Heading2"><w:name w:val="heading 2"/><w:basedOn w:val="Normal"/><w:rPr><w:b/><w:sz w:val="26"/><w:color w:val="C2421C"/></w:rPr></w:style>' +
+    '<w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/><w:pPr><w:spacing w:line="360" w:lineRule="auto"/><w:jc w:val="both"/></w:pPr><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman" w:eastAsia="SimSun"/><w:sz w:val="24"/></w:rPr></w:style>' +
+    '<w:style w:type="paragraph" w:styleId="DocTitle"><w:name w:val="Doc Title"/><w:basedOn w:val="Normal"/><w:pPr><w:jc w:val="center"/><w:spacing w:after="240"/></w:pPr><w:rPr><w:b/><w:sz w:val="24"/></w:rPr></w:style>' +
+    '<w:style w:type="paragraph" w:styleId="DocLevel"><w:name w:val="Doc Level"/><w:basedOn w:val="Normal"/><w:pPr><w:spacing w:before="240" w:after="120"/></w:pPr><w:rPr><w:b/><w:sz w:val="24"/></w:rPr></w:style>' +
     '</w:styles>');
   doc.folder("word").file("document.xml", xml);
   return doc.generateAsync({ type: "blob" });
@@ -5761,8 +5784,8 @@ async function exportArticles(ids){
     zip.file(uniqueName(base + "-文章", ".md", used, sid), buildArticleMD(a));
     zip.file(uniqueName(base + "-题目", ".md", used, sid), buildQuizMD(a));
     /* Word 版：与 MD 同源，打包进同一个 zip */
-    zip.file(uniqueName(base + "-文章", ".docx", used, sid), await buildDocxBlob(buildArticleMD(a)));
-    zip.file(uniqueName(base + "-题目", ".docx", used, sid), await buildDocxBlob(buildQuizMD(a)));
+    zip.file(uniqueName(base + "-文章", ".docx", used, sid), await buildDocxBlob(buildArticleMD(a), true));
+    zip.file(uniqueName(base + "-题目", ".docx", used, sid), await buildDocxBlob(buildQuizMD(a), false));
   }
   zip.generateAsync({ type:"blob" }).then(function(blob){
     const url = URL.createObjectURL(blob);
