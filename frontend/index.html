@@ -5675,6 +5675,20 @@ function buildArticleMD(a){
   });
   return out.join("\n").replace(/\n+$/, "\n");
 }
+/* 单档文章 Markdown：# 标题 + 该档段落（文件名已标档位，正文不重复 # A1） */
+function buildArticleLevelMD(a, k){
+  const out = ["# " + (a.title || "Untitled"), ""];
+  const paras = (a.paras && a.paras[k]) || [];
+  const list = [];
+  if(paras.length){
+    paras.forEach(function(t){ const c = cleanPara(t).trim(); if(c) list.push(c); });
+  } else {
+    const raw = (a.articles && a.articles[k]) || "";
+    raw.split(/\n{2,}/).forEach(function(p){ const c = cleanPara(p).trim(); if(c) list.push(c); });
+  }
+  list.forEach(function(c){ out.push(c, ""); });
+  return out.join("\n").replace(/\n+$/, "\n");
+}
 /* 题目 Markdown：# 标题 + 4 档，每题题干/选项/答案/解析 */
 function buildQuizMD(a){
   const out = ["# " + (a.title || "Untitled"), ""];
@@ -5691,6 +5705,21 @@ function buildQuizMD(a){
       if(q.explain) out.push("解析：" + cleanPara(q.explain));
       out.push("");
     });
+  });
+  return out.join("\n").replace(/\n+$/, "\n");
+}
+/* 单档题目 Markdown：# 标题 + 该档题目（题干/选项/答案/解析） */
+function buildQuizLevelMD(a, k){
+  const out = ["# " + (a.title || "Untitled"), ""];
+  const list = (a.quiz && a.quiz[k]) || [];
+  list.forEach(function(q, i){
+    out.push("Q" + (i+1) + ". " + cleanPara(q.q || ""));
+    (q.options || []).forEach(function(o, oi){
+      out.push(("ABCD"[oi] || (oi+1)) + ". " + cleanPara(o));
+    });
+    out.push("答案：" + ("ABCD"[q.answer] || "—"));
+    if(q.explain) out.push("解析：" + cleanPara(q.explain));
+    out.push("");
   });
   return out.join("\n").replace(/\n+$/, "\n");
 }
@@ -5793,6 +5822,14 @@ async function exportArticles(ids){
     /* Word 版：与 MD 同源，打包进同一个 zip */
     zip.file(uniqueName(base + "-文章", ".docx", used, sid), await buildDocxBlob(buildArticleMD(a), true));
     zip.file(uniqueName(base + "-题目", ".docx", used, sid), await buildDocxBlob(buildQuizMD(a), false));
+    /* 分档导出：每个难度等级单独出 文章/题目 各 md + docx，命名 标题_{档位} / 标题_{档位}_题目 */
+    for(const k of allKeys()){
+      const lvl = nkDisp(k);   /* A1- / A2 / B1 / B2+ */
+      zip.file(uniqueName(base + "_" + lvl, ".md", used, sid), buildArticleLevelMD(a, k));
+      zip.file(uniqueName(base + "_" + lvl + "_题目", ".md", used, sid), buildQuizLevelMD(a, k));
+      zip.file(uniqueName(base + "_" + lvl, ".docx", used, sid), await buildDocxBlob(buildArticleLevelMD(a, k), true));
+      zip.file(uniqueName(base + "_" + lvl + "_题目", ".docx", used, sid), await buildDocxBlob(buildQuizLevelMD(a, k), false));
+    }
   }
   zip.generateAsync({ type:"blob" }).then(function(blob){
     const url = URL.createObjectURL(blob);
