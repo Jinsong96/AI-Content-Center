@@ -2386,6 +2386,7 @@ TTS_MODEL = "FunAudioLLM/CosyVoice2-0.5B"
 TTS_URL = "https://api.siliconflow.cn/v1/audio/speech"
 TTS_VOICE = "FunAudioLLM/CosyVoice2-0.5B:alex"
 TTS_TIMEOUT = 90
+TTS_PAUSED = True   # 暂停硅基流动语音合成；恢复改回 False
 
 # 口音 → instruct 指令（美音为默认，不加指令）
 ACCENT_INSTRUCT = {
@@ -2761,6 +2762,8 @@ class Handler(BaseHTTPRequestHandler):
         path = parsed.path
         body = self._read_body()
         if path == "/api/tts":
+            if TTS_PAUSED:
+                return self._send({"ok": False, "error": "语音合成已暂停（TTS paused）", "paused": True}, 503)
             # 单条：{ text, level, accent }
             text = body.get("text") or ""
             level = body.get("level") or "B1"
@@ -2773,6 +2776,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._send({"ok": True, "url": url, "level": level, "accent": accent,
                                "status": status, "model": TTS_MODEL, "provider": "siliconflow"})
         if path == "/api/tts/batch":
+            if TTS_PAUSED:
+                return self._send({"ok": False, "error": "语音合成已暂停（TTS paused）", "paused": True}, 503)
             # 批量：{ articles:{A2,B1,B2}, accents:["us","uk"] }
             articles = body.get("articles") or {}
             accents = tuple(body.get("accents") or ["us", "uk"])
