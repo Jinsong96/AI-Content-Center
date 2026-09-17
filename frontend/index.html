@@ -1418,9 +1418,12 @@ function bigParaCount(big){
 }
 function bigBarHTML(){
   _bigBarUsed = true;
-  const cur = curBig();
+  let cur = curBig();
+  const minIdx = ["A1","A2","B1","B2"].indexOf(minLevelKey());
+  if(["A1","A2","B1","B2"].indexOf(cur) < minIdx) cur = minLevelKey();   /* 当前档低于区间下界 → 落到下界 */
   return '<div class="bigbar"><span class="bigbar-l">' + L("档位","Level") + '</span>' +
     BIG_GROUPS.map(function(g){
+      if(["A1","A2","B1","B2"].indexOf(g.big) < minIdx) return '';   /* 低于区间下界的档不显示 */
       const n = bigParaCount(g.big);
       return '<div class="bigtab' + (cur === g.big ? ' sel' : '') + (n ? '' : ' blank') + '" onclick="setBig(\'' + g.big + '\')"><b>' + (LEVEL_BY_KEY[g.big] ? LEVEL_BY_KEY[g.big].d : g.big) + '</b><span>' + L(g.zh, g.en) + '</span><span class="bt-n' + (n ? '' : ' off') + '"><i></i>' + n + ' ' + L("段","paras") + '</span></div>';
     }).join("") +
@@ -2521,6 +2524,7 @@ function renderLiveChip(){
 async function startLiveRun(material, label, book, override){
   if(state.live.status === "running"){ toast(L("AI 任务运行中，请稍候…","AI run in progress, please wait…")); return; }
   state.live = { status: "running", material, label: label || "", book: book || "", run: null, err: null, t0: Date.now(), elapsed: 0, nodes: 0 };
+  state.genSkipConfirmed = false;   /* 新一轮：重置「低档不可生成」的确认状态 */
   state.factMap = null; state.unusedFacts = [];   /* 新一轮前清空上一轮的段落↔事实卡绑定 */
   GEN = {}; state.quiz = {}; state.quizShow = {};   /* 清空上一轮文章与题目（事实抽取不产出文章） */
   /* 清空上一轮音频：否则新素材会误以为"已有音频"而跳过生成，导致入库时才补、等 15s */
@@ -2612,6 +2616,29 @@ async function vocabCheck(arts, words){
     const j = await resp.json();
     return (j && j.ok) ? j : null;
   } catch(e){ return null; }
+}
+/* 档位区间门：低档生成不了时弹确认。返回 true 继续；false 已弹确认、等用户点确认后重跑 */
+function genLevelGate(){
+  const fc = state.factsCache;
+  const lo = fc && fc.level_lo;
+  const loIdx = ["A1","A2","B1","B2"].indexOf(nkKey(lo || ""));
+  if(loIdx <= 0) return true;                 /* 下界 A1，全档可生成 */
+  if(state.genSkipConfirmed) return true;     /* 已确认过 */
+  const skip = ["A1","A2","B1","B2"].slice(0, loIdx).map(nkDisp).join("、");
+  askConfirm({
+    title: L("部分档位无法生成","Some levels unavailable"),
+    body: L("该素材词汇难度较高，无法生成 " + skip + " 档文章，将只生成更高档位。是否继续？","This material is too advanced for " + skip + " — only higher levels will be produced. Continue?"),
+    okText: L("继续生成","Continue"),
+    onOk: function(){ state.genSkipConfirmed = true; runGeneration(); }
+  });
+  return false;
+}
+/* 当前素材档位区间下界 key（A1/A2/B1/B2）——低于此档生成不了，前端据此隐藏低档 */
+function minLevelKey(){
+  const fc = state.factsCache;
+  const lo = fc && fc.level_lo;
+  const loIdx = ["A1","A2","B1","B2"].indexOf(nkKey(lo || ""));
+  return loIdx > 0 ? ["A1","A2","B1","B2"][loIdx] : "A1";
 }
 async function runGeneration(){
   const fc = state.factsCache;
@@ -2784,7 +2811,7 @@ function applyLive(){
     /* gist 必须一起缓存并回传给 GEN —— 低档 A1/A2 的「去数字大意拍」基准就靠它。
      实测不带 gist 时 nodeClean 会退回 facts_text：低档系统性欠写（A1.2 119 vs 149 词）、
      校验多出 3 个硬失败、低档 gist_map 只引用到 4 条（应在 8 条内）。 */
-    state.factsCache = { summary: o.summary, facts_text: o.facts_text, angle: o.angle, level: nkDisp(o.level) || o.level, gist: o.gist || "", facts_raw: o.facts_raw || o.fact_json || "" };
+    state.factsCache = { summary: o.summary, facts_text: o.facts_text, angle: o.angle, level: nkDisp(o.level) || o.level, gist: o.gist || "", facts_raw: o.facts_raw || o.fact_json || "", level_lo: o.level_lo || "", level_hi: o.level_hi || "" };
   }
   const jp = function(v){ try { const x = (typeof v === "string") ? JSON.parse(v) : v; return (x && typeof x === "object") ? x : null; } catch(e){ return null; } };
   /* 关键归一化：Dify 的 JSON key 是下划线式（A1_1 / B2P_1），统一转成规范 key */
