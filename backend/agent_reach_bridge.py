@@ -26,6 +26,12 @@ import xml.etree.ElementTree as ET
 from email.utils import parsedate_to_datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
+# 词汇分级校验（EVP 词表）：backend/evp_vocab_check.py + backend/evp_wordlist.json
+try:
+    from evp_vocab_check import check_vocab_batch
+except ImportError:  # 模块缺失时降级，接口返回错误而非崩溃
+    check_vocab_batch = None
+
 PORT = int(os.environ.get("PORT") or (sys.argv[1] if len(sys.argv) > 1 else 8787))
 
 # 前端单页路径：Railway 单服务部署时由 bridge 一并托管，前后端同域。
@@ -2783,6 +2789,16 @@ class Handler(BaseHTTPRequestHandler):
             accents = tuple(body.get("accents") or ["us", "uk"])
             audio, meta = gen_tts_batch(articles, accents)
             return self._send({"ok": True, "audio": audio, "meta": meta})
+        if path == "/api/vocab-check":
+            # 词汇分级校验：{ articles: {A1: text, A2: text, ...}, words: {A1: [..], ...} }
+            # words 为各档生词表，用于豁免（不计超纲）
+            if check_vocab_batch is None:
+                return self._send({"ok": False, "error": "词汇校验模块未部署（缺 evp_vocab_check.py）"}, 503)
+            articles = body.get("articles") or {}
+            words_map = body.get("words") or {}
+            results = check_vocab_batch(articles, words_map)
+            any_exceed = any(r.get("exceed") for r in results.values())
+            return self._send({"ok": True, "results": results, "any_exceed": any_exceed})
         if path == "/api/tags/extract":
             # 三层标签提取：{ material, title }
             material = body.get("material") or body.get("text") or ""
