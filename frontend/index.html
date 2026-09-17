@@ -4795,12 +4795,19 @@ function runValidate(){
 function showVSum(){
   const s=$("#vsum");
   let big="—";
-  let txt=`${L("尚未运行 AI 工作流，暂无真实校验结果。运行后此处展示 8 项 × 4 档共 32 项的真实校验得分。","No AI run yet — no real validation. Run the workflow to see the real 8×4=32 check score.")}`;
+  let txt=`${L("尚未运行 AI 工作流，暂无真实校验结果。运行后此处展示各档位的真实校验得分。","No AI run yet — no real validation. Run the workflow to see the real per-level check score.")}`;
   const vj = liveVJ();
   if(liveReady() && vj){
-    big = (vj.total_pass||0) + "/" + (vj.total_checks||24);
+    const total = vj.total_checks || 0;
+    const pass = vj.total_pass || 0;
+    big = pass + "/" + total;
     const warns = (vj.results||[]).flatMap(r => (r.fail_reasons||[]));
-    txt = `<b>${L("AI 真实校验：","AI LIVE validation: ")}${big} ${L("项通过","checks passed")}${warns.length ? " · " + L("告警项：","warnings: ") + esc(warns.join("；").slice(0,120)) : " · " + L("全部通过","all passed")}</b>`;
+    const allPass = total > 0 && pass === total;
+    let status;
+    if(allPass) status = " · " + L("全部通过","all passed");
+    else if(warns.length) status = " · " + L("告警项：","warnings: ") + esc(warns.join("；").slice(0,120));
+    else status = " · " + L("部分通过，存在未达标项","some checks failed");
+    txt = `<b>${L("AI 真实校验：","AI LIVE validation: ")}${big} ${L("项通过","checks passed")}${status}</b>`;
   }
   s.innerHTML=`<div class="big">${big}</div><div class="txt">${txt}</div>`;
   s.style.animation="pop .5s both";
