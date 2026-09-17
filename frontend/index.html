@@ -1460,6 +1460,8 @@ const SILICONFLOW_IMG = { apiBase: "https://api.siliconflow.cn/v1", apiKey: (win
 /* 标题 → 英文视觉描述词。必须用非推理模型：推理模型(Qwen3.6/DeepSeek-V4)会把输出
    落进 reasoning_content，content 为空，且 DeepSeek 还会吐出 </think> 污染 prompt。 */
 const SF_LLM = { apiBase: "https://api.siliconflow.cn/v1", apiKey: SILICONFLOW_IMG.apiKey, model: "Qwen/Qwen2.5-7B-Instruct" };
+/* 功能开关：暂停硅基流动封面图 / 语音合成（TTS）。恢复改回 true */
+const FEATURES = { cover: false, tts: false };
 const COVER_SYS = "Output ONE concise English image-generation prompt for the article title and summary. ASCII characters only — NO Chinese or non-Latin letters. Format: <main subject>, <setting>, <mood>, <color palette>, modern flat illustration, no text. Under 25 words. No quotes, no explanation, no labels.";
 /* 主题 → 文生图 prompt 元素（英文，供图片模型构图） */
 /* 第二次重试时使用的更激进提示：列示例 + 强制 ASCII */
@@ -1585,6 +1587,7 @@ async function buildCoverPromptLLM(){
    关键：图床 URL 带 X-Amz-Expires=3600（1 小时失效），必须立即下载转 base64 才能持久化，
    否则文章入库后隔天打开全是裂图。 */
 async function genLiveCover(){
+  if(!FEATURES.cover) return;   /* 封面图已暂停（硅基流动文生图） */
   if(state.live.coverDataUrl || state.live.coverBusy) return;
   state.live.coverBusy = true;
   try {
@@ -1698,7 +1701,9 @@ function audioBarHTML(){
         <button class="ab-btn ${state.audioAccent==='uk'&&hasUk?'on':''}" onclick="playAudio('uk')" ${hasUk?'':'disabled'}>▶ ${L("英音","British")} </button>
       </div>`
     : `<div class="ab-accent"><span class="ab-label">${L("音频文件","Audio files")}</span>
-        <button class="ab-btn" onclick="genArticleAudio()" ${state.audioGenerating?'disabled':''}>${state.audioGenerating ? L("生成中…","Generating…") : L("生成音频（4 档 × 英音/美音）","Generate audio (4 levels × UK/US)")}</button>
+        ${FEATURES.tts
+          ? `<button class="ab-btn" onclick="genArticleAudio()" ${state.audioGenerating?'disabled':''}>${state.audioGenerating ? L("生成中…","Generating…") : L("生成音频（4 档 × 英音/美音）","Generate audio (4 levels × UK/US)")}</button>`
+          : `<span class="ab-wait">${L("语音合成已暂停","Text-to-speech is paused")}</span>`}
       </div>`;
   return `<div class="audiobar"><h6> ${L("文章朗读","Read-aloud")}（${nkDisp(state.lvl)}）</h6>
     <div class="ab-accent"><span class="ab-label">${L("在线朗读（浏览器）","Live read-aloud (browser)")}</span>
@@ -1714,6 +1719,7 @@ let accentSpeaking = false;
 
 /* 调后端生成4 档 × 英音/美音 音频文件（硅基流动 TTS；后续可换微软 Azure） */
 async function genArticleAudio(){
+  if(!FEATURES.tts) return null;   /* TTS 已暂停：自动触发点静默跳过 */
   const arts = {};
   allKeys().forEach(k => {
     const g = GEN[k];
@@ -5283,6 +5289,7 @@ function backfillBankAudio(){
 let bankAudioBusy = null;
 /* 文章库内补生成音频：直接用入库时存的正文打 TTS，不用重跑整条流水线 */
 async function bankRegenAudio(id){
+  if(!FEATURES.tts){ toast(L("语音合成已暂停","Text-to-speech is paused")); return; }
   if(bankAudioBusy) return;
   const list = loadBank();
   const a = list.find(x => x.id === id);
