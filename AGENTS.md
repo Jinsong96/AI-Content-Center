@@ -56,10 +56,14 @@
 > ⇒ **改篇幅/档位参数前，先用 service API 真跑一次 GEN，读 `validation_json`**。
 > 那是线上真正在执行的区间；照仓库文件改会把线上规格改坏（见坑 18）。
 >
-> **长度校验是软判定**（2026-09-18 实测 `validation_json`）：
-> B1 实测 367 词（区间 380–550，差 3.4%）判 **pass**、A2 实测 185 词（区间 240–380，差 23%）判 **warn**、
-> B2+ 实测 810 词（上限 800）**也判 pass** —— 即**低于下限 10% 仍算通过，超上限也未必不合格**。
-> 结果是产出天然「低档贴下限、B2+ 冲上限」，而不是向区间中点靠。改篇幅时先改这里。
+> **长度闸门 2026-09-18 已收紧**（GEN `nodeValidate`）：**越界即 `fail`**，
+> 不再保留「低于下限 25% 仍放行」的容差；区间内再按与靶心（区间中点）的距离分 `pass` / `warn`。
+>
+> ⚠️ 早前那条「产出系统性贴下限」的结论，是**用 60 词测试桩素材**跑出来的，**不代表真实素材**。
+> 用真实热点素材复测（4800 / 4075 / 4737 字符 = 前端 `material.slice(0,4800)` 的真实入参）三组 × 4 档：
+> **词数 11/12 落在区间内**（偏差多在 −10% 上下；仅长素材的 A1- 出 242，超上限 2 词）。
+> **真正系统性偏低的是「难度」而不是「字数」**：B1 平均句长实测 10.1–12.4（要求 14–17）、
+> 蓝思估算 460–662（要求 750–1050），A2 / B2+ 也常低一档 —— 下一步该动的是句长与蓝思，不是词数。
 
 
 ---
@@ -283,13 +287,26 @@ GEN 早期用 DeepSeek 官方渠道耗时 145s，`response_mode: "blocking"` **�
 2026-09-16 起 `difyCall` 优先打桥接层同源 `/api/dify/workflows/run`，失败才回退直连。
 > **规则**：新增 / 修改 Dify 调用一律走 `difyCall`；**保持 `blocking`**，别再改回 `streaming`。
 
-### 坑 18：仓库里的 `dify_graphs/*.json` 与 `tools/dify_build_graphs.py` 都可能落后线上
+### 坑 18：**线上草稿才是 Dify 图的唯一真源**，仓库那套只能作参考
 
-2026-09-18 实测：线上 GEN 校验节点回传 `word_range = 150-240 / 240-380 / 380-550 / 550-800`，
-而仓库 `tools/dify_build_graphs.py` 的 `LEVELS.wc` 仍写着 `60-160 / 160-300 / 300-550 / 550-700`。
-**照仓库文件重建再推，会把线上正确的规格改坏。**
-> **规则**：动篇幅 / 档位参数前，先用 service API 真跑一次 GEN（`tools/dify_run_app.py --app=fact|gen`），
-> 读 `validation_json` —— 那才是线上真正在执行的区间。别拿 `dify_graphs/` 当唯一真源。
+2026-09-18 逐节点实测（`dump_draft` 拉线上草稿 vs 仓库 `dify_graphs/*.new.json`）：
+- GEN：仓库 12 个节点**与线上无一相同**，且少一个 `nodeGistCheck` —— 落后整整一个世代
+- FACT：12 个节点里 7 个不同
+- `LEVELS.wc` 当时还是旧的 `60-160 / 160-300 / 300-550 / 550-700`（线上是 `150-240 / 240-380 / 380-550 / 550-800`）
+
+**照仓库重建再推 = 把线上改坏。**
+> **规则**：改图一律走「拉线上草稿 → 定点改 → 推送 → 发布」：
+> ```bash
+> node tools/dump_draft.mjs <app_id> /tmp/live.json     # 拉线上草稿
+> node tools/dify_push_graph.mjs --app=<id> --graph=/tmp/payload.json
+> node tools/dify_publish.mjs --app=<id> --note="说明"
+> ```
+> 推送载荷**必须带 `features` / `conversation_variables`** —— 用 `tools/dump_full_draft.mjs`
+> 拉完整草稿（`dump_draft.mjs` 只存 graph，且经 stdout 会在 64KB 处被截断），否则推送会把应用的 features 清掉。
+> 起浏览器：`python3 tools/launch_dify_chrome.py <port>`（⚠️ 别复用 headless 实例占用的端口）。
+> `dify_graphs/*.new.json` 已按 2026-09-18 线上快照刷新；`tools/dify_build_graphs.py` 已加
+> `--legacy` 守卫（不加参数直接跑会退出），因为它的提示词正文没有跟着线上更新。
+> 要核对线上真正在执行的区间，用 service API 真跑一次 GEN（`tools/dify_run_app.py --app=fact|gen`）读 `validation_json`。
 
 ---
 
