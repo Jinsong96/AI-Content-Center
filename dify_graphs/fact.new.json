@@ -21,18 +21,10 @@
        "label": "档位偏好（可选，空则由分级节点判定）",
        "max_length": 48,
        "options": [
-        "A1.1",
-        "A1.2",
-        "A1.3",
-        "A2.1",
-        "A2.2",
-        "A2.3",
-        "B1.1",
-        "B1.2",
-        "B1.3",
-        "B2+.1",
-        "B2+.2",
-        "B2+.3"
+        "A1-",
+        "A2",
+        "B1",
+        "B2+"
        ],
        "required": false,
        "type": "select",
@@ -43,17 +35,27 @@
        "max_length": 48,
        "options": [
         "hemingway",
-        "zhuziqing",
+        "austen",
         "ohenry",
         "twain",
-        "murakami",
-        "luxun",
+        "dickens",
+        "orwell",
         "shakespeare",
         "default"
        ],
        "required": false,
        "type": "select",
        "variable": "style"
+      },
+      {
+       "label": "人工放行（忽略敏感排查）",
+       "max_length": 16,
+       "options": [
+        "true"
+       ],
+       "required": false,
+       "type": "select",
+       "variable": "override_sensitive"
       }
      ]
     },
@@ -78,32 +80,30 @@
       "enabled": false,
       "variable_selector": []
      },
-     "desc": "抽取素材中的客观事实，输出 JSON（summary/facts/numbers/sources）",
+     "desc": "抽取客观事实（上限 12 条，素材不足不硬凑）与分层大意基准 gist（固定 12 条，去数字去专名）",
      "model": {
       "completion_params": {
-       "max_tokens": 2000,
+       "max_tokens": 5000,
        "temperature": 0.2,
-       "response_format": "json_object",
-       "enable_thinking": false
+       "thinking": false,
+       "response_format": "json_object"
       },
       "mode": "chat",
-      "name": "deepseek-ai/DeepSeek-V4-Flash",
-      "provider": "langgenius/siliconflow/siliconflow"
+      "name": "deepseek-v4-flash",
+      "provider": "langgenius/deepseek/deepseek"
      },
      "prompt_template": [
       {
-       "id": "pt-fact-sys",
        "role": "system",
-       "text": "你是教育内容生产流水线中的\"素材事实抽取器\"。输入一段素材（可能是热点新闻、YouTube 字幕或网页内容），抽取其中的客观事实，输出严格的 JSON。\n\n输出格式（只输出 JSON，不要任何解释，不要 markdown 代码块）：\n{\"summary\": \"30字以内的中文主题概括\", \"summary_en\": \"English topic summary (within 15 words)\", \"facts\": [{\"en\": \"English atomic fact, keep numbers/dates/names exactly\", \"zh\": \"对应中文事实\"}], \"numbers\": [\"3 million\", \"2025\", \"45%\"], \"sources\": [\"原始信源名称\"]}\n\n要求：\n1. 只抽取素材中明确出现的事实，禁止推断或补充。\n2. 数字、百分比、专名必须原样保留（英文事实里尤其要保持数字精度），这是后续事实一致性校验的依据。\n3. facts 每一条都必须同时给出 en（英文事实，供英文文章生成直接引用）和 zh（中文对照翻译）两个字段，一一对应。\n4. 若素材包含观点性内容，放入 summary 中注明\"观点\"。\n5. facts 数量必须控制在 6-12 条。若自然抽取多于 12 条，请把同主题、同类的相邻事实合并为一条（例如把多个同类的数字事实并成一句并列句），确保最终不超过 12 条；少于 6 条时，把含多个信息点的长句拆成多条。合并时不得丢失任何数字、百分比、专名与时间。"
+       "text": "你是教育内容生产流水线中的\"素材事实抽取器\"。输入一段素材（可能是热点新闻、YouTube 字幕或网页内容），抽取其中的客观事实，并同时产出一份「分层大意基准」，输出严格的 JSON。\n\n输出格式（只输出 JSON，不要任何解释，不要 markdown 代码块）：\n{\"summary\": \"30字以内的中文主题概括\", \"summary_en\": \"English topic summary (within 15 words)\", \"facts\": [{\"en\": \"English atomic fact, keep numbers/dates/names exactly\", \"zh\": \"对应中文事实\"}], \"gist\": [{\"en\": \"Coarse one-sentence story beat, NO numbers and NO proper names\", \"zh\": \"对应中文大意\"}], \"numbers\": [\"3 million\", \"2025\", \"45%\"], \"sources\": [\"原始信源名称\"]}\n\n【facts —— 细节事实，供 B1 / B2+ 高档使用】\n1. 只抽取素材中明确出现的事实，禁止推断或补充。\n2. 数字、百分比、专名必须原样保留（英文事实里尤其要保持数字精度），这是后续事实一致性校验的依据。\n3. facts 每一条都必须同时给出 en（英文事实，供英文文章生成直接引用）和 zh（中文对照翻译）两个字段，一一对应。\n4. 若素材包含观点性内容，放入 summary 中注明\"观点\"。\n5. facts 数量上限 12 条。若自然抽取多于 12 条，请把同主题、同类的相邻事实合并为一条（例如把多个同类的数字事实并成一句并列句），确保最终不超过 12 条；素材本身信息点不足 12 条时，如实抽取即可，**不得拆分凑数、不得编造补充**。合并时不得丢失任何数字、百分比、专名与时间。\n\n【gist —— 分层大意基准，固定 12 条，供 A1 / A2 低档使用】\n6. gist 严格控制在 12 条，每条一句话。gist 是「信息节拍」：优先抽「事实节拍」（谁做了什么 / 发生了什么变化），按时间或逻辑顺序排列；当素材的事实不足 12 条时，用素材原文中明确出现的「观点 / 态度 / 评价节拍」补足到 12 条（如\"有人认为…\"\"专家担心…\"\"这件事意味着…\"）。观点节拍必须原文确有，不得新增立场、不得编造褒贬。第 i 条大意对应第 i 段（4 档一致，一对一）。\n7. gist 里**禁止出现任何数字、百分比、年份、机构名、人名、地名**——这些属于细节，由 facts 承载。把\"上升了 40%\"写成\"上升很多\"，把\"世界卫生组织\"写成\"国际卫生机构\"，把\"2025 年\"写成\"最近\"。\n8. gist 必须完整覆盖素材主线：把全部 gist 连起来读，应当能还原素材讲了什么。**不得引入素材中不存在的信息，观点节拍尤其不得凭空编造立场或褒贬**——观点必须能从原文找到出处。\n9. gist 与 facts 之间是多对一关系（多条细节对应一条大意），但**任何一条事实所属的语义块都不得在大意中缺席**。\n\n【两者的关系】facts 与 gist 是同一条素材的两种粒度，不是两份不同的内容：gist 就是 facts 去掉数字与专名之后的语义骨架。"
       },
       {
-       "id": "pt-fact-user",
        "role": "user",
        "text": "{{#nodeStart.material#}}"
       }
      ],
      "selected": false,
-     "title": "① 事实抽取",
+     "title": "① 事实抽取（事实卡 + 分层大意基准）",
      "type": "llm"
     },
     "height": 22,
@@ -135,12 +135,12 @@
       "completion_params": {
        "max_tokens": 800,
        "temperature": 0.1,
-       "response_format": "json_object",
-       "enable_thinking": false
+       "thinking": false,
+       "response_format": "json_object"
       },
       "mode": "chat",
-      "name": "deepseek-ai/DeepSeek-V4-Flash",
-      "provider": "langgenius/siliconflow/siliconflow"
+      "name": "deepseek-v4-flash",
+      "provider": "langgenius/deepseek/deepseek"
      },
      "prompt_template": [
       {
@@ -182,22 +182,22 @@
        "result"
       ]
      },
-     "desc": "依据 12 子档量化表判定素材档位，输出子档 + 大档 + 依据",
+     "desc": "依据 4 档量化表判定素材档位区间，输出 lo/hi + 依据",
      "model": {
       "completion_params": {
        "max_tokens": 900,
        "temperature": 0.2,
-       "response_format": "json_object",
-       "enable_thinking": false
+       "thinking": false,
+       "response_format": "json_object"
       },
       "mode": "chat",
-      "name": "deepseek-ai/DeepSeek-V4-Flash",
-      "provider": "langgenius/siliconflow/siliconflow"
+      "name": "deepseek-v4-flash",
+      "provider": "langgenius/deepseek/deepseek"
      },
      "prompt_template": [
       {
        "role": "system",
-       "text": "你是语言教学分级专家，依据《APP阅读级别量化表》为素材选择最合适的生成档位。全平台分 4 个大档、12 个子档。\n\n输出 JSON（只输出 JSON，不要任何解释，不要 markdown 代码块）：\n{\"level\":\"A1.1|A1.2|A1.3|A2.1|A2.2|A2.3|B1.1|B1.2|B1.3|B2+.1|B2+.2|B2+.3\",\"level_big\":\"A1|A2|B1|B2+\",\"reason\":\"40字以内\",\"suggested_angle\":\"建议的切入角度\"}\n\n【12 子档速查表】子档｜词数｜蓝思｜平均句长｜认知特征\nA1.1 ｜60–90   ｜BR–200L   ｜5–7  ｜一个场景一件事，读者五米之内的世界\nA1.2 ｜90–120  ｜200–300L ｜7–9  ｜「先……然后……」的两段式故事\nA1.3 ｜120–160 ｜300–400L ｜8–10 ｜第一次读到有事件、有变化的文本\nA2.1 ｜160–200 ｜400–500L ｜10–12｜开头—发展—结尾，或总分关系\nA2.2 ｜200–250 ｜500–580L ｜11–13｜具象科普进场；商业类首次出现（一个人做小生意的故事）\nA2.3 ｜250–300 ｜580–650L ｜12–14｜第一次离开读者的直接生活经验（别国的人怎么生活）\nB1.1 ｜300–380 ｜650–720L ｜13–15｜阅读目的从「练英文」转向「知道点什么」\nB1.2 ｜380–450 ｜720–800L ｜15–17｜出现明确的作者立场，不只是陈述事实\nB1.3 ｜450–550 ｜800–880L ｜16–18｜人物故事 / 事件复盘 / 深度文化对比\nB2+.1｜550–700 ｜880–1000L｜18–21｜解释性报道与商业案例，名词化密度上升\nB2+.2｜700–900 ｜1000–1120L｜20–23｜有真实争议、多方立场的议题\nB2+.3｜900–1200｜1120–1300L｜22–26｜抽象论证、跨领域引用、文学性非虚构\n\n判定规则：\n- 必须综合看主题认知半径、语言复杂度、蓝思与句长，**不得只看词数**。\n- 素材本身没有词数——你要判断的是「这个素材适合用哪一档的篇幅与语言去重写」。\n- 常见误判：把「生僻但短」当低档（句短但概念抽象不是 A1/A2，认知难度归 B2+）；让 A1/A2 承载议论。\n- 若下方知识库检索结果与本表冲突，**以本表为准**。\n- 若用户明确指定了档位偏好，优先遵循用户偏好。"
+       "text": "你是语言教学分级专家，依据《APP阅读级别量化表》判定这篇素材**能支撑的档位区间**。全平台分 4 个档位（A1 / A2 / B1 / B2）。\n\n输出 JSON（只输出 JSON，不要任何解释，不要 markdown 代码块）：\n{\"lo\":\"A1|A2|B1|B2\",\"hi\":\"A1|A2|B1|B2\",\"info_points\":8,\"level\":\"A1|A2|B1|B2\",\"level_big\":\"A1|A2|B1|B2\",\"reason\":\"40字以内\",\"suggested_angle\":\"建议的切入角度\"}\n\n字段含义：\n- `lo` / `hi`：这篇素材**能支撑的最低档 / 最高档**。区间必须**连续**，且 `lo` 不高于 `hi`。\n- `info_points`：这篇素材能被拆出的**独立信息点条数**（整数）。\n- `level`：前端默认打开的档位，建议取 `lo`。\n- `level_big`：`level` 所属档位（A1 / A2 / B1 / B2）。\n\n【4 档速查表】档位｜词数｜蓝思｜平均句长｜认知特征\nA1 ｜150–240 ｜BR–400L   ｜7–9   ｜读者五米之内的世界 / 动物身体四季 / 简单节日\nA2 ｜240–380 ｜400–750L  ｜10–13｜兴趣爱好 / 具象科普 / 别国生活与中外对比\nB1 ｜380–550 ｜750–1050L ｜14–17｜科技环境 / 社会现象 / 人物故事与文化对比\nB2 ｜550–800 ｜1050–1350L｜18–24｜解释性报道与商业案例，名词化密度上升\n\n判定规则：\n- 必须综合看主题认知半径、语言复杂度、蓝思与句长，**不得只看词数**。\n- 素材本身没有词数——你要判断的是「这个素材适合用哪一档的篇幅与语言去重写」。\n- **`hi` 由信息点条数决定**：信息点少（不足 12 条）的素材，`hi` 不宜超过 A2；信息点 12 条以上才可能支撑到 B2（10 段的文章需要足够的信息点撑起篇幅）。\n- **`lo` 由概念可具象性决定**：概念无法具象化（宏观政策、抽象论证）时 A1/A2 写不出来，`lo` 相应抬高。\n- 常见误判：把「生僻但短」当低档；让 A1/A2 承载议论。\n- 若下方知识库检索结果与本表冲突，**以本表为准**。\n- 若用户明确指定了档位偏好，优先遵循用户偏好。"
       },
       {
        "role": "user",
@@ -205,7 +205,7 @@
       }
      ],
      "selected": false,
-     "title": "③ 分级（12 子档）",
+     "title": "③ 分级（4 档）",
      "type": "llm"
     },
     "height": 22,
@@ -224,8 +224,8 @@
    },
    {
     "data": {
-     "code": "function main({ fact_text, grade_text, check_text }) {\n  const strip = (t) => String(t || '').replace(/<think>[\\s\\S]*?<\\/think>/g, '').trim();\n  const parseJSON = (t) => {\n    const s = strip(t).replace(/```json|```/g, '');\n    const m = s.match(/\\{[\\s\\S]*\\}/);\n    if (m) { try { return JSON.parse(m[0]); } catch (e) { } }\n    return {};\n  };\n  const normLevel = (v) => {\n    let s = String(v || '').trim().toUpperCase().replace(/\\s+/g, '').replace(/[_-]/g, '.').replace(/档/g, '');\n    s = s.replace(/^B2PLUS/, 'B2+').replace(/^B2P/, 'B2+');\n    const AL = {\n      'A1.1':'A1.1','A1.2':'A1.2','A1.3':'A1.3',\n      'A2.1':'A2.1','A2.2':'A2.2','A2.3':'A2.3',\n      'B1.1':'B1.1','B1.2':'B1.2','B1.3':'B1.3',\n      'B2+.1':'B2+.1','B2+.2':'B2+.2','B2+.3':'B2+.3',\n      'B2.1':'B2+.1','B2.2':'B2+.2','B2.3':'B2+.3','B2':'B2+.1','C1':'B2+.3',\n      'A1':'A1.1','A2':'A2.1','B1':'B1.1'\n    };\n    if (AL[s]) return AL[s];\n    const m = s.match(/^(A1|A2|B1|B2\\+?)\\.?([123])$/);\n    if (m) { const big = m[1] === 'B2' ? 'B2+' : m[1]; return big + '.' + m[2]; }\n    return 'B1.1';\n  };\n  const fact = parseJSON(fact_text);\n  const grade = parseJSON(grade_text);\n  const check = parseJSON(check_text);\n  const rawFacts = Array.isArray(fact.facts) ? fact.facts : [];\n  const facts = rawFacts.map(f => {\n    if (typeof f === 'string') return { en: f, zh: f };\n    return { en: String((f && f.en) || '').trim(), zh: String((f && f.zh) || '').trim() };\n  }).filter(f => f.en || f.zh);\n  const sensLevel = String(check.level || 'S3').toUpperCase().trim();\n  const sensAction = String(check.action || 'ok').toLowerCase().trim();\n  const lv = normLevel(grade.level);\n  const big = lv.indexOf('B2+') === 0 ? 'B2+' : lv.slice(0, 2);\n  return {\n    summary: fact.summary || fact.summary_en || '（未识别主题）',\n    facts_text: facts.length ? facts.map((f, i) => (i + 1) + '. ' + (f.en || f.zh)).join('\\n') : '（无）',\n    level: lv,\n    level_big: big,\n    grade_reason: grade.reason || '',\n    angle: grade.suggested_angle || '（无特殊角度）',\n    sensitive: sensLevel + ' / ' + sensAction + ' / ' + (check.reason || ''),\n    sens_level: sensLevel,\n    sens_action: sensAction,\n    sens_reason: check.reason || '',\n    facts_json: JSON.stringify(facts),\n    // facts_raw 必须是「干净 JSON」：硅基流动的模型默认会把思考过程写进 text，\n    // 原样透传会让下游 GEN 多吞约 3.5 倍 token，前端也会读到思考文本。\n    facts_raw: (function () {\n      const s = strip(fact_text).replace(/```json|```/g, '');\n      const m = s.match(/\\{[\\s\\S]*\\}/);\n      return m ? m[0] : '';\n    })()\n  };\n}",
-     "desc": "清洗 ①②③ 输出，归一化 12 子档并派生大档",
+     "code": "function main({ fact_text, grade_text, check_text, override_sensitive }) {\n  const strip = (t) => String(t || '').replace(/<think>[\\s\\S]*?<\\/think>/g, '').trim();\n  const parseJSON = (t) => {\n    const s = strip(t).replace(/```json|```/g, '');\n    const m = s.match(/\\{[\\s\\S]*\\}/);\n    if (m) {\n      try { return JSON.parse(m[0]); } catch (e) {\n        /* 尾逗号容错（与 GEN 聚合节点同一坑，见该处注释） */\n        try { return JSON.parse(m[0].replace(/,(\\s*[\\]}])/g, '$1')); } catch (e2) { }\n      }\n    }\n    return {};\n  };\n  const normLevel = (v) => {\n    let s = String(v || '').trim().toUpperCase().replace(/\\s+/g, '').replace(/[_-]/g, '.').replace(/档/g, '');\n    s = s.replace(/^B2PLUS/, 'B2').replace(/^B2P/, 'B2');\n    const AL = {\n      'A1':'A1','A2':'A2','B1':'B1','B2':'B2',\n      'A1.1':'A1','A1.2':'A1','A1.3':'A1',\n      'A2.1':'A2','A2.2':'A2','A2.3':'A2',\n      'B1.1':'B1','B1.2':'B1','B1.3':'B1',\n      'B2.1':'B2','B2.2':'B2','B2.3':'B2',\n      'B2+.1':'B2','B2+.2':'B2','B2+.3':'B2',\n      'C1':'B2'\n    };\n    if (AL[s]) return AL[s];\n    const m = s.match(/^(A1|A2|B1|B2\\+?)/);\n    if (m) { return m[1] === 'B2+' ? 'B2' : m[1]; }\n    return 'B1';\n  };\n  const fact = parseJSON(fact_text);\n  const grade = parseJSON(grade_text);\n  const check = parseJSON(check_text);\n  const rawFacts = Array.isArray(fact.facts) ? fact.facts : [];\n  const facts = rawFacts.map(f => {\n    if (typeof f === 'string') return { en: f, zh: f };\n    return { en: String((f && f.en) || '').trim(), zh: String((f && f.zh) || '').trim() };\n  }).filter(f => f.en || f.zh);\n  let sensLevel = String(check.level || 'S3').toUpperCase().trim();\n  let sensAction = String(check.action || 'ok').toLowerCase().trim();\n  let sensReason = String(check.reason || '');\n  /* 人工放行：override_sensitive=true 时跳过敏感闸门（把 action/level 覆盖为通过），\n     但把 AI 原始判定保留进 reason，供前端作警示留痕。 */\n  const override = (override_sensitive === true || override_sensitive === 'true' ||\n                    override_sensitive === '1' || override_sensitive === 1);\n  if (override) {\n    sensAction = 'ok';\n    sensLevel = 'S3';\n    sensReason = '人工放行（原判定：' + String(check.level || 'S3') + ' / ' + String(check.reason || '') + '）';\n  }\n  /* 分层大意基准（gist）：去数字、去专名的语义骨架，恰好 12 条。\n     用途有二：① 供 A1/A2 低档生成（低档只讲大意拍）；② 作为全链路「主线是否走样」的比对基准。 */\n  const rawGist = Array.isArray(fact.gist) ? fact.gist : [];\n  const gist = rawGist.map(g => {\n    if (typeof g === 'string') return { en: String(g).trim(), zh: String(g).trim() };\n    return { en: String((g && g.en) || '').trim(), zh: String((g && g.zh) || '').trim() };\n  }).filter(g => g.en || g.zh);\n\n  /* 档位区间：由分级节点判出 lo / hi，这里只做归一化与顺序纠正。\n     区间是**元数据**（前端据此限制档位控件范围），不改变「照常生成 12 档」。 */\n  const ORD = { 'A1':1, 'A2':2, 'B1':3, 'B2':4 };\n  let lvLo = normLevel(grade.lo || grade.level);\n  /* hi 缺失时回退到 lo，而不是让 normLevel 的默认值（B1.1）把区间撑大 ——\n     否则模型漏写 hi 会静默产出一个明显失真的区间。 */\n  let lvHi = normLevel(grade.hi || grade.lo || grade.level);\n  if (ORD[lvLo] > ORD[lvHi]) { const tmp = lvLo; lvLo = lvHi; lvHi = tmp; }\n  let infoPoints = parseInt(grade.info_points, 10);\n  if (!(infoPoints > 0)) infoPoints = facts.length;\n\n  const lv = normLevel(grade.level);\n  const big = lv;\n  return {\n    summary: fact.summary || fact.summary_en || '（未识别主题）',\n    facts_text: facts.length ? facts.map((f, i) => (i + 1) + '. ' + (f.en || f.zh)).join('\\n') : '（无）',\n    gist: gist.length ? gist.map((g, i) => (i + 1) + '. ' + (g.en || g.zh)).join('\\n') : '',\n    level_lo: lvLo,\n    level_hi: lvHi,\n    info_points: String(infoPoints),\n    level: lv,\n    level_big: big,\n    grade_reason: grade.reason || '',\n    angle: grade.suggested_angle || '（无特殊角度）',\n    sensitive: sensLevel + ' / ' + sensAction + ' / ' + sensReason,\n    sens_level: sensLevel,\n    sens_action: sensAction,\n    sens_reason: sensReason,\n    facts_json: JSON.stringify(facts),\n    // facts_raw 必须是「干净 JSON」：硅基流动的模型默认会把思考过程写进 text，\n    // 原样透传会让下游 GEN 多吞约 3.5 倍 token，前端也会读到思考文本。\n    facts_raw: (function () {\n      const s = strip(fact_text).replace(/```json|```/g, '');\n      const m = s.match(/\\{[\\s\\S]*\\}/);\n      return m ? m[0] : '';\n    })()\n  };\n}",
+     "desc": "清洗 ①②③ 输出，归一化 4 档并派生区间",
      "code_language": "javascript",
      "outputs": {
       "summary": {
@@ -275,6 +275,22 @@
       "facts_raw": {
        "children": null,
        "type": "string"
+      },
+      "gist": {
+       "children": null,
+       "type": "string"
+      },
+      "level_lo": {
+       "children": null,
+       "type": "string"
+      },
+      "level_hi": {
+       "children": null,
+       "type": "string"
+      },
+      "info_points": {
+       "children": null,
+       "type": "string"
       }
      },
      "selected": false,
@@ -301,6 +317,13 @@
         "text"
        ],
        "variable": "check_text"
+      },
+      {
+       "value_selector": [
+        "nodeStart",
+        "override_sensitive"
+       ],
+       "variable": "override_sensitive"
       }
      ]
     },
@@ -320,7 +343,7 @@
    },
    {
     "data": {
-     "desc": "输出事实卡 / 12 子档分级结果 / 敏感级别",
+     "desc": "输出事实卡 / 4 档分级结果 / 敏感级别",
      "outputs": [
       {
        "variable": "summary",
@@ -398,6 +421,34 @@
         "grade_reason"
        ],
        "variable": "grade_reason"
+      },
+      {
+       "value_selector": [
+        "nodeClean",
+        "level_lo"
+       ],
+       "variable": "level_lo"
+      },
+      {
+       "value_selector": [
+        "nodeClean",
+        "level_hi"
+       ],
+       "variable": "level_hi"
+      },
+      {
+       "value_selector": [
+        "nodeClean",
+        "info_points"
+       ],
+       "variable": "info_points"
+      },
+      {
+       "value_selector": [
+        "nodeClean",
+        "gist"
+       ],
+       "variable": "gist"
       }
      ],
      "selected": false,
@@ -633,7 +684,7 @@
    },
    {
     "data": {
-     "code": "function main() {\n  return { query: \"\\u82f1\\u8bed\\u5206\\u7ea7\\u9605\\u8bfb\\u6807\\u51c6 12 \\u4e2a\\u5b50\\u6863\\u4f4d \\u8bcd\\u6570 \\u84dd\\u601d \\u5e73\\u5747\\u53e5\\u957f \\u4e3b\\u9898\\u8303\\u56f4 \\u8bed\\u8a00\\u96be\\u5ea6 \\u4f53\\u88c1\\u914d\\u6bd4 \\u9898\\u76ee\\u5206\\u5e03 \\u5224\\u5b9a\\u89c4\\u5219 \\u5e38\\u89c1\\u8bef\\u5224 \\u5feb\\u901f\\u5bf9\\u7167\\u8868 A1 A2 B1 B2\" };\n}",
+     "code": "function main() {\n  return { query: \"\\u82f1\\u8bed\\u5206\\u7ea7\\u9605\\u8bfb\\u6807\\u51c6 4 \\u4e2a\\u6863\\u4f4d \\u8bcd\\u6570 \\u84dd\\u601d \\u5e73\\u5747\\u53e5\\u957f \\u4e3b\\u9898\\u8303\\u56f4 \\u8bed\\u8a00\\u96be\\u5ea6 \\u4f53\\u88c1\\u914d\\u6bd4 \\u9898\\u76ee\\u5206\\u5e03 \\u5224\\u5b9a\\u89c4\\u5219 \\u5e38\\u89c1\\u8bef\\u5224 \\u5feb\\u901f\\u5bf9\\u7167\\u8868 A1 A2 B1 B2\" };\n}",
      "desc": "输出固定的中文检索意图，让中文的 12 档分级标准被稳定召回",
      "code_language": "javascript",
      "outputs": {
@@ -939,15 +990,6 @@
    }
   }
  },
- "version": "draft",
- "created_by": {
-  "id": "179c3332-b9f0-49f1-9075-a47207910541",
-  "name": "Bryan",
-  "email": "3124350013@qq.com"
- },
- "created_at": 1788338830,
- "tool_published": false,
- "environment_variables": [],
  "conversation_variables": [],
- "rag_pipeline_variables": []
+ "environment_variables": []
 }
