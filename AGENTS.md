@@ -2,7 +2,7 @@
 
 > **本文件给 AI 助手读。任何新会话（换电脑 / 换 WorkBuddy 账号 / 新 agent）动工前请先读完。**
 > 仓库即唯一真源，本文件不含任何本机绝对路径，换任何设备都适用。
-> 最后更新：2026-09-10
+> 最后更新：2026-09-18
 
 ---
 
@@ -14,40 +14,52 @@
 | 形态 | 单文件前端 + 零依赖 Python 后端（bridge），前后端同域 |
 | 代码仓库 | `https://github.com/Jinsong96/AI-Content-Center`（main 分支） |
 | 线上站点 | Railway，推 GitHub 后**自动部署**（约 90 秒） |
-| 前端真源 | `frontend/index.html`（约 63 万字符，所有页面/JS/CSS 全在里面） |
-| 后端真源 | `backend/agent_reach_bridge.py` |
+| 前端真源 | `frontend/index.html`（单文件，约 73 万字节，所有页面 / JS / CSS 全在里面） |
+| 后端真源 | `backend/agent_reach_bridge.py`（零依赖标准库，同时托管前端） |
+| Dify 真源 | 线上 FACT / GEN 工作流；**仓库 `dify_graphs/` 里的图可能落后于线上**（见坑 18） |
 | 部署文档 | `RAILWAY_DEPLOY.md`（含 10 条故障排查） |
-| 设计文档 | `docs/01` ~ `docs/09` |
-| 自带工具 | `tools/`（源码镜像 / 原子替换 / JS 校验 / API 直传 / 端到端回归 / 精确视口截图） |
+| 设计文档 | `docs/01` ~ `docs/13`（`docs/14` 是前端排版与交互审查台账 HTML） |
+| 自带工具 | `tools/`（源码镜像 / 原子替换 / JS 校验 / API 直传 / 端到端回归 / 精确视口截图 / Dify 图生成器与拼装器 / 节拍实验） |
 
 **禁止**：复制 `index.html` 到别处改（会分叉）。所有会话都改仓库里那一份。
 
-### 分级体系（2026-09-10 起 · **唯一真源 = 飞书《APP阅读级别量化表》**）
+### 分级体系（2026-09-15 起 · **唯一真源 = 飞书《CEFR 分级改写参数规范 v1》**）
 
-**4 大档 / 12 子档**，旧的三档标准（A2/B1/B2）**全部作废**：
+**4 档，不是 12 子档，也不是旧的三档 A2/B1/B2**（旧标准全部作废）：
 
-```
-A1 入门   A1.1 A1.2 A1.3      每档 4 段
-A2 初级   A2.1 A2.2 A2.3      每档 5 段
-B1 中级   B1.1 B1.2 B1.3      每档 6 段
-B2+ 中高级 B2+.1 B2+.2 B2+.3   每档 8 段
-```
+| 内部 key | 展示名 | 中文 | 正文词数 | 平均句长 | 蓝思 | topic words |
+|---|---|---|---|---|---|---|
+| `A1` | `A1-` | 入门 | 150–240 | 7–9 | BR–400L | 3 |
+| `A2` | `A2` | 初级 | 240–380 | 10–13 | 400–750L | 3–4 |
+| `B1` | `B1` | 中级 | 380–550 | 14–17 | 750–1050L | 4–5 |
+| `B2` | `B2+` | 中高级 | 550–800 | 18–24 | 1050–1350L | 5 |
 
-- **两套命名都要处理**：Dify 返回的 JSON key 是**下划线式**（`A1_1` / `B2P_1`），
-  对外展示用**点式**（`A1.1` / `B2+.1`）。前端用 `nkKey()` / `nkDisp()` 归一化，
+- **常量名仍叫 `LEVELS12`**（名字没改、内容是 **4 项**）—— 看到 `LEVELS12` 就是这 4 档，别再去找 12 档。
+- **两套写法仍要归一化**：Dify 侧历史遗留点式（`A1.1` / `B2+.3`），前端用 `nkKey()` / `nkDisp()` 映射，
   **不要在业务代码里手写档位字符串**。
-- 每档 7 个量化维度：词数 / 蓝思 / 平均句长 / 主题范围 / 语言难度 / 体裁配比 / 题目分布。
-- **蓝思是「生成时的硬约束」**：写进生成提示词 + 由校验节点参与判定（用估算公式，非官方值）。
-- 题目 4 类：`language`（语言基础）/ `text`（文本理解）/ `logic`（逻辑推理）/ `cognitive`（认知思辨），
-  每档 3 题，按档位递进配比；**只有 B2+.3 有中文背景导读**（`quiz_json.guide.B2P_3`）。
-- 前端骨架：`BIG_GROUPS` / `LEVELS12` 是唯一真源（在 `const SPECS` 之前），
-  三栏视图按**当前大档**显示该档 3 个子档，顶部有 `bigBarHTML()` 大档切换条。
-- 段落数**组内统一**（A1=4 / A2=5 / B1=6 / B2+=8，由 `nodeAgg` 强制同组一致），
-  所以三栏天然逐段对齐；**难度梯度靠词数与句长拉，不靠段数**。
-  （实测：B2+ 三档都是 8 段，B1 三档都是 6 段。）
-- Dify 知识库「分级标准」已替换为 12 档语料（旧文档已删，备份在 `dify_kb_backup/legacy/`）。
-- 改 Dify 图请用仓库内 `tools/dify_build_graphs.py`（图资产在 `dify_graphs/`），
-  重建是**幂等**的（已验证逐字节一致），别手改线上图。
+- **每篇固定 12 段（4 档一致）** = 飞书「卡片总数 12」；四级逐段对齐就是靠这个前提。
+- 超纲词率上限：A1 ≤1% / A2 ≤2% / B1 ≤3% / B2+ ≤5%（前端 `offCap()`，后端 `VOCAB_THRESHOLD`）。
+- **语法约束 = 飞书《CEFR 语法 Construction 清单 v1.1》**（替换旧「语法白名单」）：
+  preferred / allowed / discouraged / forbidden 四档，**按实际功能判级、不按词形判级**；
+  高等级继承低等级的 preferred + allowed；每句最多一个非 preferred construction。
+- 上游两份规范（飞书知识库「分级改写参数规范 v1」+「语法 Construction 清单 v1.1」）是教研侧口径，
+  改数值前先对照下面的口径表。
+
+### ⚠️ 分级标准有「三个口径」，改前必须对齐
+
+| 口径 | 在哪 | 2026-09-18 实测值 |
+|---|---|---|
+| **线上生效口径**（唯一说话算数的） | Dify GEN ⑦ 校验节点，`validation_json` 回传的 `word_range` / `msl_range` / `lexile_range` | 词数 **150-240 / 240-380 / 380-550 / 550-800**，与飞书规范一致 ✅ |
+| 前端展示口径 | `frontend/index.html` 的 `SPECS`（`len` / `avg` / `max` / `lex` / `gloss`） | 与飞书规范一致 ✅ |
+| 仓库里的图生成器 | `tools/dify_build_graphs.py` 的 `LEVELS.wc`（以及 `dify_graphs/*.new.json`） | 仍写着 **60-160 / 160-300 / 300-550 / 550-700** ❌ **与线上不一致，属过期文件** |
+
+> ⇒ **改篇幅/档位参数前，先用 service API 真跑一次 GEN，读 `validation_json`**。
+> 那是线上真正在执行的区间；照仓库文件改会把线上规格改坏（见坑 18）。
+>
+> 已知的**产出质量偏差**（2026-09-18 两轮实测）：校验节点对「长度」用的是
+> `wc < 下限×0.75` 才判 fail —— **等于 380 的下限实际放行到 285**，
+> 所以会出现「367 词标注 380-550 却判通过」。低档偏短、B2+ 偏长（实测 840 词，超 800 上限）都属这里。
+
 
 ---
 
@@ -56,6 +68,9 @@ B2+ 中高级 B2+.1 B2+.2 B2+.3   每档 8 段
 ```
 frontend/index.html              单文件前端（页面 + JS + CSS 全在里面）
 backend/agent_reach_bridge.py    零依赖 Python（标准库），同时托管前端 + 提供 API
+backend/evp_vocab_check.py       EVP 词汇分级校验（超纲词判定，纯标准库）
+backend/evp_wordlist.json        EVP 词表快照（9,751 词头，校验用）
+backend/sync_to_feishu.py        library.json → 飞书「内容库」记录映射（配 lark-cli）
 backend/library.json             文章库数据
 backend/audio/*.mp3              TTS 音频（部分入库，见 .gitignore 白名单）
 backend/start_railway_local.py   本地复现 Railway 行为（端口 8793）
@@ -94,7 +109,7 @@ HANDOFF.md                       换设备交接清单（给人读）
   不要再写渐变色字面量；新增品牌色元素也必须引用它。
 - **全站色相只有三系：黑 / 灰 / 品牌橙红**（2026-09-10 Bryan 定，已全量落地）。
   蓝、绿、紫、青**一律不许出现** —— 状态色、CEFR 等级色、选题大类色、图表色都算在内。
-  - **分类色统一 `#E65425`**：6 个选题大类 / CEFR 的 A2·B1·B2 / 3 个角色 /
+  - **分类色统一 `#E65425`**：6 个选题大类 / CEFR 的 4 档 / 3 个角色 /
     素材类型 / 侧边栏分区 / 路径（对应 JS 色板 `ROLES` `RAIL` `ROUTES` `SRC_TYPES`
     `LVL_META` `TOPIC_CATS`）。色块不再承担区分功能，靠文字标签区分。
   - **状态色走品牌橙的深浅梯度**：成功/完成 `#F79009`、警告/部分 `#D04418`、
@@ -253,13 +268,27 @@ GET /console/api/workspaces/current/model-providers/langgenius/siliconflow/silic
 > 「从 start 出发的可达性驱动」，没有入边的节点**永远不会被执行**，
 > 而且工作流可能直接跑完不报错。`build_dify.py` 的 `validate_graph()` 已加这条断言。
 
-### 坑 16：Dify 网关对 `blocking` 有约 120s 硬超时，长工作流必须走 `streaming`
+### 坑 16：Dify 网关对 `blocking` 有约 120s 硬超时，长工作流曾因此改走 `streaming`（**现已反转，见本节末**）
 
 GEN 早期用 DeepSeek 官方渠道耗时 145s，`response_mode: "blocking"` **实测直接 504**；
 换 `streaming` 后同样 184.7s 的工作流正常返回（首字节 1.1s）。
 
-前端已把 GEN 调用改成 SSE（`response_mode: "streaming"`），并按 `node_finished`
-事件显示「已完成 N 个节点」的进度；FACT 只要 ~10–26s，仍走 `blocking`。
+⚠️ **该结论已于 2026-09-16 反转**：GEN 改回 `blocking`（实测 ~38s，远低于 120s 硬超时）。
+原因是浏览器直连 `api.dify.ai` 的 SSE 长连接在用户网络下会被中断，点「生成文章」报 `network error`。
+现在 FACT / GEN **都走 `blocking`**，且都由桥接层同源代理转发（见坑 17）。
+
+### 坑 17：前端调 Dify 必须走桥接层同源代理 `difyCall`，别改回直连
+
+2026-09-16 起 `difyCall` 优先打桥接层同源 `/api/dify/workflows/run`，失败才回退直连。
+> **规则**：新增 / 修改 Dify 调用一律走 `difyCall`；**保持 `blocking`**，别再改回 `streaming`。
+
+### 坑 18：仓库里的 `dify_graphs/*.json` 与 `tools/dify_build_graphs.py` 都可能落后线上
+
+2026-09-18 实测：线上 GEN 校验节点回传 `word_range = 150-240 / 240-380 / 380-550 / 550-800`，
+而仓库 `tools/dify_build_graphs.py` 的 `LEVELS.wc` 仍写着 `60-160 / 160-300 / 300-550 / 550-700`。
+**照仓库文件重建再推，会把线上正确的规格改坏。**
+> **规则**：动篇幅 / 档位参数前，先用 service API 真跑一次 GEN（`tools/dify_run_app.py --app=fact|gen`），
+> 读 `validation_json` —— 那才是线上真正在执行的区间。别拿 `dify_graphs/` 当唯一真源。
 
 ---
 
@@ -339,7 +368,8 @@ GEN 早期用 DeepSeek 官方渠道耗时 145s，`response_mode: "blocking"` **�
   > 另外仓库 `backend/keys.fallback.json` 里存着同一份明文密钥，而**仓库是 PUBLIC**。
   > Bryan 已知悉并**明确决定暂不处理**（面向内部老师、密钥有额度限制）。
   > **不要在改其它东西时"顺手修掉"** —— 要动请先确认。
-- 前端所有 Dify / SiliconFlow 调用走 `AGENT_REACH_API + "/api/dify|api/sf"` 相对路径
+- 前端所有 Dify / SiliconFlow 调用走 `AGENT_REACH_API + "/api/dify|api/sf"` 相对路径；
+  **`difyCall` 优先走桥接层同源代理**（根治 `Failed to fetch`），失败才回退直连
 
 **bridge 关键路由**：
 - `GET /` → `_serve_index()`（注入 `WB_API_BASE=""`）
@@ -347,7 +377,8 @@ GEN 早期用 DeepSeek 官方渠道耗时 145s，`response_mode: "blocking"` **�
 - `GET /api/health` `/api/trends` `/api/tags/taxonomy` `/api/scan` `/api/library` `/api/source-health` `/api/errors`
 - `POST /api/dify/workflows/run` → 反代 Dify（body 的 `wf: fact|gen|main` 选 key）
 - `POST /api/sf/chat/completions` `/api/sf/images/generations` → 反代 SiliconFlow
-- `POST /api/tts` `/api/tts/batch` `/api/tags/extract` `/api/library`
+- `POST /api/tts` `/api/tts/batch` `/api/tags/extract` `/api/library` `/api/vocab-check`（EVP 词汇分级校验）
+- ⚠️ **TTS 与封面图当前已暂停**：后端 `TTS_PAUSED = True`（返回 503），前端 `FEATURES = {cover:false, tts:false}`
 - `GET /audio/*` → 静态音频
 
 **本地复现线上行为**：
@@ -374,13 +405,12 @@ python3 start_railway_local.py --stop
   但**线上运行时不是** —— `_serve_index()` 会把密钥注入页面（详见第 5 节 ⚠️）
 - `.gitignore` 已排除 `frontend/config.local.js`；本机调试时把它放出来用
 
-**⚠️ LLM 渠道已于 2026-09-10 切到硅基流动**（DeepSeek 官方账户余额耗尽，402 Insufficient Balance）：
-- FACT `12e8c26d-...` 3 个 LLM 节点、GEN `f4462032-...` 6 个 LLM 节点
-  → **全部** `langgenius/siliconflow/siliconflow` / `deepseek-ai/DeepSeek-V4-Flash`
-- 硅基流动**有** `deepseek-ai/DeepSeek-V4-Flash` 与 `-Pro`（2026-09-09 的"没有该系列"结论已过期）
-- ⚠️ **模型名必须带厂商前缀**，且用 `deepseek-ai/…` 而不是 `deepseek/…`
-- 渠道改写集中在 `build_dify.py` 的 `MODEL_REPOINT` + `repoint_models()`，
-  改渠道请改那里再重建，**不要手改 Dify 图**（9 个节点容易漏）
+**⚠️ LLM 渠道已于 2026-09-15 切回 DeepSeek 官方**（`langgenius/deepseek/deepseek`）：
+- 模型名 `deepseek-v4-flash`（FACT 事实抽取）/ `deepseek-v4-pro`（GEN 长文生成）
+- FACT `12e8c26d-...` / GEN `f4462032-...` 的 LLM 节点**全部**指 `langgenius/deepseek/deepseek`
+- 渠道改写集中在 `tools/dify_build_graphs.py` 的 `DS_PROVIDER` + 重指逻辑
+  （历史图里若残留硅基流动定义会被改回官方；改渠道请改那里再重建，**不要手改 Dify 图**）
+- `SF_API_KEY` 现在只服务桥接层 `/api/sf/*` 反代 + 封面图 + TTS —— **后两者均已暂停**
 
 ---
 
@@ -388,12 +418,14 @@ python3 start_railway_local.py --stop
 
 | 项 | 实测 |
 |---|---|
-| Dify FACT | 8 ~ 26s succeeded，输出含 `summary` / `facts_text` / `level`(12 子档) |
-| Dify GEN | **77s** succeeded，12 子档文章 + 12×3 题，`validation_pass=true` |
+| Dify FACT | **11.9s** succeeded，输出含 `summary` / `facts_text` / `gist` / `facts_raw` / `level`(4 档) / `level_lo` / `level_hi` |
+| Dify GEN | **38.0s** succeeded（`blocking`），4 档文章 × 每档 **12 段** + 每档 3 题；输出 `paras_json` / `levels_meta` / `words_json` / `validation_json` |
+| GEN ⑦ 校验节点 | 每档 **9 项**检查（长度 / 句长 / 蓝思 / 敏感 / 语法粗筛 / 事实一致性 / 语言纯净度 / 身份完整性 / 合规署名），回传的 `word_range` 就是**线上真实区间** |
 | SiliconFlow 封面图（Kolors 512） | 可用，但 URL 带 `X-Amz-Expires=3600`（**1 小时失效**） |
 | TTS | 1.9s |
 
 ### 硅基流动模型吞吐（2026-09-11 实测 · 4 路并发 + 900 词长文）
+> ⚠️ **仅历史参考** —— 渠道已于 2026-09-15 切回 DeepSeek 官方，下表不再决定当前选型。
 
 | 模型 | 吞吐 | 结论 |
 |---|---|---|
