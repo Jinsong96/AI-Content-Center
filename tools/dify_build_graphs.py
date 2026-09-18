@@ -1,8 +1,21 @@
 # -*- coding: utf-8 -*-
-"""ReadPal 12 子档分级标准 —— Dify 工作流重建
+"""ReadPal 分级标准 —— Dify 工作流重建【遗留脚本 · 2026-09-18 起不再是真源】
+
+⚠️ 别再照它重建推图。**线上草稿才是唯一真源**（见 AGENTS.md 坑 18）：
+     · 节点结构与提示词正文已落后线上一个世代（线上是 4 档 / 12 段 / gist 12 条 / 多一个 nodeGistCheck）
+     · 本文件的 LEVELS 数值已按 2026-09-18 线上快照同步，但提示词正文没有同步
+     · 直接跑本脚本会用旧结构覆盖 dify_graphs/*.new.json，再推上去就把线上改坏
+
+改图的正确流程：
+     node tools/dump_draft.mjs <app_id> /tmp/live.json          # 拉线上草稿
+     （在 /tmp/live.json 上定点改）
+     node tools/dify_push_graph.mjs --app=<id> --graph=<payload.json>   # 载荷须带 features
+     node tools/dify_publish.mjs --app=<id> --note="…"
+
+保留本脚本仅供「从零重建 / 结构参考」，要用必须显式加 --legacy。
 读 <BK>/{fact,gen}.graph.json → 输出 <BK>/{fact,gen}.new.json（BK 默认 = 仓库 dify_graphs/）
 """
-import json, copy, os, re
+import json, copy, os, re, sys
 
 # 图备份目录：默认为仓库内 dify_graphs/（可用环境变量 DIFY_BACKUP_DIR 覆盖）。
 #   gen.graph.json / fact.graph.json = **原始备份**（图的输入，别删）
@@ -11,25 +24,25 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 BK = os.path.abspath(os.environ.get('DIFY_BACKUP_DIR') or os.path.join(_HERE, '..', 'dify_graphs'))
 
 # ============================================================================
-# 12 子档规格表（唯一真源，对应飞书《APP阅读级别量化表》）
+# 4 档规格表（数值 = 2026-09-18 线上快照；提示词正文不在本文件，见线上草稿）
 # ============================================================================
 LEVELS = [
-    dict(k="A1", d="A1", big="A1", wc=(60, 160),    lex=(-1000, 400),  msl=(5, 10),  paras=7,
+    dict(k="A1", d="A1-", big="A1", wc=(150, 240),  lex=(-1000, 400),  msl=(7, 9),   paras=12,
          genre="记叙 90–100% / 说明 0–10%", quiz="语言 1–2 / 文本 1–2 / 逻辑 0–1",
          grammar="一般现在时、be 动词、there be → 现在进行时、can / like to、because / so → 一般过去时（规则动词 + 约 20 个高频不规则）；连接词只用 and / but",
          vocab="最高频 800 词以内，只用具象名词",
          topic="读者五米之内的世界（家人、宠物、天气、上学路上）→ 动物、身体、四季、节日 →「我昨天遇到了什么」"),
-    dict(k="A2", d="A2", big="A2", wc=(160, 300),   lex=(400, 650),    msl=(10, 14), paras=7,
+    dict(k="A2", d="A2", big="A2", wc=(240, 380),   lex=(400, 750),    msl=(10, 13), paras=12,
          genre="记叙 45–60% / 说明 30–45% / 应用文 10%", quiz="语言 1 / 文本 1–2 / 逻辑 0–1",
          grammar="比较级、be going to / will、定语从句（who / which）→ 现在完成时、情态动词、when / if 状语从句 → 初步被动语态、过去进行时",
          vocab="最高频 1500–1800 词，可含常见具象名词",
          topic="兴趣爱好、旅行出行、购物 → 具象科普（动物为什么冬眠）→ 别国生活、中外对比"),
-    dict(k="B1", d="B1", big="B1", wc=(300, 550),   lex=(650, 880),    msl=(13, 18), paras=7,
+    dict(k="B1", d="B1", big="B1", wc=(380, 550),   lex=(750, 1050),   msl=(14, 17), paras=12,
          genre="说明议论 55% / 记叙 30% / 应用说明 15%（议论比重升至 25%）", quiz="语言 0–1 / 文本 1 / 逻辑 1 / 认知 0–1",
          grammar="被动语态、宾语从句、动名词不定式 → 条件句 I / II、现在完成进行时、非限定性定语从句 → 过去完成时、报道性动词、分词短语作状语",
          vocab="最高频 2000–3000 词，出现常见抽象名词与轻学术词",
          topic="科技产品、环境可持续、学习心理 → 社会现象、创业商业、健康科学 → 人物故事、事件复盘、文化对比"),
-    dict(k="B2", d="B2", big="B2", wc=(550, 700),   lex=(880, 1000),   msl=(18, 21), paras=7,
+    dict(k="B2", d="B2+", big="B2", wc=(550, 800), lex=(1050, 1350),  msl=(18, 24), paras=12,
          genre="新闻特写与说明性长文为主，议论约 30%", quiz="文本 1 / 逻辑 2",
          grammar="名词化密度上升、hedging（tends to / it is likely that）、倒装、多重从句嵌套",
          vocab="AWL 学术词密度 4–6%",
@@ -492,12 +505,12 @@ GEN_AGG_CODE = r"""function main({ t_a1, t_a2, t_b1, t_b2p, title_in, fact_json,
 
 GEN_VALIDATE_CODE = r"""function main({ articles_json, plain_json, factcard, identity, map_basis }) {
   const SPEC = {
-    A1: [60, 160, -1000, 400, 5, 10],
-    A2: [160, 300, 400, 650, 10, 14],
-    B1: [300, 550, 650, 880, 13, 18],
-    B2: [550, 700, 880, 1000, 18, 21]
+    A1: [150, 240, -1000, 400, 7, 9],
+    A2: [240, 380, 400, 750, 10, 13],
+    B1: [380, 550, 750, 1050, 14, 17],
+    B2: [550, 800, 1050, 1350, 18, 24]
   };
-  const LABEL = { A1: 'A1', A2: 'A2', B1: 'B1', B2: 'B2' };
+  const LABEL = { A1: 'A1-', A2: 'A2', B1: 'B1', B2: 'B2+' };
   const ALL = ['A1','A2','B1','B2'];
   const words = (t) => (String(t || '').match(/[A-Za-z0-9'-]+/g) || []).length;
   const JS = (t, d) => { try { const v = JSON.parse(t || ''); return (v && typeof v === 'object') ? v : d; } catch (e) { return d; } };
@@ -524,12 +537,15 @@ GEN_VALIDATE_CODE = r"""function main({ articles_json, plain_json, factcard, ide
     const [lo, hi, lxlo, lxhi, slo, shi] = SPEC[key];
     const basis = BASISOBJ[key] === 'gist' ? 'gist' : 'fact';
     const wc = words(article);
-    if (wc < lo * 0.75 || wc > hi * 1.35) {
+    /* 长度闸门（2026-09-18 收紧）：区间即红线，越界即不合格，不再给容差。
+       旧口径：wc < lo*0.75 才 fail、wc >= lo*0.95 就算 pass —— 实测 B1 367 词（区间 380-550）
+       判 pass、A2 185 词才 warn、B2+ 810 词（上限 800）也判 pass，等于把下限放行到 285。
+       后果是模型必然贴下限写（低档贴下限、B2+ 冲破上限），靶心永远够不到。 */
+    if (wc < lo || wc > hi) {
       fails.push('长度校验: 词数 ' + wc + '，' + LABEL[key] + ' 应为 ' + lo + '-' + hi);
-      checks.push({ name: '长度校验', status: 'fail', detail: wc + ' 词' });
+      checks.push({ name: '长度校验', status: 'fail', detail: wc + ' 词（' + lo + '-' + hi + '）' });
     } else {
-      const okIn = (wc >= lo * 0.95 && wc <= hi * 1.1);
-      checks.push({ name: '长度校验', status: okIn ? 'pass' : 'warn', detail: wc + ' 词（' + lo + '-' + hi + '）' });
+      checks.push({ name: '长度校验', status: 'pass', detail: wc + ' 词（' + lo + '-' + hi + '）' });
     }
     const st = Math.max(1, (String(article || '').match(/[.!?]+/g) || []).length);
     const msl = wc / st;
@@ -927,10 +943,10 @@ def build_gen():
 # ============================================================================
 # 2) FACT 工作流
 # ============================================================================
-FACT_TABLE = """A1 ｜60–160  ｜BR–400L  ｜5–10 ｜读者五米之内的世界 / 动物身体四季 / 昨天遇到了什么
-A2 ｜160–300 ｜400–650L ｜10–14｜兴趣爱好 / 具象科普 / 别国生活与中外对比
-B1 ｜300–550 ｜650–880L ｜13–18｜科技环境 / 社会现象 / 人物故事与文化对比
-B2 ｜550–700 ｜880–1000L｜18–21｜解释性报道与商业案例，名词化密度上升"""
+FACT_TABLE = """A1 ｜150–240 ｜BR–400L   ｜7–9  ｜读者五米之内的世界 / 动物身体四季 / 昨天遇到了什么
+A2 ｜240–380 ｜400–750L  ｜10–13｜兴趣爱好 / 具象科普 / 别国生活与中外对比
+B1 ｜380–550 ｜750–1050L ｜14–17｜科技环境 / 社会现象 / 人物故事与文化对比
+B2 ｜550–800 ｜1050–1350L｜18–24｜解释性报道与商业案例，名词化密度上升"""
 
 FACT_GRADE_SYS = """你是语言教学分级专家，依据《APP阅读级别量化表》判定这篇素材**能支撑的档位区间**。全平台分 4 个档位（A1 / A2 / B1 / B2）。
 
@@ -1356,6 +1372,11 @@ def validate_graph(d, name):
 
 
 if __name__ == '__main__':
+    if '--legacy' not in sys.argv:
+        print('✗ 本脚本已不是真源：它会用旧结构覆盖 dify_graphs/*.new.json，'
+              '再推上去就会把线上改坏。确认要用请加 --legacy（正确流程见文件头注释）。')
+        raise SystemExit(2)
+
     gj = build_gen()
     json.dump(gj, open(os.path.join(BK, 'gen.new.json'), 'w', encoding='utf-8'), ensure_ascii=False, indent=1)
     print('gen.new.json: %d nodes / %d edges' % (len(gj['graph']['nodes']), len(gj['graph']['edges'])))
