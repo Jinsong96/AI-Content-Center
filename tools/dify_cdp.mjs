@@ -3,7 +3,7 @@
 // 用途：操作「已经人工登录好」的 Dify 控制台。
 //   与 cdp_shot.mjs 的关键区别：
 //     1) 它复用【已存在的页签】，不新开标签，因此保留登录态；
-//     2) 它【不启动也不关闭】Chrome —— Chrome 由 /tmp/launch_dify_chrome.py 以
+//     2) 它【不启动也不关闭】Chrome —— Chrome 由 tools/launch_dify_chrome.py 以
 //        双 fork + setsid 方式常驻；本脚本只做 attach。
 //
 // 用法：
