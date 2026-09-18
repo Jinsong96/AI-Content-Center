@@ -88,11 +88,18 @@ tools/push_via_api.py            GitHub API 直传（治坑 8）
 tools/e2e_verify.mjs             端到端回归：登录 + 遍历 12 页 + 收集 JS 异常
 tools/theme_audit.mjs            配色合规审计：遍历 12 页揪出非「黑/灰/橙红」色相
 tools/cdp_shot.mjs               CDP 精确视口截图（多尺寸一次出图，治坑 12）
+dify_graphs/*.new.json           Dify 图快照（**仅参考**，真源是线上草稿，见坑 18）
+dify_kb_backup/                  分级标准 / 敏感规则语料（知识库真源）
+launcher_mac/                    macOS 启动器
 docs/                            01-架构 02-API 03-Dify工作流 04-数据模型
                                  05-等级扩展 06-前端审计 07-工程化需求 08-风险清单 09-Git协作
+                                 10-接口契约 11-生成质量 12-教研清单 13-节拍实测
+docs/local-notes/NN-*.md         逐次改动的实测记录（14 起；**跨设备的知识载体，别只留本地**）
+skills/readpal-frontend/         本机技能副本（换设备时从这里装回 ~/.workbuddy/skills/）
+skills/readpal-dify-workflow/    同上。⚠️ 本机技能才是运行副本，仓库这份是镜像
 RAILWAY_DEPLOY.md               部署指南 + 故障排查
-AGENTS.md                        本文件
-HANDOFF.md                       换设备交接清单（给人读）
+AGENTS.md                        本文件 · **唯一真源**
+HANDOFF.md                       换设备 / 换账号交接清单（给人读）
 ```
 
 ---
@@ -307,6 +314,42 @@ GEN 早期用 DeepSeek 官方渠道耗时 145s，`response_mode: "blocking"` **�
 > `dify_graphs/*.new.json` 已按 2026-09-18 线上快照刷新；`tools/dify_build_graphs.py` 已加
 > `--legacy` 守卫（不加参数直接跑会退出），因为它的提示词正文没有跟着线上更新。
 > 要核对线上真正在执行的区间，用 service API 真跑一次 GEN（`tools/dify_run_app.py --app=fact|gen`）读 `validation_json`。
+
+### 坑 19：词汇校验**已经在跑**，但它纠正不了 —— 别再当「未实现」报给 Bryan
+
+**2026-09-18 教训**：只核了 Dify 图（`nodeValidate` 9 项里确实无词汇项），
+就下结论「词汇层零校验」，**漏查桥接层与前端** —— 而那边 09-17（提交 `b702d9bb`）就接好了：
+
+| 位置 | 作用 |
+|---|---|
+| `backend/evp_vocab_check.py` | 9751 词 EVP 表 + `check_vocab()`（纯标准库，可直接 import 手跑） |
+| `backend/agent_reach_bridge.py:2792` | `POST /api/vocab-check` → `{results, any_exceed}` |
+| `frontend/index.html:2595 / 2610` | `collectGenForVocab()` / `vocabCheck()` |
+| `frontend/index.html:2663–2715` | 超纲自动重试 `MAX_VOCAB_RETRY = 2` |
+| `frontend/index.html:4888` | 质检面板显示超纲率 + 超纲词 |
+
+> **规则**：判断「某功能有没有」时，**Dify 图 / 桥接层 / 前端三处都要查**，
+> 只查一处必然误判。这与坑 18 是同一个毛病 —— **别把「我没查到」当成「不存在」**。
+
+**它为什么没效果（三处断裂）**：
+
+1. **重试是空转** —— `wfInputs` 在重试循环**外**算一次（`index.html:2662`），
+   三次重试入参**完全相同**，约束没有任何变化 ⇒ 必然仍失败，白花 ≈150 秒。
+   实测 4 篇真实产出 × 4 档 = **16 个样本 15 个 `exceed`**。
+2. **失败不阻断** —— 重试耗尽后照常交付，只在面板写一行字。
+3. **阈值双真源** —— 前端 `offCap()`（`index.html:1412`）显示 A1/A2/B1/B2+ = **1%/2%/3%/5%**，
+   后端 `VOCAB_THRESHOLD` 实际判 **5%/4%/3%/2%**（**B2+ 正好反了**）。
+   **同 `MIN_USABLE_TEXT` 的教训：改一边必须改另一边。**
+
+**判据本身也还没标定**（想让校验真起效，必须先解决）：
+- `cap = ≤A1` 只有 **643 词族**（`≤A2` 共 1721），写 190 词成人新闻改写不可达；
+- **功能词被当内容词**：`by` `over` `around` `another` `should` `far` `away` `lake` `race` `air`
+  在这张词表里**全标 A2** ⇒ A1 档条条算超纲。**超纲率只应统计实词**；
+- `check_vocab()` 的**表外词既不进分子也不进分母** → 越生僻越逃过校验；
+- 阈值 `5%/4%/3%/2%` 是**拍的，没有依据** —— 要用**教研认可的合格范文**标定后再定。
+
+> 完整方案（四层）见 `docs/local-notes/32-产出难度治理方案-2026-09-18.md`。
+> ⚠️ `docs/local-notes/31` 的「方案 A（把校验接进质检）」**已作废**，其 §1–§9 实测仍有效。
 
 ---
 
@@ -551,4 +594,6 @@ python3 tools/build_deploy_bundle.py   # 产出 deploy_bundle/
 - 涉及外部服务**必须实际调用一次拿到响应**再写/改解析代码。状态字符串一律写成兼容集合。
 - **前端设计统一遵循第 2 节的「设计大原则」**，不必每次复述。
 - 交付前端改动时，附**改动前后的真实渲染截图**，并说明自己主动多做了什么、可否决。
-- 跨设备 / 跨账号协作：**知识必须落进仓库**（本文件 + `tools/`），不要只留在某台机器的本地配置里。
+- 跨设备 / 跨账号协作：**知识必须落进仓库**（本文件 + `tools/` + `docs/local-notes/` + `skills/`），
+  不要只留在某台机器的本地配置里。换设备后照 `HANDOFF.md` 走一遍：
+  拉源码镜像（**别 git clone**，仓库有 90MB 音频）→ 装回 `skills/` → 配令牌 → 核验。
