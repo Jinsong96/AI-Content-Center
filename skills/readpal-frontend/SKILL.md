@@ -984,3 +984,75 @@ python3 tools/fetch_sources.py /tmp/remote_latest          # 拉一份远端最�
 
 **别用「文件大小差不多」判断是否同步** —— 2026-09-18 这次的差异是
 前端 +87166 字符（69.4 万 → 78.1 万），后端只 +1320，看起来「后端没动」但实际加了整个 EVP 模块。
+
+---
+
+## 📦 知识资产同步与跨设备验收（2026-09-18 建立 · 换设备前必做）
+
+**问题**：代码推上了仓库，但 `docs/local-notes/`、`skills/`、实验脚本常常**滞留本地**。
+2026-09-18 实测：共有文件 0 差异，却有 **33 个本地文件从未入库**（19 篇笔记 + 7 个实验脚本 + …）。
+换设备后这些知识直接消失 —— 而它们才是「怎么安全改这个项目」的真正载体。
+
+**判据**：**共有文件零差异 ≠ 仓库是完整的。** 必须做**全树比对**，别只比那几个代码文件。
+
+### 一步到位：全量比对（blob sha，不用 git）
+
+```bash
+python3 - <<'PY'
+import hashlib, json, os, urllib.request
+tok = json.load(open("tools/.env.json"))["gh_token"]
+H = {"Authorization": f"token {tok}", "User-Agent": "x"}
+api = lambda u: json.load(urllib.request.urlopen(urllib.request.Request(u, headers=H)))
+t = api("https://api.github.com/repos/Jinsong96/AI-Content-Center/git/trees/main?recursive=1")
+remote = {e["path"]: e["sha"] for e in t["tree"] if e["type"] == "blob"}
+def bs(p):
+    d = open(p, "rb").read(); h = hashlib.sha1()
+    h.update(b"blob %d\0" % len(d)); h.update(d); return h.hexdigest()
+EX = {"tools/.env.json", "backend/.article_cache.json", "backend/.toutiao_en_cache.json"}
+diff, only = [], []
+for root, dirs, files in os.walk("."):
+    dirs[:] = [d for d in dirs if d not in {".git", "__pycache__", "node_modules"}]
+    for f in files:
+        p = os.path.relpath(os.path.join(root, f), ".")
+        if p.startswith("backend/audio/") or p in EX: continue      # 音频 + gitignore 项
+        if p not in remote: only.append(p)
+        elif bs(p) != remote[p]: diff.append(p)
+print("远端", len(remote), "| 内容不同", len(diff), "| 本地独有", len(only))
+for p in only: print("   +", p)
+for p in diff: print("   ~", p)
+PY
+```
+
+- 排除清单必须含 **`tools/.env.json`（令牌）、两个 `backend/.*_cache.json`** —— 它们被 `.gitignore` 挡着，**不能推**。
+- 推完再跑一次，应得「内容不同 0 / 本地独有 0」。
+
+### 批量推送（`push_via_api.py` 一次只吃一个文件）
+
+```bash
+# 用同一段脚本把 only+diff 列表循环喂给 push_via_api.py（subprocess，注意中文文件名要按路径传）
+MSG="chore(sync): 补齐仓库缺失的知识资产"
+# 逐个：python3 tools/push_via_api.py <本地路径> <远端路径> "$MSG"
+```
+
+### 新设备验收（真拉一份，别只看网页）
+
+```bash
+python3 tools/fetch_sources.py /tmp/fresh_device_test   # 应成功 128（= 远端总数 − 音频数）
+diff -r --brief /tmp/fresh_device_test . | head          # 只应差 .gitignore 排除的本地项（音频/缓存/密钥）
+mkdir -p ~/.workbuddy/skills && cp -R skills/* ~/.workbuddy/skills/   # 装回技能
+```
+
+验收线：**拉取 0 失败 + 逐文件 sha 比对 0 问题 + `skills/` 能原样装回**。
+`skills/README.md` 里写了 `.env.json` 要另外补（它不入库）。
+
+### 🔴 同源漂移（每次同步都查一眼）
+
+`skills/readpal-frontend/scripts/` 与仓库 `tools/` **内容重叠且已漂移过**：
+2026-09-18 实测 6 个同源、`push_via_api.py` **不一致**。
+→ **改任一侧脚本时两边都要看**，否则会重演 `MIN_USABLE_TEXT` 那类双真源事故。
+
+### 🔴 判断「某功能有没有」必须三处都查
+
+2026-09-18 的教训：只核了 **Dify 图**就断定「词汇层零校验」，
+而 **桥接层 + 前端** 09-17 就接好了（`/api/vocab-check` + 自动重试 + 质检面板）。
+**结论：Dify 图 / 桥接层 / 前端 —— 只查一处必然误判。**
