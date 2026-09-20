@@ -380,6 +380,9 @@ node tools/ui_audit.mjs --url=http://127.0.0.1:8899/index.html --role=produce \
 | Dify 报 `level in input form must be one of the following: ['A1.1',…]` | `start.level` 是 `select`，枚举值**只有点式**；前端 `state.lvl` 是**内部下划线键**（`A1_1`）→ 2.1s/0 token/0 节点被门口打回 | **FACT 不传 `level`**（标签本就写着「可选，空则由 nodeGrade 自动判」）；**GEN 传 `nkDisp(fc.level \|\| state.lvl)`** 转点式。⚠️ 若非要传 `select` 类入参，**空串也是非法值** —— 必须整个省略该键 |
 | 以为「本地 ≠ 线上」要回拉源码 | 线上 HTML = 源码 + bridge 注入行（第 7 行 `<script>window.WB_API_BASE="";window.WB_CONFIG={…};</script>` 替换了本地的 `<script src="config.local.js"></script>`，差 234 字节） | **先归一化该行再逐行比**。归一化后若零差异 ⇒ 本地就是线上源码，别覆盖。把「部署产物」直接与源码做字节比会把注入误判成漂移 |
 | 本地探针里 `AIWF_*.appKey` 为空、函数静默返回不报错 | 本地没有 `config.local.js`，`appKey` 空 → 函数**内部 `try/catch` 提前抛掉**，表现为「什么都没发生」 | 探针里先 `AIWF_FACT.appKey='app-PROBE'`（`const` 对象属性可改）再调用 |
+| 以为「线上新字段全缺」 | `tools/dify_run_app.py --out=xxx.json` 写的文件**顶层就是 outputs 本身**，没有再套一层 `outputs` | 读 `d['align_map']`，**不要**读 `d['outputs']['align_map']` |
+| `curl` 线上 `CONNECT tunnel failed, response 502`；`urllib` 直连超时 | 本机代理拦截 Railway 域；显式 `ProxyHandler({})` 绕代理后**仍超时** | **别在网络层绕** —— 用 CDP 从已登录的 Chrome 里 `Network.getResponseBody`（`Page.navigate` + 监听 `Network.responseReceived` 取 `requestId`）拿**原始响应体**，用 `Network.setCacheDisabled(true)` 防缓存 |
+| 手写大段 `atomic_replace` spec 容易抄错 | 人肉复制长 `old` 必然出岔 | **从远端原版派生**：拉线上文件 → 用 `difflib` 定位差异块 / 用 `索引切片` 从**本地新文件**取 `new`、从**远端旧文件**取 `old` → 断言 `r.count(old)==1` → 跑 `atomic_replace` → **与本地文件比 sha256，逐字节一致才算通过** |
 | 探针读到「FACT 没有 `level_lo`/`info_points`、`gist_len=0`」 | `runGeneration()` 结束时把 **`state.live.run` 换成 GEN 的响应**，事后读它其实读的是 GEN 的 outputs | 要么在 **FACT 刚结束、GEN 未启动**时读；要么改用**穿透式记录器**（记录请求体但照常转发请求），见 `scripts/probe_live_e2e.mjs` |
 | **切到没有内容的大档后，大档切换条整条消失、点不回去** | `alignedViewHTML()` 开头的 `if(!has) return ""` —— 切换条就渲染在这一块里，被一起带走了。区间模型下（素材只到 A2.3）必然触发 | 改成 `if(!has) return h+emptyGroupHTML();`，切换条与空态卡片始终保留。**判据：任何状态下 `.bigtab` 恒为 4**。回归用 `scripts/probe_review_levels.mjs` |
 | 想改切换条位置，怕出两条 | 它是 `_bigBarUsed` 一次性闸门 | **不必复制**：在目标位置先调一次 `bigBarOnce()` 占住闸门，原位置那次自动返回空串 |
@@ -400,6 +403,31 @@ node tools/ui_audit.mjs --url=http://127.0.0.1:8899/index.html --role=produce \
 | 想量「有内容时」的栅格/排版，探针里那些选择器全都量不到 | 空数据下 A4 引导空态会 **`return` 掉整块**，`.mat-stats` / `.dashstats` 根本不渲染 | 先注入 mock（写 `state.live.run.data.outputs` 的 `articles_json`/`paras_json`/`quiz_json`… 再 `applyLive()`）再量 |
 | **「生成文章」按钮点了没反应**（其实抛错被 catch 吞了） | `runGeneration()` 里 `fetch(..., {signal: _abortSignal})` 在声明 `const _abortSignal = _runAbort.signal` **之前**就引用它 → **TDZ（暂时性死区）** `ReferenceError`，被 `catch` 吞成「网络错误：Cannot access '_abortSignal' before initialization」，用户只看到「没反应」 | `AbortController` / 它的 signal 必须在用到它的 `fetch` **之前**创建。改完用探针验证：设假 `appKey` + 假 `apiBase`（`127.0.0.1:9` 必失败地址）触发 `runGeneration()`，断言 `state.live.err` **不含** `_abortSignal`/`Cannot access`（即已越过 TDZ 走到 fetch） |
 | **段落校对页「编辑了但没生效」**（界面文字变了、下游全是原文） | `paraEdit(this)` 收到的 `this` 是 `.pbody`，而 `data-k`/`data-i` 挂在父级 **`.pcard`** 上 → `el.getAttribute("data-k")` 恒为 `null` → `GEN[null]` undefined → **第二行静默 return**。`contenteditable` 是浏览器原生行为，字确实改了、连词数徽标都刷新（那行写对了），所以界面给的是「成功」的假信号；实际**内存/草稿/入库/审核四处全是原文**且零报错 | 从 `el.closest(".pcard")` 取属性；失败必须报错不能静默返回。回归探针 `node tools/probe_para_edit.mjs`（19 项断言；旧写法回退可复现 11 项失败），详见下方「编辑类回调」小节 |
+
+## 段落对齐告警条（2026-09-20 上线 · 改 `applyLive` / `alignWarnHTML` / `s9` / `alignedViewHTML` 前必看）
+
+**背景**：四档**恒为 12 段**（聚合层会把 >12 段截回 12），界面 `alignBodyHTML()` 纯按 `maxP` 索引铺行
+→ 某档「拆段被静默截断」时**看起来仍是对齐的**，但内容已整体跳位。
+**这是这类问题唯一能被用户察觉的入口，绝不能再静默。**
+
+- **数据来源（3 个字段，缺一不可）**：
+  - `align_map`：4 档折到同一 gist 轴后的映射，**正常恒等 `[[1],[2],…,[12]]`**；
+  - `para_clean_count`：**截断前**段数 —— 段数信号**只在这里**（`para_count` 取自截断后数组，恒为 12）；
+  - `map_warn`：后端告警文本。
+- **`applyLive()`** 收成 `state.alignGuard = { warn, off, counts }`；**无告警时为 `null`**。
+- **`alignWarnHTML()`**：**校验层「段落对齐」项判决优先**（更权威、带详情），
+  前端从 `align_map` 自推的结果只作补位；两者都无 → 返回空串。
+- **调用点只有两处**：`alignedViewHTML()`（一处覆盖 s12 等所有复用点）与 `s9()`。
+  ⚠️ **不要**在 `s12()` 里再加一次 —— 它内部走 `alignedViewHTML()`，会出两条。
+- **新一轮清空**：`startLiveRun()` 里 `state.alignGuard = null`（与 `factMap` / `unusedFacts` 同批），
+  否则上一轮的告警会串到新素材上。
+- 样式类 `.alignwarn`（`#FFFAEB` 底 + `#F79009` 左边框 + `.aw-h` / `.aw-ico` / `.aw-fix`）。
+- **验证两步走**：① `/tmp/test_alignwarn.mjs` 用**真实线上 outputs** 构造 4 场景
+  （正常→空串 / 截断→点名段数 / 错位→校验详情 / 老缓存→不崩）；
+  ② 用 CDP 在真机 Chrome 里**真实渲染**，`getComputedStyle` 断言底色/边框 + 量 `getBoundingClientRect()`
+  确认黄条真的可见（只看返回的 HTML 字符串不算验证）。
+
+---
 
 ## 前端骨架速查（2026-09-10 现状）
 
