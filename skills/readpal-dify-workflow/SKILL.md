@@ -856,6 +856,100 @@ MAIN 的生成节点就会引用**不存在的变量** —— 静态校验报错
   而 A2 规格已经不小（每段 50–60 词）。这是**结构性代价**，需要教研决定是给容差还是让 A2 也吃细节。
 - B1 组蓝思/句长仍会冲高（实测 B1.2 20.0 词/句、估算 1097L），是既有波动。
 
+## 🔴 段数 12 曾是「软要求 + 静默截断」—— A1- 最容易被砍掉尾段（2026-09-20 定位 → **同日晚已修复上线**）
+
+**症状**：A1- 与其它三档逐段内容错位（从某段起整体后移一位），且 A1- 常缺最后一段（如「信息来源」）。
+
+### ✅ 现状（2026-09-20 已上线，★ 改生成链路前必读）
+
+**4 档统一以 gist 的 12 条为段落骨架**，facts 退化为「高档细节池」。
+
+| 环节 | 现状 |
+|---|---|
+| FACT | `nodeFact` 每条 fact 输出 `gist` 归属号（整数 1–12）；`nodeClean` 派生 `gist_fact_map` / `gist_lines` / `level_material_b1` / `level_material_b2p` |
+| A1/A2 | 素材用 `{{#nodeClean.gist_lines#}}`（**编号文本**，让 `[i]` 可靠）；提示词**禁拆段** + 段数进硬自查（五条 → **六条**） |
+| B1/B2+ | 素材用 `{{#nodeClean.level_material_b1#}}` / `_b2p`（大意骨架 + 每条下挂细节）；输出**双键** `gist_map` + `fact_map` |
+| 聚合 | `nodeAgg` 输出 `align_map`（4 档折到同一 gist 轴，**正常恒等 `[[1]…[12]]`**）+ **`para_clean_count`**（截断前段数） |
+| 校验 | `nodeValidate` 第 11 项「段落对齐」**硬失败**（`total_checks` = `ALL.length * 11` = 44） |
+| 前端 | `applyLive()` 读 `map_warn` / `align_map` / `para_clean_count` → `state.alignGuard`；`alignWarnHTML()` 在 `alignedViewHTML()` / `s9()` 露黄条（**校验层判决优先**） |
+| 改图工具 | `tools/patch_gist_skeleton.py`（幂等；`--check` 18 项回读核验；能修复已发布的旧值） |
+
+🔴 **`fact_map` 字段名保留但语义已统一成「事实卡轴」**（`nodeAgg` 末 `fact_map = factFacts`）。
+正因如此前端 `paraFactIds` / `factCiteHTML` / `factTraceHTML` **无需按 `map_basis` 分流**就不会再张冠李戴。
+`map_basis` 仍按档位固定输出（`{A1:gist, A2:gist, B1:fact, B2:fact}`），防止高档的事实一致性口径被误降。
+
+🔴 **段数信号在 `para_clean_count`，不在 `para_count`** —— 后者取自截断后的数组，**恒为 12，看不见问题**。
+
+**线上验证口径**（VR 素材 61.7s / 27596 tokens）：`align_map` 4 档严格 1:1 ✓ · `para_clean_count` 全 12 ✓ ·
+`map_warn` 空 ✓ · 「段落对齐」4 档全 pass ✓ · 失分 34/44 全在既有议题（长度/句长/蓝思/语法粗筛）。
+
+### 🔴 最关键的一条（历史成因，理解设计必读）：**四档都是 12 段，所以「段数不一致」这个唯一机械信号会失效**
+
+`nodeGenAgg` 会把任何 >12 段的产出 `slice` 回 12 段，再交给下游。四档出来**永远是 12 / 12 / 12 / 12**。
+判「有没有错位」**不能看段数，要看 `gist_map` / `fact_map`**。
+
+```js
+const PARAS = { A1:[12,12], A2:[12,12], B1:[12,12], B2:[12,12] };
+if (arr.length > wantHi) { cut = arr.length - wantHi; arr = arr.slice(0, wantHi); }  // ← 砍掉的是末尾
+```
+
+### 根因链（环环有证据，改前逐条核）
+
+1. **两套基准不同源**：`nodeGenA1/A2` 引用 `{{#nodeClean.gist#}}`（FACT 侧**固定 12 条**、去数字去专名）；
+   `nodeGenB1/B2p` 引用 `{{#nodeClean.facts_text#}}`（≤12 张卡，不足时「相邻段可复用同一张卡」）。
+2. **A1- 额度零余量**：写作标尺「每段约 12–20 词」× 12 段 → **12×20=240 = 全文硬上限**，一点余量都没有。
+   遇到「重条」大意塞不进 2 句 20 词 → 模型**拆段**。
+3. **提示词只堵了「写超长」，没堵「拆段」**；且【必须自查的五条硬指标】（①字数 ②每段句数 ③平均句长
+   ④词汇 ⑤语法）**不含「段数」** —— 段数从未进入模型的核对清单。
+4. **`nodeGenAgg` 无条件砍尾** → 13 段砍成 12 段，**丢的正是末尾那条**。
+5. **告警静默**：截断写进 `map_warn`，但 `frontend/index.html` 与 `backend/agent_reach_bridge.py` 里
+   `map_warn` **出现 0 次**（`applyLive()` 读了 8 个字段唯独没读它）。
+6. **校验层不设防**：`nodeValidate` 10 项里**没有「段落对齐」**；`nodeGenAgg` 注释
+   「4 档体系：每组 1 档，**无需组内统一**」；⑨ `nodeGistCheck` 明文「低档覆盖不全**不算失败**」。
+7. **前端 `alignBodyHTML()` 纯按索引铺行**（`maxP` 行 × 4 列）→ 界面「看起来是对齐的」。
+
+### ✅ 复现判据（**等权大意跑不出来，必须构造重条**）
+
+用 `tools/dify_run_app.py` 的 `run()` 直连 GEN（不传 `level`，四档齐出）：
+
+| 实验 | gist 形态 | 结果 |
+|---|---|---|
+| R1 | 12 条**等权重**小大意 | A1- 12 段，四档严格 1:1，`map_warn` 空 → **不触发** |
+| R2 | 12 条，其中一条是**重条**（两个信息点合在一条） | **A1- 输出 13 段 → 被截断成 12 段，末尾段丢失**；`map_warn` = `A1- 段数 13 → 12（…截断 1 段）` |
+
+⇒ 验证这类问题**必须构造「某条大意信息量大」的 gist**。等权大意会给出「一切正常」的假阴性。
+
+### 🔴 改动时的硬约束（本次已遵守，仍然有效）
+
+- **堵「拆段」必须与「加段落对齐硬失败」同批上线**，否则只是把「拆段」逼成「写超长」。
+- `gist` 的 12 条**不应与「每段 12–20 词」同时收紧** —— A1- 本来就是零余量。
+- **`para_clean_count` 必须与 `align_map` 一起加**：只上报截断后的段数等于没上报。
+
+### 🔴 实施时踩到的 4 个坑（写这类幂等图改造脚本前必读）
+
+1. **`sub_once` 幂等判据有反方向的坑**：若**新文案是旧文案的子串**（「以旧文案开头再追加澄清句」这种写法），
+   `new in txt` **恒真** → 第二次跑会静默跳过，或反过来重复插入。
+   护栏：`if new in txt and new != old and old not in txt: return txt, False`。
+2. **闭包遮蔽**：块内重复 `const alignMap = {}` 会遮蔽外层同名常量，且若该块在 `if` 保护里，
+   外层导出的是**空对象** —— 脚本报「成功」，实际没生效。
+3. **`nodeEnd.outputs` 是 list（`{variable,value_selector}`），code 节点 `outputs` 是 dict**
+   （`{var:{type}}`）—— `add_outputs()` 必须按类型分流，否则 `AttributeError: 'list' has no attribute 'keys'`。
+4. **改完必须实际执行验证，不能只看脚本报成功**：`fact_map` 被覆盖回分叉口径这个 bug，
+   本地测试台一跑就现形，光看「✓ 18 项全绿」看不出来。
+
+### ✅ 另有一处独立 bug（**已随本次一并修好**）：前端溯源基准混用
+
+`paraFactIds()` / `factCiteHTML()` / `factTraceHTML()` **一律按 `liveFacts()`(= facts) 渲染**，
+但 A1/A2 的映射编号是 **gist 序号**（`nodeAgg` 用 `basis:'gist'` 归一化到 `gist_count`）。
+⇒ **A1-/A2 的「事实卡 N」标签曾长期张冠李戴。**
+
+**实际修法不是**「`nodeGenAgg` 多输出 `gist_json` + 前端按 `map_basis` 分流」，
+而是**更省事的一刀**：`nodeAgg` 把 `fact_map` **字段名保留、语义统一成事实卡轴**
+（`fact_map = factFacts`，4 档一律输出事实卡编号）。前端三处渲染函数**不改一行**就自动正确。
+教训：**当「修 N 处消费方」与「统一 1 处生产方」等价时，优先改生产方**。
+
+完整排查记录：`readpal/docs/local-notes/39-A1-段落错位-静默截断尾段-2026-09-20.md`
+
 ### 🛠️ macOS 没有 `timeout` 命令
 
 `tools/dump_draft.mjs` 写文件后进程不退出（WebSocket 未关）。用 perl 版超时封装：
