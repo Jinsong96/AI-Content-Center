@@ -769,6 +769,48 @@ GEN `f4462032-2919-49e0-b123-bb5160c96c28`（MAIN `466e1815-…` 是死资产）
 诊断口诀：先在 HTML 上数 `len(re.findall(r"<article", html))` 与每个匹配的长度，
 **"抽不到正文"先分清是「站点不给」还是「我们取错容器」**。
 
+### 🔴 正文里的 HTML 实体必须走标准库 `html.unescape`，别硬编码替换（2026-09-20）
+
+**症状**：素材正文里出现 `&#x27;` `&#8217;` `&rsquo;` `&mdash;` 这类字面量，一路带进生成环节。
+
+**根因**：`clean_html()` 原先只硬编码替换 **5 个命名实体**
+（`&nbsp; &amp; &lt; &gt; &quot;`），漏掉两类：
+- **数字实体** —— `&#x27;`(单引号) `&#8217;`(右单引号) `&#8220;/&#8221;`(弯引号) `&#34;` `&#8212;`
+  `&#8234;/&#8236;`(bidi 控制符) …… **英国媒体（BBC 系）正文 HTML 主要用这种**；
+- **其它命名实体** —— `&rsquo;` `&mdash;` `&ldquo;` `&aacute;` `&hellip;` ……
+
+**范围不是某个源**：线上实测 **180 条里 79 条（44%）带残留，涉及 27 个源**
+（BBC 9 个栏目 / Global News / Billboard / CNBC / ABC / Live Science / Mindful / Entrepreneur / 今日头条 …）。
+`topic` / `cn` / `summary` 干净（走 XML 解析器，实体已被解码），**只有 `fulltext` 脏** ——
+因为它是从原站 HTML 自己剥标签抽的。
+
+**改法**（三处，缺一不可）：
+1. `clean_html()` 用 `_htmllib.unescape()` —— 覆盖 2000+ 命名实体 + 全部数字实体，
+   是原来那 5 条的**超集**（向后兼容）。
+2. ⚠️ **导入必须用别名 `import html as _htmllib`**：本文件里 `html` 是**局部变量名**
+   （`fetch_article()` 的 `html = data.decode(...)`、`extract_main_text(html)` / `extract_title(html)` 的形参），
+   直接 `import html` 会被局部 str 遮蔽 → `AttributeError`。
+3. **顺序必须是「先剥标签、再反转义」**：倒过来 `&lt;script&gt;` 会先变成真标签被连内容吃掉。
+   且**只解一次**（`&amp;lt;` 原意是显示字面量 `&lt;`，反复解会错变成 `<`）。
+
+**顺带清掉不可见控制字符**（`_CTRL_RE`）：`&#8234;` 反转义后是 U+202A 这类 bidi 控制符，
+还有 U+00AD 软连字符、U+200B–200F 零宽、U+FEFF —— 肉眼看不见，只会在模型输入里悄悄占 token。
+
+**🔴 只修 `clean_html` 不够 —— 磁盘缓存必须自愈。**
+`backend/.article_cache.json` 存的是**已抽取好的纯文本**，而 `fetch_article()` 命中缓存时
+**直接返回 `hit["text"]`，不会再走 `clean_html`** ⇒ 历史乱码会一直吐出来，看起来像「修了没用」。
+做在 `_load_article_cache()` 首次加载时清洗 + 回写：
+- 用**只解实体、不剥标签**的 `unescape_entities()`（缓存里已无标签，去标签正则反而会误伤 `less than 5 < 10`）。
+- `text` 变了必须**同步 `len` 字段**（下游用它显示长度、判 `fulltext_status`）。
+- ⚠️ **回写必须在锁外**：`_article_cache_lock` 是不可重入的 `threading.Lock`，
+  锁内调 `_save_article_cache()` 会死锁。
+
+**验收判据**：`/api/trends` 返回里 `fulltext` / `topic` / `cn` / `summary` 四个字段
+正则 `&(?:#\d+|#x[0-9a-fA-F]+|[a-zA-Z][a-zA-Z0-9]{1,9});` **命中数必须为 0**。
+
+**另注**：此坑的教训与 `parse_ts`（见「四个必须记住的坑」第 4 条）同构 ——
+**都是「手写枚举」扛不住格式多样性**。凡是解析外部格式，优先用标准库，别自己列清单。
+
 ### `renderHots()` 的卡片是错峰出来的 —— CDP 探针最容易在这里误判
 
 ```js
