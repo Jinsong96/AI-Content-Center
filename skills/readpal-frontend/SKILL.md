@@ -505,7 +505,7 @@ _TT_DROPPED_VIDEO = []         # 本批拦截台账，由 /api/trends 的 filter
 | 虎扑 首页/版块 | `hupu.com`、`bbs.hupu.com/bxj` | ⚠️ JS 重度渲染，HTML 内无文章链接 |
 | 前端预置值 | `gutenberg.org`、`learningenglish.voanews.com` | ❌ 降级 / 超时 |
 
-**三个必须记住的坑**
+**四个必须记住的坑**
 
 - **YouTube 的 404 不是 channel_id 错。** 线上抓频道页时后端 `discover_rss()` 读出的 feed URL
   与手工构造的完全一致，但直接请求仍 404 —— 这是**机房 IP 被区别对待**（已知结构性问题）。
@@ -529,6 +529,21 @@ _TT_DROPPED_VIDEO = []         # 本批拦截台账，由 /api/trends 的 filter
   别据此判源不可用；要看正文可抓性必须一次只传一个源。
   ⚠️ 同理，**付费墙站**（NYT / Forbes / Economist / HBR / WSJ / Inc.）能返回条目但只有 `summary_only`
   （正文 94–203 字符），过不了 `MIN_USABLE_TEXT=200` 闸门 —— 这类要判「可用」而不能只看 `count > 0`。
+- **🔴 「源可用」不等于「源有内容」—— 还要看它最后更新是什么时候。**
+  2026-09-20 实测四个**停更源**（feed 有效、能抓到条目，但内容陈旧）：
+  **人民网 RSS 停更 15 个月**（最新 2025-06-05）· **新华网 RSS 连 `pubDate` 都没有**，内容是 **2022-12 新冠期** ·
+  **BBC · Stories 的条目是 1380–1439 天前（近 4 年）** · **TED Blog 最新一条也在 15.9 天前**。
+  判据是 `/api/trends` 的 **`filtered_stale`** 台账（每条带 `age_days`）：
+  **某个源一次被整批拦掉 = 它已经停更** —— 这是最早、最省事的「源失效」信号，比等老师看到旧闻再反馈早得多。
+  ```bash
+  curl "$LIVE/api/trends?theme=all&limit=200" | python3 -c "import json,sys;[print(x['age_days'],x['source'],x['title'][:30]) for x in sorted(json.load(sys.stdin)['filtered_stale'],key=lambda y:-y['age_days'])]"
+  ```
+  ⚠️ **根因别找错**：时效门槛（`TRENDS_MAX_AGE_DAYS = 14`）**一直存在**，坏的是 `parse_ts` 只认 RFC822
+  （`parsedate_to_datetime`）—— **Atom 的 ISO8601 和 `2025-06-05` 这类全解析失败返回 `0.0`**，
+  而过滤写成 `if (not ts) or (now - ts <= 14d)` → **`0.0` 被当「无法判定」直接放行**
+  ⇒ 这些源的时效过滤**一直完全失效**。
+  **教训：「解析不出来」既不等于「源没给日期」，更不等于「放行」。**
+  验收：`parse_ts("2025-06-05")` 必须 > 0；整榜「超过 14 天的条目」必须为 0。
 
 **列表页抽取的上限（改造前的兜底就是上限所在）**
 
