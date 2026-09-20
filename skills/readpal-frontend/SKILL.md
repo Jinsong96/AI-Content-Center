@@ -399,6 +399,7 @@ node tools/ui_audit.mjs --url=http://127.0.0.1:8899/index.html --role=produce \
 | 想用 `drive_multi_state.mjs` 的 eval 步回传长测量结果，拿到的总是被截断 | 脚本对返回值**截断到约 40 字符**（`eval→p0 vw=420 scrollW=420 [.hotgri`） | 长结果**自带 CDP 探针**输出（探针的 `console.log` 不过截断）。见 `/tmp/grid_probe.mjs` 的写法可直接复用 |
 | 想量「有内容时」的栅格/排版，探针里那些选择器全都量不到 | 空数据下 A4 引导空态会 **`return` 掉整块**，`.mat-stats` / `.dashstats` 根本不渲染 | 先注入 mock（写 `state.live.run.data.outputs` 的 `articles_json`/`paras_json`/`quiz_json`… 再 `applyLive()`）再量 |
 | **「生成文章」按钮点了没反应**（其实抛错被 catch 吞了） | `runGeneration()` 里 `fetch(..., {signal: _abortSignal})` 在声明 `const _abortSignal = _runAbort.signal` **之前**就引用它 → **TDZ（暂时性死区）** `ReferenceError`，被 `catch` 吞成「网络错误：Cannot access '_abortSignal' before initialization」，用户只看到「没反应」 | `AbortController` / 它的 signal 必须在用到它的 `fetch` **之前**创建。改完用探针验证：设假 `appKey` + 假 `apiBase`（`127.0.0.1:9` 必失败地址）触发 `runGeneration()`，断言 `state.live.err` **不含** `_abortSignal`/`Cannot access`（即已越过 TDZ 走到 fetch） |
+| **段落校对页「编辑了但没生效」**（界面文字变了、下游全是原文） | `paraEdit(this)` 收到的 `this` 是 `.pbody`，而 `data-k`/`data-i` 挂在父级 **`.pcard`** 上 → `el.getAttribute("data-k")` 恒为 `null` → `GEN[null]` undefined → **第二行静默 return**。`contenteditable` 是浏览器原生行为，字确实改了、连词数徽标都刷新（那行写对了），所以界面给的是「成功」的假信号；实际**内存/草稿/入库/审核四处全是原文**且零报错 | 从 `el.closest(".pcard")` 取属性；失败必须报错不能静默返回。回归探针 `node tools/probe_para_edit.mjs`（16 项断言；旧写法回退可复现 9 项失败），详见下方「编辑类回调」小节 |
 
 ## 前端骨架速查（2026-09-10 现状）
 
@@ -824,6 +825,43 @@ setTimeout(()=>{ …g.appendChild(d); }, 110*i);   // 30 张卡 → 最后一张
 - 正例参考：`state.customHots` 20 条 → 等 3.5s 后应恰好 20 张 `.hotcard.custom`。
 - **点完卡片会 `cur=2` 跳页，`#hotgrid` 随即不在 DOM** —— 跳页后再数格子的结果无意义
   （本轮因此白查了两轮，`cardsDuringScan: 0` 其实是这个原因）。
+
+### 🔴 编辑类回调「改到哪」—— 定位属性在**卡片**上，不在正文上（2026-09-20 事故）
+
+段落正文用 `contenteditable`，回调 `paraEdit(this)` 收到的 `this` 是 `.pbody`，
+但定位属性挂在父级 **`.pcard`** 上：
+
+```html
+<div class="pcard" data-k="A1" data-i="0">                            <!-- 属性在这 -->
+  <div class="pbody" contenteditable oninput="paraEdit(this)">…</div>  <!-- this 在这 -->
+</div>
+```
+
+`el.getAttribute("data-k")` → `null` → `GEN[null]` 是 `undefined` → **第二行静默 return**，
+改动从未被记录。
+
+**为什么这是最阴的一类 bug**：`contenteditable` 是浏览器原生行为，**字确实变了**；
+连段落词数徽标都会刷新（那行用的是 `el.closest(".pcard")`，写对了）。
+界面因此给出「改成功了」的假信号，而 **内存 GEN / 本机草稿 / 存入文章库 / 审核页四处全是原文**，
+全程零报错 —— 只有走到下游才暴露。静态读代码完全看不出问题。
+
+**判据（必须逐项验证，光看输入框里的字不算验证）**：
+① 内存 `GEN[k].paras[i]` 确实变了；② 草稿 `wb_para_draft_v1` 落盘且内容一致；
+③ 逐段审核页（idx 10）显示编辑后、**不含**原文；④ `buildBankArticle()` 的
+`paras` 与 `articles` 都含编辑、不含原文。
+
+**回归探针**：`node tools/probe_para_edit.mjs`（16 项断言，自带 Chrome + CDP，本地/线上同一份）
+```bash
+cd <repo> && node tools/probe_para_edit.mjs                                   # 本地 8899
+URL_=https://web-production-2a16e.up.railway.app/ node tools/probe_para_edit.mjs
+```
+> 已做过**旧代码对照**：把 `paraEdit` 回退成旧写法跑同一份探针 → **9 项失败**，
+> 失败项正好指向「内存没变 / 草稿没落 / 审核显示原文 / 入库是原文」。
+> ⚠️ 其中「词数徽标已刷新」在**旧代码下也是 ✓** —— 这正是它最阴的地方。
+
+通用教训：**编辑类回调「落到哪」必须有断言，取不到宁可报错也不能静默返回。**
+静默失败的代价是「用户以为改好了」，比直接报错严重得多。
+（同族的还有 `runGeneration()` 的 TDZ —— 抛错被 `catch` 吞成「没反应」。）
 
 ### 「界面内容凭空消失」类问题的查法
 
