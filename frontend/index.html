@@ -4101,7 +4101,7 @@ function digestFetchResult(j, scope){
   return { items: null, degraded: true, errors: [{ severity: "error", scope: scope, msg: why }] };
 }
 async function fetchRealTrends(theme, sub){
-  const q = "theme=" + encodeURIComponent(theme) + (sub ? "&sub=" + encodeURIComponent(sub) : "");
+  const q = "theme=" + encodeURIComponent(theme) + (sub ? "&sub=" + encodeURIComponent(sub) : "") + "&limit=" + TRENDS_LIMIT;
   const j = await fetchJSON(AGENT_REACH_API + "/api/trends?" + q);
   const r = digestFetchResult(j, "trends");
   state.trendsDegraded = r.degraded;
@@ -4213,6 +4213,10 @@ async function refreshTrends(){
    ⚠️ MIN_USABLE_TEXT 必须与后端 MIN_USABLE_TEXT 严格一致。两边不一致会出现
    「后端放行、前端弹粘贴」或反向的错位，是最难查的那类问题。 */
 const MIN_USABLE_TEXT = 200;
+/* /api/trends 一次取多少条。取 120 而非默认的 30 —— 后端流程是
+   「排序 → 截断 → 补正文 → 再筛掉无正文的」，30 条时线上最终只剩 25 条可见
+   （2026-09-20 实测）；给足冗余才能让老师真的多选。 */
+const TRENDS_LIMIT = 120;
 function hasUsableText(h){
   const len = (h && h.fulltext_len != null) ? h.fulltext_len : ((h && h.fulltext) ? h.fulltext.length : 0);
   return len >= MIN_USABLE_TEXT;
@@ -4342,6 +4346,9 @@ function renderHots(){
       renderCustomHots(g, true);
       return;
     }
+    /* 错峰间隔按条数自适应：固定 90ms 在 120 条时要 10.8 秒才铺完，老师会以为卡死。
+       总时长压到 ~1.5 秒内，保留「逐条落位」的观感。 */
+    const step = Math.max(6, Math.min(90, Math.round(1500 / Math.max(1, real.length))));
     real.forEach((h, i) => {
       setTimeout(()=>{
         const d = document.createElement("div"); d.className = "hotcard";
@@ -4357,7 +4364,7 @@ function renderHots(){
           <div class="meta"><span>${L("热度","Heat")} <b>${h.heat}</b></span><span>${L("信源","Sources")} <b>${h.srcs}</b></span></div>`;
         g.appendChild(d);
         requestAnimationFrame(()=>requestAnimationFrame(()=>{ const b=$("#rb"+i); if(b) b.style.width=h.heat+"%"; }));
-      }, 90*i);
+      }, step*i);
     });
     renderCustomHots(g);
     return;
