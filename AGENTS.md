@@ -383,6 +383,32 @@ avoid_words in input form must be less than 500 characters
 
 > 同类：`select` 类型 `max_length: 48`、`summary` / `angle` 500。
 
+### 坑 21：解析外部格式**别手写枚举** —— `parse_ts` 与 `clean_html` 同一个病根
+
+**2026-09-20 一天内踩了两次，形态一模一样**：
+
+| 函数 | 手写了什么 | 漏掉了什么 | 后果 |
+|---|---|---|---|
+| `parse_ts` | 只走 `parsedate_to_datetime`（**只认 RFC822**） | Atom 的 ISO 8601、`2025-06-05` | 解析失败返回 `0.0` → 被「无日期就放行」豁免 ⇒ **时效过滤完全失效**，停更源的 4 年前旧闻进榜 |
+| `clean_html` | 只硬编码替换 **5 个命名实体** | 全部**数字实体**（`&#x27;` `&#8217;` `&#8220;`）与其它命名实体（`&rsquo;` `&mdash;` `&eacute;`） | 实体字面量漏进正文 → 一路带进生成环节。线上 **44% 条目、27 个源**中招 |
+
+**共同病根**：**用「我见过的那几种」代替「标准规定的全部」。**
+外部格式（时间、实体、编码、mime）的变体是**开放集合**，手写清单必然漏。
+
+**判据（以后新增任何解析逻辑都照此检查）**：
+
+1. **能用标准库就别自己列** —— `datetime.fromisoformat` / `html.unescape` / `email.utils` / `codecs`。
+   注意改造时**确认是超集**（`html.unescape` 覆盖 2000+ 命名实体 + 全部数字实体，是原 5 条的严格超集 ⇒ 向后兼容）。
+2. **「解析不出来」不等于「没有值」，更不等于「放行」** —— 返回 `0.0` / `""` / `None` 时，
+   默认行为应当是**保守**的（丢弃 / 标记），而不是静默通过。
+3. **改完要自查「还有谁在绕过这个函数」** —— 本次 `clean_html` 修好了，
+   但 `backend/.article_cache.json` 里存的是**已抽好的纯文本**、命中缓存不重跑抽取，
+   历史乱码照样吐 ⇒ 必须加**缓存自愈**才算修完。
+
+> 延伸：`import html` 在 `agent_reach_bridge.py` 里**必须用别名 `_htmllib`** ——
+> 该文件多处用 `html` 作局部变量名（`fetch_article()` 的 `html = data.decode(...)`、
+> `extract_main_text(html)` 形参），直接导入会被 str 遮蔽 → `AttributeError`。
+
 
 ---
 
