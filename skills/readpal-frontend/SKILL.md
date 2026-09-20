@@ -399,7 +399,7 @@ node tools/ui_audit.mjs --url=http://127.0.0.1:8899/index.html --role=produce \
 | 想用 `drive_multi_state.mjs` 的 eval 步回传长测量结果，拿到的总是被截断 | 脚本对返回值**截断到约 40 字符**（`eval→p0 vw=420 scrollW=420 [.hotgri`） | 长结果**自带 CDP 探针**输出（探针的 `console.log` 不过截断）。见 `/tmp/grid_probe.mjs` 的写法可直接复用 |
 | 想量「有内容时」的栅格/排版，探针里那些选择器全都量不到 | 空数据下 A4 引导空态会 **`return` 掉整块**，`.mat-stats` / `.dashstats` 根本不渲染 | 先注入 mock（写 `state.live.run.data.outputs` 的 `articles_json`/`paras_json`/`quiz_json`… 再 `applyLive()`）再量 |
 | **「生成文章」按钮点了没反应**（其实抛错被 catch 吞了） | `runGeneration()` 里 `fetch(..., {signal: _abortSignal})` 在声明 `const _abortSignal = _runAbort.signal` **之前**就引用它 → **TDZ（暂时性死区）** `ReferenceError`，被 `catch` 吞成「网络错误：Cannot access '_abortSignal' before initialization」，用户只看到「没反应」 | `AbortController` / 它的 signal 必须在用到它的 `fetch` **之前**创建。改完用探针验证：设假 `appKey` + 假 `apiBase`（`127.0.0.1:9` 必失败地址）触发 `runGeneration()`，断言 `state.live.err` **不含** `_abortSignal`/`Cannot access`（即已越过 TDZ 走到 fetch） |
-| **段落校对页「编辑了但没生效」**（界面文字变了、下游全是原文） | `paraEdit(this)` 收到的 `this` 是 `.pbody`，而 `data-k`/`data-i` 挂在父级 **`.pcard`** 上 → `el.getAttribute("data-k")` 恒为 `null` → `GEN[null]` undefined → **第二行静默 return**。`contenteditable` 是浏览器原生行为，字确实改了、连词数徽标都刷新（那行写对了），所以界面给的是「成功」的假信号；实际**内存/草稿/入库/审核四处全是原文**且零报错 | 从 `el.closest(".pcard")` 取属性；失败必须报错不能静默返回。回归探针 `node tools/probe_para_edit.mjs`（16 项断言；旧写法回退可复现 9 项失败），详见下方「编辑类回调」小节 |
+| **段落校对页「编辑了但没生效」**（界面文字变了、下游全是原文） | `paraEdit(this)` 收到的 `this` 是 `.pbody`，而 `data-k`/`data-i` 挂在父级 **`.pcard`** 上 → `el.getAttribute("data-k")` 恒为 `null` → `GEN[null]` undefined → **第二行静默 return**。`contenteditable` 是浏览器原生行为，字确实改了、连词数徽标都刷新（那行写对了），所以界面给的是「成功」的假信号；实际**内存/草稿/入库/审核四处全是原文**且零报错 | 从 `el.closest(".pcard")` 取属性；失败必须报错不能静默返回。回归探针 `node tools/probe_para_edit.mjs`（19 项断言；旧写法回退可复现 11 项失败），详见下方「编辑类回调」小节 |
 
 ## 前端骨架速查（2026-09-10 现状）
 
@@ -850,12 +850,15 @@ setTimeout(()=>{ …g.appendChild(d); }, 110*i);   // 30 张卡 → 最后一张
 ③ 逐段审核页（idx 10）显示编辑后、**不含**原文；④ `buildBankArticle()` 的
 `paras` 与 `articles` 都含编辑、不含原文。
 
-**回归探针**：`node tools/probe_para_edit.mjs`（16 项断言，自带 Chrome + CDP，本地/线上同一份）
+**回归探针**：`node tools/probe_para_edit.mjs`（19 项断言，自带 Chrome + CDP，本地/线上同一份；
+其中 ⑧ 是**负向**断言 —— 故意删掉卡片的 `data-k` 制造异常态，要求必须 `console.error` + toast，
+**且不写入半成品**。这条才是「以后不能再白改」的真正保证：修复目标不是「碰巧能改」，
+而是「一旦改不动，用户立刻知道」）
 ```bash
 cd <repo> && node tools/probe_para_edit.mjs                                   # 本地 8899
 URL_=https://web-production-2a16e.up.railway.app/ node tools/probe_para_edit.mjs
 ```
-> 已做过**旧代码对照**：把 `paraEdit` 回退成旧写法跑同一份探针 → **9 项失败**，
+> 已做过**旧代码对照**：把 `paraEdit` 回退成旧写法跑同一份探针 → **11 项失败**，
 > 失败项正好指向「内存没变 / 草稿没落 / 审核显示原文 / 入库是原文」。
 > ⚠️ 其中「词数徽标已刷新」在**旧代码下也是 ✓** —— 这正是它最阴的地方。
 
