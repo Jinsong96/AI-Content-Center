@@ -24,6 +24,7 @@ import gzip
 import socket
 import xml.etree.ElementTree as ET
 from email.utils import parsedate_to_datetime
+from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 # 词汇分级校验（EVP 词表）：backend/evp_vocab_check.py + backend/evp_wordlist.json
@@ -231,8 +232,29 @@ def clean_html(s):
 
 
 def parse_ts(date_str):
+    """解析 RSS / Atom 的发布时间戳；返回 0.0 表示「拿不到可用日期」。
+
+    🔴 2026-09-20 修：此前只走 `parsedate_to_datetime`（只认 RFC822 / RFC2822），
+    而 **Atom feed 给的是 ISO 8601**（`2026-09-19T08:30:00Z`）、人民网给的是 `2025-06-05`
+    —— 两者都解析失败返回 0.0。而时效过滤写的是
+    `if (not ts) or (now - ts <= 14d)`，**0.0 被当作「无法判定」直接放行**：
+    于是这些源的时效过滤**完全失效**，线上实测人民网 12 条 2025-05/06 的旧闻
+    （该 RSS 已停更 15 个月）照进列表，排在末尾 #155–#164。
+    教训：**「解析不出来」既不等同于「源没给日期」，更不等同于「放行」**。
+    兼容性：`datetime.fromisoformat` 在 Py<3.11 不认 `Z` 后缀 → 先替换为 `+00:00`。
+    """
+    s = (date_str or "").strip()
+    if not s:
+        return 0.0
     try:
-        return parsedate_to_datetime(date_str).timestamp()
+        return parsedate_to_datetime(s).timestamp()
+    except Exception:
+        pass
+    try:
+        dt = datetime.fromisoformat(s.replace("Z", "+00:00"))
+        if dt.tzinfo is None:            # `2025-06-05` 这类无时区：按 UTC 解释，只影响边界 8 小时内
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt.timestamp()
     except Exception:
         return 0.0
 
@@ -288,6 +310,9 @@ MIN_USABLE_TEXT = 200
 # 「排序 → 截断 → 补正文 → 再筛掉无正文的」，必须给足冗余：
 # 老默认 30 时线上最终只剩 25 条可见（2026-09-20 实测）。
 TRENDS_DEFAULT_LIMIT = 120
+# 热点时效上限（天）：发布日期早于「now - 此值」的条目一律不进列表（2026-09-20 新增）。
+# ⚠️ 判据是 RSS/Atom 自报的 pubDate / updated，**解析失败（ts=0）的条目不在其列** —— 见 parse_ts 注释。
+TRENDS_MAX_AGE_DAYS = 14
 # 超过此大小的页面不进磁盘缓存，避免缓存膨胀（实测 LiveScience 单页 2.2MB）
 MAX_CACHE_BYTES = 1024 * 1024
 # 正文抽取时长度低于此值的段落视为噪音丢弃
@@ -1235,6 +1260,19 @@ def tt_take_dropped_no_text():
     return out
 
 
+# 本批因「发布日期超过 TRENDS_MAX_AGE_DAYS」被筛掉的条目（2026-09-20 新增）。
+# 为什么要单独记：条数变少必须解释得清；且**某个源一次被整批筛掉 = 那个源已经停更**，
+# 这是发现「源失效」最早的信号 —— 比等老师看到旧闻再反馈要早得多。
+_TR_DROPPED_STALE = []
+
+
+def tt_take_dropped_stale():
+    """取出并清空本批因超期被筛掉的条目。供接口回传。"""
+    out = list(_TR_DROPPED_STALE)
+    del _TR_DROPPED_STALE[:]
+    return out
+
+
 def toutiao_article_text(art_id):
     """/article/<id> → 移动端 JSON 接口取真实正文。返回 {text, source, title}"""
     try:
@@ -1547,12 +1585,19 @@ def render_article_text(article_id, timeout=40):
 
 # ============ 中文源兜底（第二层 B）============
 # 实测可用：人民网三个频道各 100 条，文章页可抽到 1k–5k 字符；新华网可用但偏短
-CN_FEEDS = [
-    ("人民网 · 文化", "http://www.people.com.cn/rss/culture.xml", ["culture"]),
-    ("人民网 · 时政", "http://www.people.com.cn/rss/politics.xml", ["world"]),
-    ("人民网 · 国际", "http://www.people.com.cn/rss/world.xml", ["world"]),
-    ("新华网 · 时政", "http://www.xinhuanet.com/politics/news_politics.xml", ["world"]),
-]
+# ⚠️ 2026-09-20 清空（原 4 条：人民网 文化/时政/国际 + 新华网 时政）。
+# 实测这两个 RSS **早已停更，且都是静态文件**（探针直取原始 feed 确认）：
+#   · 人民网 culture.xml 最新 2025-05-25、politics/world.xml 最新 2025-06-05 → **停更 15 个月**
+#   · 新华网 news_politics.xml **连 pubDate 字段都没有**，内容是 2022-12 新冠政策期 → **近 4 年**
+# 它们贡献的 15 条（线上 190 条里 #155–#169）全是陈旧内容，对「找今天的素材」毫无价值。
+# 两层修复：`parse_ts` 已补上 ISO8601 解析（见该函数注释），人民网那类**带日期的**旧闻
+# 现在会被 14 天时效过滤拦住；但**新华网没有日期可判**，只能靠下线解决。
+# 保留空列表而不删掉本常量与 `cn_fallback_article()`：
+#   ① 中文源兜底链路（给头条热搜找原配出处）结构保持完整，**换上有真实时效的中文源即自动复活**；
+#   ② 实测该兜底在 min_score=6 下**当前 0 命中**（这两家的 editorial 内容与突发热搜几乎无重合），
+#      清空不损失任何现有交付内容。
+# 补源方向（待定，需 Bryan 定）：要的是「带 pubDate、日更」的中文新闻 / 文化源。
+CN_FEEDS = []
 
 
 def _cn_bigrams(s):
@@ -1892,9 +1937,26 @@ def fetch_trends(theme="all", sub=None, limit=30):
             it["sub"] = ms
         it.setdefault("srcs", 1)
         it.setdefault("lang", "en")
-    # 时间过滤：超过 14 天的内容丢弃（RSS 历史条目会污染今日榜）
-    _14d = 14 * 86400
-    items = [it for it in items if (not it.get("ts")) or (now - it["ts"] <= _14d)]
+    # 时间过滤：超过 TRENDS_MAX_AGE_DAYS 天的内容丢弃（RSS 历史条目 / 已停更的源会污染今日榜）。
+    # ⚠️ ts == 0（源没给日期，或日期格式仍解析不了）**当前放行**，仅靠排序键 `-ts` 自然沉底。
+    #    理由：「源没给日期」不等于「内容是旧的」—— Greater Good 等源正常更新但不带 pubDate，
+    #    一律剔除会误杀好源。**代价是「完全不给日期的停更源拦不住」**：
+    #    新华网那条 2022 年新冠内容正属此类（该源已于 2026-09-20 下线，见 CN_FEEDS 注释）。
+    #    被筛条目走独立台账，不写 note_error（正常业务筛选不该让整榜挂降级横幅）。
+    _max_age = TRENDS_MAX_AGE_DAYS * 86400
+    _kept_age = []
+    for it in items:
+        _ts = it.get("ts") or 0
+        if _ts and (now - _ts > _max_age):
+            _TR_DROPPED_STALE.append({
+                "title": it.get("cn") or it.get("topic") or "",
+                "source": it.get("source") or "",
+                "url": it.get("url") or "",
+                "age_days": round((now - _ts) / 86400, 1),
+            })
+            continue
+        _kept_age.append(it)
+    items = _kept_age
     # 主题筛选（指定且非 all 时）
     if theme and theme != "all":
         items = [it for it in items if it["theme"] == theme]
@@ -2949,7 +3011,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._send({"ok": True, "theme": theme, "sub": sub, "items": items,
                                "errors": errs, "degraded": _is_real_degradation(errs),
                                "filtered_video": tt_take_dropped_video(),
-                               "filtered_no_text": tt_take_dropped_no_text()})
+                               "filtered_no_text": tt_take_dropped_no_text(),
+                               "filtered_stale": tt_take_dropped_stale()})
         if path == "/api/scan":
             urls = [u for u in (q.get("urls") or "").split(",")]
             try:
