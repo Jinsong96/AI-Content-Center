@@ -23,8 +23,141 @@ LV_ORDER = {"A1": 1, "A2": 2, "B1": 3, "B2": 4, "C1": 5, "C2": 6}
 # 目标档允许的累计词表边界：A1 档只允许 ≤A1，B2+ 档允许 ≤B2（可配少量 C1）
 # 这里 B2 档默认允许到 B2（不含 C1/C2）。
 LEVEL_CAP = {"A1": "A1", "A2": "A2", "B1": "B1", "B2": "B2"}
-# 超纲率阈值（超了判 exceed，前端据此重试）——A1 词表很抠，阈值放宽
-VOCAB_THRESHOLD = {"A1": 0.05, "A2": 0.04, "B1": 0.03, "B2": 0.02}
+# 超纲率阈值（超了判 exceed，前端据此重试）。
+# 2026-09-20 改为**范文标定实测值**（P75 口径，见 calibration/report.md 与 docs/local-notes/34）：
+#   教研认可的合格范文（345 篇分级读物）超纲率中位 5.2% / 2.1% / 0.8%，
+#   P75 = 8.1% / 3.6% / 1.6% —— 建议值取 P75：允许比中位松一点，但明显超标的仍会被拦。
+# 为什么必须改：原值 4%/3%/2% 中 A2 的 4% **低于范文自身中位 5.2%**，等于
+#   「教研点头的文章一半以上过不了自家闸门」；B2 的 2% 又比范文 P75 还松。
+# ⚠️ A1- 无范文可标定（范文标注只到大档 A2/B1/B2），沿用 5% 并保留「未标定」标记。
+# ⚠️ 改这里必须同步改前端 frontend/index.html 的 offCap()，否则重现「前后端阈值反向」事故。
+VOCAB_THRESHOLD = {"A1": 0.05, "A2": 0.081, "B1": 0.036, "B2": 0.016}
+
+# ---------- 回灌用的功能词表（2026-09-20 新增）----------
+# 背景：EVP 把大量语法功能词标在 A2（by / over / around / another / several / should / far / away …），
+# 于是它们在 A1- 档全部被算成「超纲」。但这类词是句子的骨架，**LLM 无法「避免使用」**——
+# 把它们塞进「禁用词」清单，只会让模型写出不通顺的英文，反而更糟。
+# 所以：回灌禁用词时把功能词剔掉，只留**可以替换的实词**。
+_FUNCTION_WORDS = frozenset("""
+a an the this that these those another other some any no every each either neither both all
+most many much more less few several enough such same own else
+i you he she it we they me him her us them my your his its our their mine yours hers ours theirs
+myself yourself himself herself itself ourselves themselves
+who whom whose which what where when why how
+be am is are was were been being have has had having do does did done doing
+will would shall should can could may might must
+and but or so because if while than whether although though unless until since once
+not very too also just only even still yet already always never often sometimes usually again
+here there now then soon later almost quite rather really perhaps maybe well far away ago back together
+by over around about above across after against along among at before behind below beneath beside
+between beyond down during except for from in inside into near of off on onto out outside past
+through throughout till to toward under up upon with within without
+""".split())
+
+# 表外词里只有长度 ≥ 此值的才算「真生僻」，值得回灌。
+# 为什么：EVP 表本身有缺漏（实测 become / according 都不在表内），而 lemmatize 也漏了
+# 部分规则（larger 还原不出 large）→ 这些**基础词**会掉进 unknown 列表。
+# 若不设阈值，回灌会给出「请避免使用 become」这种荒谬指令。
+_UNKNOWN_AVOID_MIN_LEN = 8
+
+# 范文用词基线（由 calibration/build_vocab_baseline.py 从 345 篇合格范文抽取）
+_BASELINE_PATH = os.path.join(os.path.dirname(__file__), "vocab_baseline.json")
+_baseline = None          # {范文档: set(词)}  惰性加载
+_baseline_stems = {}      # {本档: frozenset(词干)}  惰性缓存
+
+# 本档 → 范文源档（**累积**）：低档用过的词，高档当然也可以用。
+# `A1` 没有对应范文（我们最低档低于 CEFR A2），退用 A2 基线 —— 这是外推，不是实测。
+_BASELINE_SRC = {
+    "A1": ("A2",),
+    "A2": ("A2",),
+    "B1": ("A2", "B1"),
+    "B2": ("A2", "B1", "B2"),
+}
+
+
+def _stem_variants(word):
+    """一个词所有可能的词干变体（**不要求命中 EVP 词表**）。
+
+    为什么不直接用 lemmatize()：它只在「还原结果恰好命中 EVP 词表」时才返回词根，
+    而 depend / canopy / accord / amplify 这些词根本身就不在表里（EVP 覆盖不全），
+    于是 lemmatize('depending') 原样返回 'depending' —— 基线比对形同失效。
+    这里只做形态剥离，且**候选词与基线词用同一套规则**，两侧都降成词干再比。
+    """
+    w = word.lower()
+    out = {w}
+
+    def add(x):
+        if not x or len(x) < 3:
+            return
+        out.add(x)
+        out.add(_dedouble(x))
+        out.add(x + "e")
+        if x.endswith("y"):
+            out.add(x[:-1] + "i")
+
+    if w.endswith("ies") and len(w) > 4:
+        add(w[:-3] + "y")
+    if w.endswith("ied") and len(w) > 4:
+        add(w[:-3] + "y")
+    if w.endswith("es") and len(w) > 3:
+        add(w[:-2])
+    if w.endswith("s") and len(w) > 2 and not w.endswith("ss"):
+        add(w[:-1])
+    if w.endswith("ing") and len(w) > 4:
+        add(w[:-3])
+    if w.endswith("ed") and len(w) > 3:
+        add(w[:-2])
+    if w.endswith("ly") and len(w) > 3:
+        add(w[:-2])
+        out.add(w[:-2][:-1] + "y")
+    if w.endswith("er") and len(w) > 3:
+        add(w[:-2])
+    if w.endswith("est") and len(w) > 4:
+        add(w[:-3])
+    if w.endswith("able") and len(w) > 5:
+        add(w[:-4])
+    if w.endswith("tion") and len(w) > 5:
+        add(w[:-4])
+        out.add(w[:-4] + "t")
+    if w.endswith("ment") and len(w) > 5:
+        add(w[:-4])
+    return out
+
+
+def _load_baseline():
+    """教研认可的范文里，各档分别出现过哪些词。
+
+    用途：EVP 表覆盖不全（实测 become / depend / accord / amplify / planner 等常见词的
+    词根都不在表内），这些词会掉进 unknown 列表。若不加辨别地当「生僻词」回灌，
+    就会给出「请避免使用 becoming」这种错误指令。
+    判据：**本档（或更低档）范文里用过的词 = 教研认可的词**，不该要求 LLM 规避。
+    文件缺失时静默降级为空 dict（退回只靠长度判据），不阻塞校验。
+    """
+    global _baseline
+    if _baseline is None:
+        try:
+            with open(_BASELINE_PATH, encoding="utf-8") as f:
+                doc = json.load(f)
+            levels = doc.get("levels")
+            if isinstance(levels, dict) and levels:
+                _baseline = {k: set(v or []) for k, v in levels.items()}
+            else:                                   # 旧格式（单份全局词表）兼容
+                _baseline = {"A2": set(doc.get("words") or [])}
+        except Exception:
+            _baseline = {}
+    return _baseline
+
+
+def _load_baseline_stems(level):
+    """本档基线所有词的词干集合（只算一次）。"""
+    if level not in _baseline_stems:
+        bl = _load_baseline()
+        stems = set()
+        for src in _BASELINE_SRC.get(level, ("A2",)):
+            for w in bl.get(src, ()):
+                stems |= _stem_variants(w)
+        _baseline_stems[level] = frozenset(stems)
+    return _baseline_stems[level]
 
 # ---------- 词表 ----------
 _WORDLIST_PATH = os.path.join(os.path.dirname(__file__), "evp_wordlist.json")
@@ -187,6 +320,46 @@ def tokenize(text):
     return out
 
 
+def pick_avoid_words(over, unknown, level, limit=20):
+    """从校验结果里挑出「值得让 LLM 规避」的词（供下一轮生成回灌）。
+
+    判据（2026-09-20 定）：
+    · over（EVP 表内、等级高于本档 cap）—— 剔除功能词、剔除本档范文基线里的词后保留。
+      为什么也要过基线：`A1` 的 cap 是 EVP A1（仅 643 词族），**比教研的 A2 范文还低**，
+      于是 top / win / fan / side / care / heavy / race 这些基础词全被算成「超纲」。
+      要求 LLM 规避它们会写出别扭的英文 —— 而范文里明明在用。
+      （对 A2/B1/B2 几乎无影响：它们的超纲词本就在本档范文基线之外。）
+    · unknown（表外词）—— 三道过滤后才保留：
+      ① 长度 >= _UNKNOWN_AVOID_MIN_LEN 且不含撇号：短词 / 所有格多半是 EVP 缺漏或
+         词形还原没覆盖（become / larger / planners），不是真生僻词；
+      ② 词干不在**本档范文基线**里：范文用过的词 = 教研认可的词，不该要求规避。
+         ⚠️ 必须比词干（`_stem_variants` 双侧降词干），只比原 token 会漏判 ——
+         unknown 存的是 `depending`、基线存的是 `depends`，直接比必然不等。
+      ③ 本档基线只取**本档及更低档**，不是全部范文：否则 B2 范文里的难词
+         （habitat / evaporation）会给 A2 也豁免掉。
+    排序：over 按等级从高到低 —— 先让 LLM 干掉最难的词。
+    """
+    base_stems = _load_baseline_stems(level)
+    out = []
+    for base, lv in sorted(over or [], key=lambda x: -LV_ORDER.get(x[1], 0)):
+        if base in _FUNCTION_WORDS or base in out:
+            continue
+        if _stem_variants(base) & base_stems:
+            continue
+        out.append(base)
+        if len(out) >= limit:
+            return out
+    for w in sorted(set(unknown or [])):
+        if len(w) < _UNKNOWN_AVOID_MIN_LEN or "'" in w or w in out:
+            continue
+        if _stem_variants(w) & base_stems:
+            continue
+        out.append(w)
+        if len(out) >= limit:
+            return out
+    return out
+
+
 def check_vocab(text, level, topic_words=None):
     """
     校验一篇文章的词汇超纲情况。
@@ -238,6 +411,9 @@ def check_vocab(text, level, topic_words=None):
         "exceed": over_rate > thr,
         "over_words": over,
         "unknown_words": sorted(set(unknown)),
+        # 供「生成 → 校验 → 回灌重写」闭环使用：下一轮生成该规避的具体词。
+        # 前端按档打包送进 GEN 的 avoid_words 入参（见 index.html 的 runGeneration）。
+        "avoid_words": pick_avoid_words(over, unknown, level),
     }
 
 

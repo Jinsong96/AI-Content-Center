@@ -1409,7 +1409,11 @@ function legacyKeyOf(k){ return bigOf(k); }
 /* 当前展示的大档（state.big 未设时按 state.lvl 推导） */
 function curBig(){ return state.lvl || LEVELS12[0].key; }
 /* 超纲词上限按大档区分 */
-function offCap(lvl){ const b = bigOf(lvl) || BIG_GROUPS[0].big; return b === "A1" ? "1%" : b === "A2" ? "2%" : b === "B1" ? "3%" : "5%"; }
+/* 超纲词上限 —— 必须与后端 backend/evp_vocab_check.py 的 VOCAB_THRESHOLD 同源。
+   2026-09-20 按范文标定实测值（P75 口径）对齐：A2 8.1% / B1 3.6% / B2+ 1.6%，A1- 未标定沿用 5%。
+   历史 bug：这里曾显示 1/2/3/5%（越高档越松），而后端实际判 5/4/3/2%（越高档越严）——
+   用户看到的和实际跑的完全相反。改一边必须改另一边。 */
+function offCap(lvl){ const b = bigOf(lvl) || BIG_GROUPS[0].big; return b === "A1" ? "5%" : b === "A2" ? "8.1%" : b === "B1" ? "3.6%" : "1.6%"; }
 /* 大档切换条：一次渲染只出一个（避免同页重复） */
 let _bigBarUsed = false;
 /* 某大档下已生成段落总数：切换条据此标注「有无内容」，用户不必盲点后才发现在空档里 */
@@ -2617,6 +2621,21 @@ async function vocabCheck(arts, words){
     return (j && j.ok) ? j : null;
   } catch(e){ return null; }
 }
+/* 把校验结果转成 GEN 的 avoid_words 入参：{A1:[该档要规避的词…], A2:[…], B1:[…], B2:[…]}
+   只收**超标档** —— 没超标的档不该被约束，否则会把已经合格的稿子改坏。
+   词由后端 pick_avoid_words 挑好（已剔除功能词、以及「范文里用过但 EVP 表缺漏」的常见词），
+   前端不做二次判断，避免两处判据漂移。 */
+function collectAvoidWords(v){
+  const out = {};
+  if(!v || !v.results) return out;
+  Object.keys(v.results).forEach(function(k){
+    const r = v.results[k] || {};
+    if(!r.exceed) return;
+    const ws = (r.avoid_words || []).slice(0, 20);
+    if(ws.length) out[k] = ws;
+  });
+  return out;
+}
 /* 档位区间门：低档生成不了时弹确认。返回 true 继续；false 已弹确认、等用户点确认后重跑 */
 function genLevelGate(){
   const fc = state.factsCache;
@@ -2624,10 +2643,14 @@ function genLevelGate(){
   const loIdx = ["A1","A2","B1","B2"].indexOf(nkKey(lo || ""));
   if(loIdx <= 0) return true;                 /* 下界 A1，全档可生成 */
   if(state.genSkipConfirmed) return true;     /* 已确认过 */
-  const skip = ["A1","A2","B1","B2"].slice(0, loIdx).map(nkDisp).join("、");
+  const all = ["A1","A2","B1","B2"];
+  const top = nkDisp(all[loIdx]);
   askConfirm({
-    title: L("部分档位无法生成","Some levels unavailable"),
-    body: L("该素材词汇难度较高，无法生成 " + skip + " 档文章，将只生成更高档位。是否继续？","This material is too advanced for " + skip + " — only higher levels will be produced. Continue?"),
+    title: L("低档位可能不达标","Lower levels may not be usable"),
+    /* 文案必须说真话：GEN 一次同时生成 4 档，前端只是把低于下界的档**隐藏**并自动切档。
+       旧文案写「将只生成更高档位」是假的 —— 会让人以为低档没有产出，实际产了只是没展示。 */
+    body: L("该素材词汇难度较高，低于 " + top + " 的文章难以达标 —— 生成后不会展示，档位会自动切到 " + top + "。是否继续？",
+            "This material is too advanced for levels below " + top + " — those articles are still generated but won't be shown, and the level will switch to " + top + ". Continue?"),
     okText: L("继续生成","Continue"),
     onOk: function(){ state.genSkipConfirmed = true; runGeneration(); }
   });
@@ -2659,12 +2682,21 @@ async function runGeneration(){
   try {
     /* level 必须转成点式（A1.1 / B2+.1）——start.level 是 select，枚举值是点式；
        而 state.lvl 是内部下划线键（A1_1）。nkDisp 幂等，点式/下划线都能吃。 */
-    const wfInputs = { summary: fc.summary, facts_text: fc.facts_text, angle: fc.angle, level: nkDisp(fc.level || state.lvl), style: state.style || "default", gist: fc.gist || "", facts_raw: fc.facts_raw || "" };
     const MAX_VOCAB_RETRY = 2;
     state.live.vocab = null;
+    state.live.vocabRounds = 0;
+    /* 超纲词回灌：把上一稿「该规避的词」按档收好，下一轮生成时随入参带进去。
+       必须**分档** —— 各档 cap 不同，同一个词在 A1- 超纲但在 B2+ 未必超纲；
+       合成一份会把低档的限制强加给高档，把高档次写简单。
+       ⚠️ 2026-09-20 之前 wfInputs 在循环**外**算一次，三次重试入参一字未改 ——
+       纯粹掷骰子，白花约 150 秒。 */
+    let avoidByLevel = {};
     for(let attempt = 0; attempt <= MAX_VOCAB_RETRY; attempt++){
+      /* wfInputs 必须在循环**内**构造，否则带上的是上一轮的空值。 */
+      const wfInputs = { summary: fc.summary, facts_text: fc.facts_text, angle: fc.angle, level: nkDisp(fc.level || state.lvl), style: state.style || "default", gist: fc.gist || "", facts_raw: fc.facts_raw || "", avoid_words: JSON.stringify(avoidByLevel) };
       if(attempt > 0){
-        toast(L("词汇超纲，自动重试第 " + attempt + " 次（最多 " + MAX_VOCAB_RETRY + " 次）","Vocabulary over level — retrying " + attempt + "/" + MAX_VOCAB_RETRY));
+        const _nAvoid = Object.keys(avoidByLevel).reduce(function(a, k){ return a + avoidByLevel[k].length; }, 0);
+        toast(L("词汇超纲，自动重试第 " + attempt + " 次（本轮规避 " + _nAvoid + " 个超纲词）","Vocabulary over level — retry " + attempt + "/" + MAX_VOCAB_RETRY + " (avoiding " + _nAvoid + " words)"));
         state.live.status = "running"; state.live.t0 = Date.now(); state.live.elapsed = 0;
         renderLiveChip();
         const st2 = $("#liveStat"); if(st2) st2.textContent = L("词汇超纲，重新生成中…","Regenerating to fix vocabulary…");
@@ -2708,6 +2740,8 @@ async function runGeneration(){
         const v = await vocabCheck(cv.arts, cv.words);
         state.live.vocab = v;
         if(v && v.any_exceed && attempt < MAX_VOCAB_RETRY){
+          avoidByLevel = collectAvoidWords(v);
+          state.live.vocabRounds = attempt + 1;
           continue;
         }
       }
@@ -4886,17 +4920,35 @@ function showVSum(){
     else if(warns.length) status = " · " + L("告警项：","warnings: ") + esc(warns.join("；").slice(0,120));
     else status = " · " + L("部分通过，存在未达标项","some checks failed");
     txt = `<b>${L("AI 真实校验：","AI LIVE validation: ")}${big} ${L("项通过","checks passed")}${status}</b>`;
-    /* 词汇分级校验（EVP 词表）：超纲率 + 超纲词 */
+    /* 词汇分级校验（EVP 词表）：超纲率 + 超纲词。
+       2026-09-20 起**不再静默放行** —— 自动重试 MAX_VOCAB_RETRY 次后仍超标时，必须写清
+       「哪几档没过、超了多少、该换掉哪些词」并给人工处理路径。
+       静默放行 = 让不合格文章流进内容库，是最不该有的失败方式。 */
     const vcb = state.live && state.live.vocab;
     if(vcb && vcb.results){
+      const rounds = state.live.vocabRounds || 0;
+      const failed = [];
       const parts = allKeys().map(function(k){
         const r = vcb.results[k];
-        return r ? (k + " " + (r.over_rate*100).toFixed(1) + "%" + (r.exceed ? L("超纲"," OVER") : "")) : null;
+        if(!r) return null;
+        if(r.exceed) failed.push(k);
+        return k + " " + (r.over_rate*100).toFixed(1) + "%";
       }).filter(Boolean);
-      const overWords = [];
-      allKeys().forEach(function(k){ ((vcb.results[k]||{}).over_words||[]).forEach(function(w){ overWords.push(w[0]); }); });
-      const uniq = Array.from(new Set(overWords)).slice(0, 15);
-      txt += `<br><span class="vvocab">${L("词汇分级（EVP）：","Vocab (EVP): ")}${parts.join(" · ")}${vcb.any_exceed ? " · " + L("超纲词：","over-level: ") + esc(uniq.join("、")) : ""}</span>`;
+      let vhtml = L("词汇分级（EVP）：","Vocab (EVP): ") + parts.join(" · ");
+      if(!failed.length){
+        vhtml += " " + L("· 全部达标","· all within cap");
+      } else {
+        const lines = failed.map(function(k){
+          const r = vcb.results[k];
+          const ws = (r.avoid_words || []).slice(0, 10);
+          return k + "：" + (r.over_rate*100).toFixed(1) + "% > " + (r.threshold*100).toFixed(1) + "%"
+               + (ws.length ? " — " + esc(ws.join("、")) : "");
+        });
+        vhtml += `<br><b style="color:var(--danger)">${L("词汇未达标：已自动重试 " + rounds + " 次（每轮都带上超纲词清单重写），仍未通过","Still over level after " + rounds + " retry(ies) with word-level feedback")}</b>`
+               + `<br><span style="color:var(--danger)">${lines.join("<br>")}</span>`
+               + `<br><span style="color:var(--warn)">${L("处理建议：换更简单的素材，或人工替换上列词后重跑","Tip: choose an easier source, or replace the listed words and re-run")}</span>`;
+      }
+      txt += `<br><span class="vvocab">${vhtml}</span>`;
     }
   }
   s.innerHTML=`<div class="big">${big}</div><div class="txt">${txt}</div>`;
