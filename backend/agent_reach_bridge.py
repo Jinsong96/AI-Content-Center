@@ -53,7 +53,8 @@ FEEDS = [
     ("CGTN · World", "https://www.cgtn.com/subscribe/rss/section/world.xml", ["world"]),
     ("CGTN · Politics", "https://www.cgtn.com/subscribe/rss/section/politics.xml", ["world"]),
     ("CGTN · Culture", "https://www.cgtn.com/subscribe/rss/section/culture.xml", ["culture"]),
-    ("CGTN · Business", "https://www.cgtn.com/subscribe/rss/section/business.xml", ["world"]),
+    # 2026-09-20 修正：此前误标成 world —— 教研点「商业」永远空白。
+    ("CGTN · Business", "https://www.cgtn.com/subscribe/rss/section/business.xml", ["business"]),
     ("NPR", "https://feeds.npr.org/1001/rss.xml", ["world"]),
     ("Global News", "https://globalnews.ca/feed/", ["world"]),
     # 科学与科技（science）
@@ -64,6 +65,66 @@ FEEDS = [
     # 文化与流行（culture）
     ("Variety", "https://variety.com/feed/", ["culture"]),
     ("Billboard", "https://www.billboard.com/feed/", ["culture"]),
+    # ===== 2026-09-20 新增：主流国际大站 + 补齐 business / growth / story 三个空类 =====
+    # 🔴 为什么 BBC 这些站以前没接：2026-09-02 那次「源可用性实测」是在**本机**跑的。
+    #    本机直连这些站全部超时（抓取层用 `ProxyHandler({})` 主动禁用了系统代理），
+    #    于是被当成「源不可用」写进注释、从此再没加回来 —— 是**误判**。
+    #    2026-09-20 改用**线上 Railway 容器**复测：全部 200，正文 3k–60k 字符。
+    #    ⇒ 判据必须是线上探针；**本地不通 ≠ 线上不通**（Reuters/AP 恰好相反：本地超时、线上 403）。
+    #
+    # 🔴 为什么 business / growth / story 之前是空的：FEEDS 里**从来没有**任何一个源的
+    #    类别标签是这三类 —— 连 `CGTN · Business` 都被误标成了 `["world"]`。
+    #    所以老师点这三个大类永远是空白页，不是抓不到，是根本没去抓。
+    #
+    # ---- world（补权威大站）----
+    ("BBC · World", "https://feeds.bbci.co.uk/news/world/rss.xml", ["world"]),
+    ("BBC · Top Stories", "https://feeds.bbci.co.uk/news/rss.xml", ["world"]),
+    ("Guardian · World", "https://www.theguardian.com/world/rss", ["world"]),
+    ("ABC News · US", "https://abcnews.go.com/abcnews/topstories", ["world"]),
+    ("ABC News · World", "https://abcnews.go.com/abcnews/internationalheadlines", ["world"]),
+    # ---- science ----
+    ("BBC · Science", "https://feeds.bbci.co.uk/news/science_and_environment/rss.xml", ["science"]),
+    ("BBC · Health", "https://feeds.bbci.co.uk/news/health/rss.xml", ["science"]),
+    ("BBC · Technology", "https://feeds.bbci.co.uk/news/technology/rss.xml", ["science"]),
+    ("Smithsonian", "https://www.smithsonianmag.com/rss/latest_articles/", ["science", "culture"]),
+    ("New Scientist", "https://www.newscientist.com/feed/home/", ["science"]),
+    ("SciTechDaily", "https://scitechdaily.com/feed/", ["science"]),
+    # ---- culture ----
+    ("BBC · Arts", "https://feeds.bbci.co.uk/news/entertainment_and_arts/rss.xml", ["culture"]),
+    ("Guardian · Culture", "https://www.theguardian.com/culture/rss", ["culture"]),
+    ("Atlas Obscura", "https://www.atlasobscura.com/feeds/latest.rss", ["culture", "story"]),
+    ("Smithsonian · Arts", "https://www.smithsonianmag.com/rss/arts-culture/", ["culture"]),
+    # ---- business（2026-09-20 新建，此前 0 个源）----
+    ("BBC · Business", "https://feeds.bbci.co.uk/news/business/rss.xml", ["business"]),
+    ("CNBC · Business", "https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=10001147", ["business"]),
+    ("CNBC · Top News", "https://www.cnbc.com/id/100003114/device/rss/rss.html", ["business"]),
+    ("Guardian · Business", "https://www.theguardian.com/uk/business/rss", ["business"]),
+    ("Guardian · Money", "https://www.theguardian.com/money/rss", ["business"]),
+    ("Business Insider", "https://www.businessinsider.com/rss", ["business"]),
+    ("Entrepreneur", "https://www.entrepreneur.com/latest.rss", ["business"]),
+    # ---- growth（2026-09-20 新建，此前 0 个源）----
+    ("BBC · Education", "https://feeds.bbci.co.uk/news/education/rss.xml", ["growth"]),
+    ("Guardian · Education", "https://www.theguardian.com/education/rss", ["growth"]),
+    ("Psychology Today", "https://www.psychologytoday.com/us/front/feed", ["growth"]),
+    ("Greater Good", "https://greatergood.berkeley.edu/rss", ["growth"]),
+    ("Fast Company", "https://www.fastcompany.com/rss", ["growth"]),
+    ("Mindful", "https://www.mindful.org/feed/", ["growth"]),
+    ("TED Blog", "https://blog.ted.com/feed/", ["growth"]),
+    # ---- story（2026-09-20 新建，此前 0 个源）----
+    ("BBC · Stories", "https://feeds.bbci.co.uk/news/stories/rss.xml", ["story"]),
+    ("Guardian · Life", "https://www.theguardian.com/lifeandstyle/rss", ["story"]),
+    ("New Yorker", "https://www.newyorker.com/feed/news", ["story"]),
+    ("Narratively", "https://narratively.com/feed/", ["story"]),
+    ("Longreads", "https://longreads.com/feed/", ["story"]),
+    ("Smithsonian · History", "https://www.smithsonianmag.com/rss/history/", ["story"]),
+    #
+    # ---- 实测不可用，不要加回来（2026-09-20 线上探针证据）----
+    #   NYT 全系（World / Arts / Business）、Sky News、Forbes、Economist、HBR、WSJ Markets、Inc.
+    #     → 付费墙 / 反爬，只回 summary_only（正文 94–203 字符），过不了 MIN_USABLE_TEXT=200 闸门
+    #   Space.com            → 只有 sitemap、没有 feed
+    #   BBC · Magazine       → feed 返回 0 条
+    #   Edutopia / Verywell Mind / YouTube 原生 feed → 线上 0 条（机房 IP 风控）
+    #   Reuters / AP         → Railway 容器返回 403（站点方策略，非本服务故障）
     # 已移除（用户指定 / 实测不可用）：
     #   Wired     —— RSS 变成优惠券/联盟营销页（Priceline、NordVPN 折扣等），纯噪音
     #   Phys.org  —— 抓正文被拦截（成功率 0%）
@@ -222,6 +283,11 @@ MIN_ARTICLE_CHARS = 800
 # 低于阈值的条目点进去只会弹「请粘贴原文」并中止。留在列表里 = 制造
 # 「有卡片、但一步也走不到生成」的假供给，比列表短更伤信任。
 MIN_USABLE_TEXT = 200
+
+# /api/trends 的默认返回条数。取 120 而不是 30，是因为流程是
+# 「排序 → 截断 → 补正文 → 再筛掉无正文的」，必须给足冗余：
+# 老默认 30 时线上最终只剩 25 条可见（2026-09-20 实测）。
+TRENDS_DEFAULT_LIMIT = 120
 # 超过此大小的页面不进磁盘缓存，避免缓存膨胀（实测 LiveScience 单页 2.2MB）
 MAX_CACHE_BYTES = 1024 * 1024
 # 正文抽取时长度低于此值的段落视为噪音丢弃
@@ -2862,8 +2928,14 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/trends":
             theme = q.get("theme", "all")
             sub = q.get("sub") or None
+            # 支持前端指定条数（默认 TRENDS_DEFAULT_LIMIT）。上限 300 防滥用。
+            try:
+                _lim = int(q.get("limit") or TRENDS_DEFAULT_LIMIT)
+            except Exception:
+                _lim = TRENDS_DEFAULT_LIMIT
+            _lim = max(10, min(300, _lim))
             t0 = int(time.time() * 1000)
-            items = fetch_trends(theme, sub)
+            items = fetch_trends(theme, sub, _lim)
             errs = drain_errors(t0)
             # degraded=True 表示「结果不完整」：用户必须知道这不是"没有热点"，而是"有源失败"
             return self._send({"ok": True, "theme": theme, "sub": sub, "items": items,
