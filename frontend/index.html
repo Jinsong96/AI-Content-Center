@@ -811,6 +811,13 @@ body{font-family:var(--font);color:var(--text);background:var(--bg);overflow:hid
 .modtag.ro-tag{background:#FFF9F5!important;color:#D04418!important;border:1px dashed #F5B158}
 /* read-only view: banner + whole-stage interaction lock (workflow strip stays navigable) */
 .ro-banner{margin:0 0 14px;padding:9px 14px;border:1px dashed #F5B158;border-radius:10px;background:#FFF9F5;color:#D04418;font-size:12.5px;font-weight:700;display:flex;align-items:center;gap:8px}
+/* 段落对齐告警条（2026-09-20）：段数被截断 / 段落错位时露出来，绝不静默 */
+.alignwarn{margin:0 0 14px;padding:10px 14px 11px;border:1px solid #FEC84B;border-left:4px solid #F79009;border-radius:10px;background:#FFFAEB;color:#B54708;font-size:12.5px;line-height:1.75}
+.alignwarn .aw-h{display:flex;align-items:center;gap:7px;font-weight:800;font-size:13px;margin-bottom:3px}
+.alignwarn .aw-ico{flex:0 0 auto;width:15px;height:15px;border-radius:50%;background:#F79009;color:#fff;font-size:11px;font-weight:800;line-height:15px;text-align:center}
+.alignwarn ul{margin:3px 0 0;padding-left:19px}
+.alignwarn li{margin:1px 0}
+.alignwarn .aw-fix{margin-top:5px;color:#B54708;opacity:.86}
 .wrap.ro *{pointer-events:none!important;opacity:.62}
 .wrap.ro .ro-banner{pointer-events:auto!important;opacity:1}
 .wrap.ro .wfstrip{pointer-events:auto!important;opacity:1}
@@ -1999,7 +2006,7 @@ const KPIS = [
   [{zh:"单篇成本",en:"Cost / article"},"≤¥8"],
 ];
 
-const state = {route:null, hot:undefined, hotTheme:null, hotSubTheme:null, realHot:null, realHots:null, realScanning:false, bridgeOk:null, style:"default", lvl:"B1_2", lvlManual:false, big:"B1", guide:{}, words12:null, meta12:null, extracted:false, validated:false, reviewed:false, srcForm:null, customHots:null, topicSel:null, factsCache:null, trendsDegraded:false, trendsErrors:null, trendsFiltered:null, audio:{}, audioMeta:null, audioGenerating:false, audioPromise:null, audioAccent:"us", quiz:{}, quizShow:{}, factMap:null, unusedFacts:[], scanFirst:null, scanElapsed:0,
+const state = {route:null, hot:undefined, hotTheme:null, hotSubTheme:null, realHot:null, realHots:null, realScanning:false, bridgeOk:null, style:"default", lvl:"B1_2", lvlManual:false, big:"B1", guide:{}, words12:null, meta12:null, extracted:false, validated:false, reviewed:false, srcForm:null, customHots:null, topicSel:null, factsCache:null, trendsDegraded:false, trendsErrors:null, trendsFiltered:null, audio:{}, audioMeta:null, audioGenerating:false, audioPromise:null, audioAccent:"us", quiz:{}, quizShow:{}, factMap:null, unusedFacts:[], alignGuard:null, scanFirst:null, scanElapsed:0,
   tagContent:[], tagFree:[], tagFreeCands:[], tagFreeInput:"", tagCognitive:"全年龄",
   tagOpenCats:{}, tagAIContent:[], tagMeta:null, tagWarn:"", tagExtracting:false, tagTitleOnly:false, taxoLoaded:false, reviewingId:null, ownedBook:null};
 /* ==================== 当前选中素材（统一访问热点 / 自有版权 / 公版书三种入口） ==================== */
@@ -2532,6 +2539,7 @@ async function startLiveRun(material, label, book, override){
   state.live = { status: "running", material, label: label || "", book: book || "", run: null, err: null, t0: Date.now(), elapsed: 0, nodes: 0 };
   state.genSkipConfirmed = false;   /* 新一轮：重置「低档不可生成」的确认状态 */
   state.factMap = null; state.unusedFacts = [];   /* 新一轮前清空上一轮的段落↔事实卡绑定 */
+  state.alignGuard = null;                        /* 同时清空上一轮的段落对齐告警 */
   GEN = {}; state.quiz = {}; state.quizShow = {};   /* 清空上一轮文章与题目（事实抽取不产出文章） */
   /* 清空上一轮音频：否则新素材会误以为"已有音频"而跳过生成，导致入库时才补、等 15s */
   state.audio = {}; state.audioMeta = null; state.audioPromise = null; state.audioGenerating = false;
@@ -2878,6 +2886,31 @@ function applyLive(){
       if(Array.isArray(uf)) state.unusedFacts = uf.map(function(n){ return parseInt(n, 10); }).filter(function(n){ return n >= 1; });
     } catch(e){ /* 同上 */ }
   }
+  /* 段落对齐护栏（2026-09-20）：过去 map_warn 后端有写、前端 0 处引用 → 静默失败。
+     现在显式收下来，在任何「段数被截断 / 段落错位」时于校对页与对齐页露黄条。 */
+  state.alignGuard = null;
+  (function(){
+    const pcObj = nkObj(jp(o.para_clean_count));
+    const amObj = nkObj(jp(o.align_map));
+    const warnTxt = String(o.map_warn || "").trim();
+    const offLv = [], cntLv = [];
+    Object.keys(amObj).forEach(function(k){
+      const arr = amObj[k];
+      if(!Array.isArray(arr) || arr.length !== 12) return;
+      for(let i=0;i<12;i++){
+        const ids = (Array.isArray(arr[i]) ? arr[i] : [arr[i]]).map(function(x){ return parseInt(x,10); }).filter(function(n){ return !isNaN(n); });
+        if(ids.indexOf(i+1) < 0){ offLv.push(k); break; }
+      }
+    });
+    Object.keys(pcObj).forEach(function(k){ if(parseInt(pcObj[k],10) !== 12) cntLv.push(k); });
+    if(warnTxt || offLv.length || cntLv.length){
+      state.alignGuard = {
+        warn: warnTxt,
+        off: offLv.map(nkDisp),
+        counts: cntLv.map(function(k){ return nkDisp(k) + " " + pcObj[k] + L(" 段", " paras"); }),
+      };
+    }
+  })();
   /* 练习题（quiz_json.levels，12 键归一化）+ B2+.3 背景导读（quiz_json.guide） */
   if(qj){
     const lvq = nkObj(qj.levels);
@@ -5199,6 +5232,40 @@ function alignModeBarHTML(){
 }
 function setAlignMode(m){ state.alignMode = m; render(); }
 /* 段落视图主体：按当前视图模式渲染（空态卡片始终保留，避免档位切换死锁） */
+/* 段落对齐告警条（2026-09-20）：段数被截断 / 段落错位 / 质检层判决未过时给出明确提示 + 重试路径。
+   背景：四档都是 12 段，切档时看到的行号是对齐的 —— 但若某档「拆段 → 末尾被截断」，
+   界面看起来仍然整齐，实际内容已整体跳位。这是用户唯一能察觉的入口，必须显式告警。 */
+function alignWarnHTML(){
+  const g = state.alignGuard || null;
+  const vj = liveVJ();
+  const valOff = [];
+  if(vj && Array.isArray(vj.results)){
+    vj.results.forEach(function(r){
+      const c = (r.checks || []).find(function(x){ return x.name === "段落对齐"; });
+      if(c && c.status !== "pass") valOff.push((r.level || "") + "：" + (c.detail || ""));
+    });
+  }
+  /* 校验层判决优先（更权威）；无校验数据时用前端从 align_map 自行推导的结果补位 */
+  const off = valOff.length ? valOff
+            : ((g && g.off.length) ? g.off.map(function(k){ return L(k + " 档段落与大意未逐段对应", k + " paragraphs not 1:1 with gist"); }) : []);
+  const counts = (g && g.counts) || [];
+  const warn = (g && g.warn) || "";
+  if(!off.length && !counts.length && !warn) return "";
+  let h = '<div class="alignwarn"><div class="aw-h"><span class="aw-ico">!</span>'
+        + L("段落对齐告警", "Paragraph alignment warning") + '</div><ul>';
+  if(counts.length){
+    h += '<li>' + L("以下档位生成的段数不是 12 段，多出的段落已被截断丢弃 —— 末尾内容会缺失，并与其它档位逐段错位：",
+                    "These levels did not produce 12 paragraphs; extras were truncated — the tail is lost and the level is out of step with the others: ")
+       + esc(counts.join("、")) + '</li>';
+  }
+  off.forEach(function(t){ h += '<li>' + esc(t) + '</li>'; });
+  if(warn && !counts.length) h += '<li>' + esc(warn) + '</li>';
+  h += '</ul><div class="aw-fix">'
+     + L("处理建议：重新生成该档位。若反复出现，说明素材某条大意信息量偏大，请反馈给内容工程。",
+         "Tip: regenerate the affected level. If it recurs, the source's gist item is likely too dense — report to content engineering.")
+     + '</div></div>';
+  return h;
+}
 function alignBodyHTML(editable){
   const lvls = allKeys();
   const maxP = Math.max(0, ...lvls.map(function(k){ return (GEN[k] && GEN[k].paras) ? GEN[k].paras.length : 0; }));
@@ -5223,6 +5290,7 @@ function alignedViewHTML(editable){
      用户分不清哪个能点。段数已并入 bigbar 的计数徽标（如「B1 中级 · 7 段」），此处不再重复。 */
   let h=bigBarOnce();
   if(!has) return h+emptyGroupHTML();
+  h+=alignWarnHTML();
   h+=alignModeBarHTML()+alignBodyHTML(editable);
   return h;
 }function s9(){
@@ -5232,6 +5300,7 @@ function alignedViewHTML(editable){
   let html=head("10",L("段落校对","Paragraph Proofread"));
   html+=artWorkflowBar();
   html+=bigBarOnce();
+  html+=alignWarnHTML();
   html+='<p class="lede">'+L("AI 已自动切分并对齐 4 档的段落，请在下方逐段校读并修正——点击任意段落文字即可编辑，改动会自动保存到本机，误刷新不会丢；写入文章库后才算定稿。","AI has auto-split and aligned the four levels of this group — click any paragraph text to edit. Edits auto-save to this browser, so an accidental refresh will not lose them; they are final only once saved to the article library.")+' <span id="draftStat" class="draftstat"></span></p>';
   /* B4：段数已并入 bigbar 计数徽标，不再另起一排纯展示 pill */
   html+=alignModeBarHTML();
