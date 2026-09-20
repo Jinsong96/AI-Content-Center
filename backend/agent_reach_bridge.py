@@ -1802,12 +1802,20 @@ SOURCE_BOOST = {"CGTN": 10}
 # 因此这类 warn 不应触发界面「部分信源未抓到」的降级提示，避免误导使用者。
 _RENDER_SCOPES = ("render.chrome", "render.cdp", "render.dom", "render.article")
 
+# 「明确不影响本批交付结果」的 warn 白名单。这类失败只影响体验/性能，
+# 结果一条不少，**不该让整个热点榜挂上「部分信源未抓到」的横幅** —— 那是在说「有源坏了」，属误导。
+# 🔴 2026-09-20：源从 17 个扩到 52 个后，补正文次数大增，线上 `article.cache.save`
+#    开始成批失败（Railway 容器磁盘写入受限），一次请求就攒出 15 条 warn →
+#    degraded=True。而实测交付条目 114 条、一个源都没少 —— 纯误报。
+#    ⚠️ 判据很窄：只有 warn 级 + 明确写「不影响本次结果」的 scope 才进这个名单。
+_BENIGN_WARN_SCOPES = _RENDER_SCOPES + ("article.cache.save",)
+
 
 def _is_real_degradation(errs):
-    """只有「真正影响结果完整性」的错误才算降级；渲染器缺失不计。"""
+    """只有「真正影响结果完整性」的错误才算降级；渲染器缺失、缓存写入失败不计。"""
     for e in errs or []:
         scope = e.get("scope") or ""
-        if scope.startswith(_RENDER_SCOPES) and (e.get("severity") or "") == "warn":
+        if scope.startswith(_BENIGN_WARN_SCOPES) and (e.get("severity") or "") == "warn":
             continue
         return True
     return False
