@@ -22,6 +22,10 @@ import urllib.request
 import urllib.error
 import gzip
 import socket
+# ⚠️ 必须用别名：本文件里 `html` 是**局部变量名**（`fetch_article()` 的 `html = data.decode(...)`、
+# `extract_main_text(html)` / `extract_title(html)` 的形参）—— 直接 `import html` 会在这些函数里
+# 被局部 str 遮蔽，`html.unescape` 直接 AttributeError。
+import html as _htmllib
 import xml.etree.ElementTree as ET
 from email.utils import parsedate_to_datetime
 from datetime import datetime, timezone
@@ -223,11 +227,51 @@ def fetch(url, timeout=12, headers=None):
     return data
 
 
+# 文本里的「不可见控制字符」：反转义之后才会现形（如 `&#8234;` → U+202A）。
+# · U+00AD 软连字符：BBC 等会在长词里插，复制/朗读时会变成怪符号
+# · U+200B–U+200F 零宽空格 / ZWNJ / ZWJ / LRM / RLM
+# · U+202A–U+202E、U+2066–U+2069 bidi 嵌入 / 覆盖 / 隔离（阿拉伯语版页面残留）
+# · U+FEFF 字节序标记
+# 这些在正文里全是噪音，且**肉眼看不见** —— 只会在模型输入里悄悄占 token、干扰分词。
+_CTRL_RE = re.compile("[\u00ad\u200b-\u200f\u202a-\u202e\u2066-\u2069\ufeff]")
+
+
+def unescape_entities(s):
+    """只做「HTML 实体反转义 + 控制字符清理」，**不剥标签**。
+
+    用于本身已是纯文本的场景（磁盘缓存自愈、二次清洗），避免去标签正则
+    误伤正文里真实的 `<`（例如 `less than 5 < 10`）。
+
+    🔴 只解一次，不循环：`&amp;lt;` 的原意是「显示字面量 `&lt;`」，
+    反复解会把它错变成 `<`。
+    """
+    if not s:
+        return s
+    s = _htmllib.unescape(s)
+    s = _CTRL_RE.sub("", s)
+    return s.replace("\xa0", " ")          # &nbsp; 系（含 &#160;）解出的不换行空格
+
+
 def clean_html(s):
+    """HTML 片段 → 纯文本。
+
+    🔴 2026-09-20 修：此前只硬编码替换 5 个**命名实体**
+    （`&nbsp; &amp; &lt; &gt; &quot;`），漏掉了两类：
+      · **数字实体** —— `&#x27;`(单引号) `&#8217;`(右单引号) `&#8220;/&#8221;`(弯引号)
+        `&#34;` `&#8212;` `&#8234;/&#8236;`(bidi) …… 英国媒体（BBC 系）正文 HTML 主要用这种；
+      · **其它命名实体** —— `&rsquo;` `&mdash;` `&ldquo;` `&aacute;` `&hellip;` ……
+    于是这些字面量原样漏进正文，一路带到生成环节。线上实测 **179 条里 79 条（44%）带残留**，
+    涉及 **27 个源**（不是 BBC 独有）。
+    改用标准库 `html.unescape` —— 它覆盖 2000+ 命名实体 + 全部数字实体，是原来那 5 条的**超集**，
+    行为向后兼容（原来那 5 个的结果完全一致）。
+
+    ⚠️ 顺序必须是「**先剥标签、再反转义**」，不能反过来：
+    倒过来正文里的 `&lt;script&gt;` 会先变成真标签，再被去标签正则连内容一起吃掉。
+    """
     if not s:
         return ""
     s = re.sub(r"<[^>]+>", " ", s)
-    s = s.replace("&nbsp;", " ").replace("&amp;", "&").replace("&lt;", "<").replace("&gt;", ">").replace("&quot;", '"')
+    s = unescape_entities(s)
     return re.sub(r"\s+", " ", s).strip()
 
 
@@ -328,8 +372,40 @@ _BOILERPLATE = (
 )
 
 
+def _heal_article_cache(cache):
+    """就地清洗磁盘缓存里「带 HTML 实体 / 控制字符」的历史正文与标题。
+
+    为什么必须做：磁盘缓存存的是**已抽取好的纯文本**（不是原始 HTML），而 `fetch_article()`
+    命中缓存时**直接返回 `hit["text"]`，不会再走 `clean_html`** —— 所以只修 `clean_html`
+    的话，**历史缓存里的乱码会一直吐出来**，看起来像「修了没用」。
+    实测（2026-09-20 修复前落盘的缓存）：211 条里 84 条正文、35 条标题带实体。
+
+    做成「首次加载时一次性自愈 + 回写」：之后不再有额外开销，也不需要手工删缓存。
+
+    返回 True 表示有改动 —— 调用方据此决定是否回写，且**必须在锁外回写**：
+    `_article_cache_lock` 是不可重入的 `threading.Lock`，锁内调 `_save_article_cache()` 会死锁。
+    """
+    fixed = 0
+    for v in (cache or {}).values():
+        if not isinstance(v, dict):
+            continue
+        for fld in ("text", "title"):
+            old = v.get(fld)
+            if not isinstance(old, str) or not old:
+                continue
+            new = unescape_entities(old)
+            if new != old:
+                v[fld] = new
+                if fld == "text":
+                    # len 是下游用来显示正文长度、判 fulltext_status 的，必须同步
+                    v["len"] = len(new)
+                fixed += 1
+    return fixed > 0
+
+
 def _load_article_cache():
     global _article_mem
+    dirty = False
     with _article_cache_lock:
         if _article_mem is None:
             try:
@@ -342,7 +418,11 @@ def _load_article_cache():
                 note_error("article.cache.load", e, severity="warn",
                            msg="原文缓存解析失败，已按空缓存处理，本次将重新抓取")
                 _article_mem = {}
-        return _article_mem
+            dirty = _heal_article_cache(_article_mem)
+        mem = _article_mem
+    if dirty:
+        _save_article_cache()          # ⚠️ 锁外回写，见 _heal_article_cache 注释
+    return mem
 
 
 def _save_article_cache():
