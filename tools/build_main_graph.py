@@ -134,7 +134,12 @@ Y_OFFSET_GEN = 520.0
 
 LLM_OUTPUTS = {'text', 'reasoning_content', 'usage', 'finish_reason'}
 KB_OUTPUTS = {'result'}
-LEVELS12 = ['A1', 'A2', 'B1', 'B2']
+# 🔴 MAIN 的 nodeStart 来自 **FACT 图**，它的 level 下拉用的是**展示名**（A1- / B2+），
+#    不是内部 key（A1 / B2）。旧值写的是内部 key，导致这项校验**恒定误报**
+#    「start.level 选项不是 4 档：['A1-', 'A2', 'B1', 'B2+']」—— 是校验器自己的口径错，
+#    不是图错（2026-09-20 实测线上 FACT 的 options 就是展示名）。
+#    ⚠️ 名字里的 12 是历史遗留（档位已从 12 子档简化为 4 档），内容恒为 4 项。
+LEVELS12 = ['A1-', 'A2', 'B1', 'B2+']
 # DeepSeek 官方渠道模型（2026-09-15 官方 API 已更新可用，切回官方）
 DS_PROVIDER = 'langgenius/deepseek/deepseek'
 DS_MODELS = {'deepseek-v4-flash', 'deepseek-v4-pro'}
