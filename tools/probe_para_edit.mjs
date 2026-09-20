@@ -16,6 +16,7 @@
 //   ⑤ 逐段审核页（idx 10）显示的是**编辑后**文本，且不含原文、且只读
 //   ⑥ 切走再切回，校对页 DOM 仍是编辑后的
 //   ⑦ 入库版本 buildBankArticle() 的 paras / articles 都含编辑、不含原文
+//   ⑧ 负向：定位属性丢失时必须 console.error + toast，且不写半成品（保证「不再静默」）
 //
 // 用法：
 //   cd <repo> && node tools/probe_para_edit.mjs                      # 本地 8899
@@ -125,6 +126,30 @@ const SETUP = `(async()=>{
   out.bankParasA1 = JSON.stringify(art.paras.A1);
   out.bankHasEdit = String(art.articles.A1||"").indexOf(${JSON.stringify(EDIT_VAL)})>=0;
   out.bankHasOriginal = String(art.articles.A1||"").indexOf("ORIGINAL-A1-p1")>=0;
+
+  /* ⑧ 负向：定位属性丢失时，必须**明确报错**（console.error + toast），绝不能静默吞掉。
+     这条是「以后不能再出现白改」的真正保证 —— 修复的目标不是「碰巧能改」，而是
+     「一旦改不动，用户立刻知道」。 */
+  const tEl = document.getElementById("toast");
+  if(tEl){ tEl.textContent = ""; tEl.classList.remove("show"); }
+  const c8 = document.querySelector('.pcard[data-k="A1"][data-i="1"]');
+  const b8 = c8 ? c8.querySelector('.pbody') : null;
+  if(c8 && b8){
+    const savedAttr = c8.getAttribute("data-k");
+    c8.removeAttribute("data-k");                 /* 制造「定位不到」的异常态 */
+    let errCalled = false;
+    const origErr = console.error;
+    console.error = function(){ errCalled = true; return origErr.apply(console, arguments); };
+    b8.innerText = "SHOULD-NOT-BE-SAVED";
+    b8.dispatchEvent(new Event("input", {bubbles:true}));
+    await sleep(250);
+    console.error = origErr;
+    out.negConsoleErr = errCalled;
+    out.negToastShown = !!(tEl && tEl.classList.contains("show") && (tEl.textContent||"").trim());
+    out.negToastText = tEl ? (tEl.textContent||"").slice(0,40) : "";
+    out.negGenUnchanged = JSON.stringify(GEN.A1.paras[1]) === JSON.stringify(["ORIGINAL-A1-p2"]);
+    c8.setAttribute("data-k", savedAttr);          /* 复原，别影响截图 */
+  }
   return JSON.stringify(out);
 })()`;
 
@@ -171,6 +196,9 @@ async function main() {
     ['⑦ 入库 paras 含编辑', o.bankParasA1.indexOf(EDIT_VAL) >= 0, o.bankParasA1],
     ['⑦ 入库 articles 含编辑', o.bankHasEdit === true, String(o.bankHasEdit)],
     ['⑦ 入库 articles 不含原文', o.bankHasOriginal === false, String(o.bankHasOriginal)],
+    ['⑧ 属性丢失时报了 console.error（不再静默）', o.negConsoleErr === true, String(o.negConsoleErr)],
+    ['⑧ 属性丢失时给了用户可见提示', o.negToastShown === true, String(o.negToastText)],
+    ['⑧ 属性丢失时没有写入半成品', o.negGenUnchanged === true, String(o.negGenUnchanged)],
   ];
 
   let fail = 0;
@@ -179,7 +207,7 @@ async function main() {
     if (!ok) fail++;
     console.log(`${ok ? '  ✓' : '  ✗'} ${name}${ok ? '' : '   ← ' + detail}`);
   }
-  console.log(`\n${fail ? `❌ ${fail} 项未通过` : '✅ 全部通过（16 项）'}`);
+  console.log(`\n${fail ? `❌ ${fail} 项未通过` : '✅ 全部通过（19 项）'}`);
   if (errs.length) { console.log('运行时异常:', errs.join('\n')); fail++; }
 
   try {
