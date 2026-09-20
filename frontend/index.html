@@ -4122,7 +4122,7 @@ async function fetchRealTrends(theme, sub){
   /* 被主动筛掉的条目（后端按 MIN_USABLE_TEXT 拦下的）+ 视频型热搜 —— 必须带到界面上：
      「热搜榜 50 条、这里只有 26 条」若没有解释，看起来就是抓取坏了，最容易被误读成故障。 */
   state.trendsFiltered = (j && Array.isArray(j.items))
-    ? { noText: (j.filtered_no_text || []), video: (j.filtered_video || []) }
+    ? { noText: (j.filtered_no_text || []), video: (j.filtered_video || []), stale: (j.filtered_stale || []) }
     : null;
   return r.items;
 }
@@ -4348,11 +4348,21 @@ function renderHots(){
     if(!real.length){
       /* 注意：realHots = [] 时绝不能落回下面的 HOTS 分支 ——
          那是 2026 年 8 月的内置演示数据，冒充「本次抓取结果」比空列表更误导。 */
-      const f = state.trendsFiltered || { noText: [], video: [] };
-      const hid = f.noText.length + f.video.length;
-      g.innerHTML = `<div class="srclist-empty">${hid
-        ? L("本批 "+hid+" 条热点都拿不到可用正文（低于 "+MIN_USABLE_TEXT+" 字符），点进去无法直接生成，已按规则隐藏。换一个主题或稍后刷新试试。",
-            "All "+hid+" fetched topics lack usable text (< "+MIN_USABLE_TEXT+" chars) and were hidden. Try another theme or refresh later.")
+      /* 被筛原因必须分类说清。2026-09-20 新增「已过期」一类：
+         时效过滤（后端拦掉发布超过 TRENDS_MAX_AGE_DAYS 天的条目）平时是**静默的正常筛选**，
+         不该挂横幅；但若整批都被它筛掉（源停更 / 全站旧闻），文案说成「拿不到可用正文」
+         就等于把「内容太旧」误报成「抓取失败」—— 两种方向完全不同的原因，不能混说。
+         ⚠️ 刻意不写死天数：写了就等于在前端复制一份后端常量，日后必漂移
+            （同 MIN_USABLE_TEXT / TRENDS_LIMIT 的教训）。 */
+      const f = state.trendsFiltered || { noText: [], video: [], stale: [] };
+      const nNoText = f.noText.length + f.video.length;
+      const nStale = f.stale.length;
+      const why = [];
+      if(nNoText) why.push(L(nNoText+" 条拿不到可用正文", nNoText+" lack usable text"));
+      if(nStale)  why.push(L(nStale+" 条已过期", nStale+" are outdated"));
+      g.innerHTML = `<div class="srclist-empty">${why.length
+        ? L("本批热点都不适合作为素材（"+why.join("、")+"），已按规则隐藏。换一个主题或稍后刷新试试。",
+            "This batch has no usable topics ("+why.join(", ")+") and was hidden. Try another theme or refresh later.")
         : L("本次没有可用热点。换一个主题，或点上方「刷新」重试。",
             "No usable topics this time. Try another theme or hit Refresh above.")}</div>`;
       g.dataset.custStamp = "";   /* 空态也必须清 stamp，否则自定义卡会被幂等闸门挡住 */
