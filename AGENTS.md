@@ -410,6 +410,45 @@ avoid_words in input form must be less than 500 characters
 > `extract_main_text(html)` 形参），直接导入会被 str 遮蔽 → `AttributeError`。
 
 
+### 坑 22：**界面能改字 ≠ 改动被记录了** —— 编辑类回调的属性宿主（2026-09-20）
+
+段落校对页支持直接改段落。Bryan 报：「编辑后推送给人工审核的版本没有变化，等于这个编辑没用。」
+
+**根因**：`data-k` / `data-i` 挂在**卡片 `.pcard`** 上，而 `oninput="paraEdit(this)"` 传进来的
+`this` 是**正文 `.pbody`**：
+
+```html
+<div class="pcard" data-k="A1" data-i="0">                            <!-- 属性在这 -->
+  <div class="pbody" contenteditable oninput="paraEdit(this)">…</div>  <!-- this 在这 -->
+</div>
+```
+
+`el.getAttribute("data-k")` → `null` → `GEN[null]` 是 `undefined` → **函数第二行静默 `return`**。
+
+**为什么这是最难发现的一类 bug**（三条叠加）：
+
+1. `contenteditable` 是浏览器**原生**行为 —— **字确实变了**，肉眼完全看不出异常；
+2. **连段落词数徽标都会刷新**（那行用的是 `el.closest(".pcard")`，写对了）→ 界面给的是「成功」的假信号；
+3. **零报错** —— 无 console、无 toast，只有走到下游才暴露。
+
+实际后果是**四层全丢**：内存 `GEN` / 本机草稿 `wb_para_draft_v1` / 存入文章库的
+`paras`+`articles` / 审核页看到的版本，**全是原文**。
+
+**判据（编辑类功能一律照此验证，光看输入框里的字不算验证）**：
+
+1. **编辑类回调「落到哪」必须有断言** —— 找不到目标就 `console.error` + 用户可见提示，
+   **绝不静默返回**。代价对比：报错只是打扰，静默失败的代价是「用户以为改好了」。
+2. **必须验证全部落点**：① 内存态 ② 草稿/持久化 ③ 下游页面看到的版本 ④ 入库结构体。
+   本次四处都验，缺一处都会漏。
+3. **回归探针**：`node tools/probe_para_edit.mjs`（16 项断言，自带 Chrome + CDP，本地/线上同一份）。
+   已做**旧代码对照**：把 `paraEdit` 回退成旧写法 → **9 项失败**，证明探针真抓得住。
+   > ⚠️ 对照里「词数徽标已刷新」在旧代码下**也是 ✓** —— 这正是它最阴的地方。
+
+> 同族：坑 19 的「词汇校验在跑但纠正不了」、`runGeneration()` 的 TDZ 被 `catch` 吞成「没反应」
+> —— **都是「有动静 ≠ 有效果」，而界面看起来一切正常。**
+> 排查手法相通：**别信界面，去读数据落点的真实值。**
+
+
 ---
 
 ## 4. 编号体系（改 step 相关逻辑必看）
