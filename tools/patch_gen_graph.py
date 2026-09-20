@@ -56,6 +56,13 @@ AVOID_LINE = (
     "（国家名/机构名/人名等专有名词、以及无法替换的固定搭配可保留）：{{#nodeClean.avoid_%s#}}"
 )
 
+# 🔴 入参长度上限（2026-09-20 踩过）：Dify 的 `paragraph` 入参**按 max_length 逐个校验**，
+# 不是「段落就无限长」。模板变量 `summary` 的 max_length 只有 500 —— 直接继承的话，
+# 4 档 × 20 词的 JSON（实测 A1/A2/B1/B2 全满时约 700–1600 字符）必然超限，
+# 工作流 **0.5 秒秒退**，报 `avoid_words in input form must be less than 500 characters`。
+# 按 4 档 × 20 词 × 20 字符 + JSON 结构留足余量。
+AVOID_MAX_LEN = 4000
+
 CLEAN_OLD_SIG = "function main({ summary, facts_text, angle, level, gist }) {"
 CLEAN_NEW_SIG = "function main({ summary, facts_text, angle, level, gist, avoid_words }) {"
 
@@ -117,17 +124,24 @@ def main():
     if not start:
         return fail("找不到 nodeStart")
     vars_ = start["data"].setdefault("variables", [])
-    if any(v.get("variable") == "avoid_words" for v in vars_):
-        report.append("nodeStart.avoid_words  已存在，跳过")
-    else:
+    exist = next((v for v in vars_ if v.get("variable") == "avoid_words"), None)
+    if exist is None:
         tpl = next((dict(v) for v in vars_ if v.get("type") == "paragraph"), None)
         if tpl is None:
             return fail("nodeStart 里没有 paragraph 类型变量可作模板")
         tpl["variable"] = "avoid_words"
         tpl["label"] = "上一稿超纲词（按档 JSON）"
         tpl["required"] = False
+        tpl["max_length"] = AVOID_MAX_LEN
         vars_.append(tpl)
-        report.append("nodeStart.avoid_words  +新增入参")
+        report.append(f"nodeStart.avoid_words  +新增入参 (max_length={AVOID_MAX_LEN})")
+    elif (exist.get("max_length") or 0) < AVOID_MAX_LEN:
+        # 修复路径：500 字符装不下 4 档 × 20 词的 JSON，会让工作流 0.5 秒秒退
+        old_len = exist.get("max_length")
+        exist["max_length"] = AVOID_MAX_LEN
+        report.append(f"nodeStart.avoid_words  max_length {old_len} → {AVOID_MAX_LEN}（修 500 秒退）")
+    else:
+        report.append(f"nodeStart.avoid_words  已存在且 max_length={exist.get('max_length')}，跳过")
 
     # ---- 2/3. nodeClean 解析 + 声明输出 ----
     clean = by_id.get("nodeClean")

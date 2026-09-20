@@ -80,7 +80,7 @@
       },
       {
        "label": "上一稿超纲词（按档 JSON）",
-       "max_length": 500,
+       "max_length": 4000,
        "options": [],
        "required": false,
        "type": "paragraph",
