@@ -23,6 +23,10 @@ material/
 # 运行时日志（start_railway_local.py 本地验证产生，不入库）
 *.log
 
+# 范文 OCR 的逐块原始输出（JSONL，带坐标）。可随时重跑 calibration/ocr_sources.py
+# 再生（345 页约 70 秒），所以不入库；清洗后的文本 calibration/text/ 才入库。
+calibration/raw/
+
 # TTS 产物默认不入库（全部约 240MB，其中 87 个历史文件已无人引用）。
 # 但内容库文章实际引用的音频必须入库，否则部署后内容库播放全部 404。
 # 下面先排除整个目录，再逐条白名单放行「被引用」的音频，勿整体放行。

@@ -1,0 +1,7 @@
+Drawing a Snake - based on a Chinese tale Long ago, there was a king, and he liked to have parties. At one of those parties, the king asked the people to draw a snake. He said, "Whoever finishes first will get a special prize." Everyone was excited and started to draw. Soon one man finished his drawing.
+
+"I've finished first," he said. Then seeing others still drawing, he said, "Oh, I can add feet to the snake."
+
+While the man was drawing the feet, another person had finished. And he got the prize!
+
+Wait! I..

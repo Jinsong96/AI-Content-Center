@@ -1,0 +1,3107 @@
+[
+ {
+  "level": "A2",
+  "book": "初级1",
+  "piece": 1,
+  "file": "text/A2/初级1_01.txt",
+  "words": 57,
+  "paras": 5,
+  "title": "Fun at School"
+ },
+ {
+  "level": "A2",
+  "book": "初级1",
+  "piece": 2,
+  "file": "text/A2/初级1_02.txt",
+  "words": 75,
+  "paras": 8,
+  "title": "Dog or Puppy?"
+ },
+ {
+  "level": "A2",
+  "book": "初级1",
+  "piece": 3,
+  "file": "text/A2/初级1_03.txt",
+  "words": 68,
+  "paras": 8,
+  "title": "Numbers"
+ },
+ {
+  "level": "A2",
+  "book": "初级1",
+  "piece": 4,
+  "file": "text/A2/初级1_04.txt",
+  "words": 70,
+  "paras": 10,
+  "title": "A New Song"
+ },
+ {
+  "level": "A2",
+  "book": "初级1",
+  "piece": 5,
+  "file": "text/A2/初级1_05.txt",
+  "words": 67,
+  "paras": 9,
+  "title": "Do Worms Sleep?"
+ },
+ {
+  "level": "A2",
+  "book": "初级1",
+  "piece": 6,
+  "file": "text/A2/初级1_06.txt",
+  "words": 71,
+  "paras": 8,
+  "title": "Many Kinds of Milk"
+ },
+ {
+  "level": "A2",
+  "book": "初级1",
+  "piece": 7,
+  "file": "text/A2/初级1_07.txt",
+  "words": 55,
+  "paras": 8,
+  "title": "Colours"
+ },
+ {
+  "level": "A2",
+  "book": "初级1",
+  "piece": 8,
+  "file": "text/A2/初级1_08.txt",
+  "words": 63,
+  "paras": 9,
+  "title": "Save the World!"
+ },
+ {
+  "level": "A2",
+  "book": "初级1",
+  "piece": 9,
+  "file": "text/A2/初级1_09.txt",
+  "words": 73,
+  "paras": 9,
+  "title": "Lights in the House"
+ },
+ {
+  "level": "A2",
+  "book": "初级1",
+  "piece": 10,
+  "file": "text/A2/初级1_10.txt",
+  "words": 79,
+  "paras": 9,
+  "title": "Talking Pen"
+ },
+ {
+  "level": "A2",
+  "book": "初级1",
+  "piece": 11,
+  "file": "text/A2/初级1_11.txt",
+  "words": 76,
+  "paras": 6,
+  "title": "A Day at the Beach"
+ },
+ {
+  "level": "A2",
+  "book": "初级1",
+  "piece": 12,
+  "file": "text/A2/初级1_12.txt",
+  "words": 77,
+  "paras": 7,
+  "title": "Day or Night"
+ },
+ {
+  "level": "A2",
+  "book": "初级1",
+  "piece": 13,
+  "file": "text/A2/初级1_13.txt",
+  "words": 61,
+  "paras": 7,
+  "title": "Round and Round"
+ },
+ {
+  "level": "A2",
+  "book": "初级1",
+  "piece": 14,
+  "file": "text/A2/初级1_14.txt",
+  "words": 67,
+  "paras": 10,
+  "title": "Travel by Train"
+ },
+ {
+  "level": "A2",
+  "book": "初级1",
+  "piece": 15,
+  "file": "text/A2/初级1_15.txt",
+  "words": 72,
+  "paras": 8,
+  "title": "Numbers for You"
+ },
+ {
+  "level": "A2",
+  "book": "初级2",
+  "piece": 1,
+  "file": "text/A2/初级2_01.txt",
+  "words": 68,
+  "paras": 6,
+  "title": "Fruit or Vegetables?"
+ },
+ {
+  "level": "A2",
+  "book": "初级2",
+  "piece": 2,
+  "file": "text/A2/初级2_02.txt",
+  "words": 74,
+  "paras": 5,
+  "title": "Helping at Home"
+ },
+ {
+  "level": "A2",
+  "book": "初级2",
+  "piece": 3,
+  "file": "text/A2/初级2_03.txt",
+  "words": 66,
+  "paras": 3,
+  "title": "Funny Weather"
+ },
+ {
+  "level": "A2",
+  "book": "初级2",
+  "piece": 4,
+  "file": "text/A2/初级2_04.txt",
+  "words": 61,
+  "paras": 3,
+  "title": "Rubber Boots"
+ },
+ {
+  "level": "A2",
+  "book": "初级2",
+  "piece": 5,
+  "file": "text/A2/初级2_05.txt",
+  "words": 62,
+  "paras": 2,
+  "title": "Spider Webs"
+ },
+ {
+  "level": "A2",
+  "book": "初级2",
+  "piece": 6,
+  "file": "text/A2/初级2_06.txt",
+  "words": 78,
+  "paras": 7,
+  "title": "Hats"
+ },
+ {
+  "level": "A2",
+  "book": "初级2",
+  "piece": 7,
+  "file": "text/A2/初级2_07.txt",
+  "words": 75,
+  "paras": 3,
+  "title": "Snowman"
+ },
+ {
+  "level": "A2",
+  "book": "初级2",
+  "piece": 8,
+  "file": "text/A2/初级2_08.txt",
+  "words": 56,
+  "paras": 2,
+  "title": "Animal Coats Some animals wear coats. Their coats are made o"
+ },
+ {
+  "level": "A2",
+  "book": "初级2",
+  "piece": 9,
+  "file": "text/A2/初级2_09.txt",
+  "words": 74,
+  "paras": 3,
+  "title": "Our Moon"
+ },
+ {
+  "level": "A2",
+  "book": "初级2",
+  "piece": 10,
+  "file": "text/A2/初级2_10.txt",
+  "words": 56,
+  "paras": 2,
+  "title": "Bookworm"
+ },
+ {
+  "level": "A2",
+  "book": "初级2",
+  "piece": 11,
+  "file": "text/A2/初级2_11.txt",
+  "words": 57,
+  "paras": 2,
+  "title": "Colours of the Rainbow"
+ },
+ {
+  "level": "A2",
+  "book": "初级2",
+  "piece": 12,
+  "file": "text/A2/初级2_12.txt",
+  "words": 78,
+  "paras": 2,
+  "title": "Farm Animals"
+ },
+ {
+  "level": "A2",
+  "book": "初级2",
+  "piece": 13,
+  "file": "text/A2/初级2_13.txt",
+  "words": 95,
+  "paras": 4,
+  "title": "Steal the Bell - based on a Chinese tale Long ago, a man wan"
+ },
+ {
+  "level": "A2",
+  "book": "初级2",
+  "piece": 14,
+  "file": "text/A2/初级2_14.txt",
+  "words": 137,
+  "paras": 7,
+  "title": "Friends"
+ },
+ {
+  "level": "A2",
+  "book": "初级2",
+  "piece": 15,
+  "file": "text/A2/初级2_15.txt",
+  "words": 132,
+  "paras": 6,
+  "title": "School Bus"
+ },
+ {
+  "level": "A2",
+  "book": "初级3",
+  "piece": 1,
+  "file": "text/A2/初级3_01.txt",
+  "words": 81,
+  "paras": 5,
+  "title": "What Am. I?"
+ },
+ {
+  "level": "A2",
+  "book": "初级3",
+  "piece": 2,
+  "file": "text/A2/初级3_02.txt",
+  "words": 66,
+  "paras": 5,
+  "title": "Basketball Is Fun"
+ },
+ {
+  "level": "A2",
+  "book": "初级3",
+  "piece": 3,
+  "file": "text/A2/初级3_03.txt",
+  "words": 72,
+  "paras": 4,
+  "title": "A Lot of Socks"
+ },
+ {
+  "level": "A2",
+  "book": "初级3",
+  "piece": 4,
+  "file": "text/A2/初级3_04.txt",
+  "words": 74,
+  "paras": 5,
+  "title": "Big Snow Days"
+ },
+ {
+  "level": "A2",
+  "book": "初级3",
+  "piece": 5,
+  "file": "text/A2/初级3_05.txt",
+  "words": 60,
+  "paras": 3,
+  "title": "How Do You Get Around?"
+ },
+ {
+  "level": "A2",
+  "book": "初级3",
+  "piece": 6,
+  "file": "text/A2/初级3_06.txt",
+  "words": 62,
+  "paras": 4,
+  "title": "Setting the Table"
+ },
+ {
+  "level": "A2",
+  "book": "初级3",
+  "piece": 7,
+  "file": "text/A2/初级3_07.txt",
+  "words": 67,
+  "paras": 4,
+  "title": "ABC Twenty-Six Letters"
+ },
+ {
+  "level": "A2",
+  "book": "初级3",
+  "piece": 8,
+  "file": "text/A2/初级3_08.txt",
+  "words": 63,
+  "paras": 2,
+  "title": "Easter Egg Hunt"
+ },
+ {
+  "level": "A2",
+  "book": "初级3",
+  "piece": 9,
+  "file": "text/A2/初级3_09.txt",
+  "words": 62,
+  "paras": 5,
+  "title": "Fireworks"
+ },
+ {
+  "level": "A2",
+  "book": "初级3",
+  "piece": 10,
+  "file": "text/A2/初级3_10.txt",
+  "words": 123,
+  "paras": 6,
+  "title": "The Tree in the Backyard"
+ },
+ {
+  "level": "A2",
+  "book": "初级3",
+  "piece": 11,
+  "file": "text/A2/初级3_11.txt",
+  "words": 72,
+  "paras": 5,
+  "title": "No Flowers Today"
+ },
+ {
+  "level": "A2",
+  "book": "初级3",
+  "piece": 12,
+  "file": "text/A2/初级3_12.txt",
+  "words": 82,
+  "paras": 4,
+  "title": "Our Friendly Star"
+ },
+ {
+  "level": "A2",
+  "book": "初级3",
+  "piece": 13,
+  "file": "text/A2/初级3_13.txt",
+  "words": 80,
+  "paras": 8,
+  "title": "The Days of the Week"
+ },
+ {
+  "level": "A2",
+  "book": "初级3",
+  "piece": 14,
+  "file": "text/A2/初级3_14.txt",
+  "words": 73,
+  "paras": 5,
+  "title": "Is It Spring Yet?"
+ },
+ {
+  "level": "A2",
+  "book": "初级3",
+  "piece": 15,
+  "file": "text/A2/初级3_15.txt",
+  "words": 76,
+  "paras": 5,
+  "title": "A Little Reader"
+ },
+ {
+  "level": "A2",
+  "book": "初级4",
+  "piece": 1,
+  "file": "text/A2/初级4_01.txt",
+  "words": 67,
+  "paras": 4,
+  "title": "Outer Space"
+ },
+ {
+  "level": "A2",
+  "book": "初级4",
+  "piece": 2,
+  "file": "text/A2/初级4_02.txt",
+  "words": 83,
+  "paras": 6,
+  "title": "We Are All Bears"
+ },
+ {
+  "level": "A2",
+  "book": "初级4",
+  "piece": 3,
+  "file": "text/A2/初级4_03.txt",
+  "words": 159,
+  "paras": 5,
+  "title": "Bug School There are many insects in the Bug School. Everyon"
+ },
+ {
+  "level": "A2",
+  "book": "初级4",
+  "piece": 4,
+  "file": "text/A2/初级4_04.txt",
+  "words": 91,
+  "paras": 4,
+  "title": "Celebrating Children's Day"
+ },
+ {
+  "level": "A2",
+  "book": "初级4",
+  "piece": 5,
+  "file": "text/A2/初级4_05.txt",
+  "words": 75,
+  "paras": 4,
+  "title": "Who Runs Faster?"
+ },
+ {
+  "level": "A2",
+  "book": "初级4",
+  "piece": 6,
+  "file": "text/A2/初级4_06.txt",
+  "words": 99,
+  "paras": 5,
+  "title": "Stars in the Sky"
+ },
+ {
+  "level": "A2",
+  "book": "初级4",
+  "piece": 7,
+  "file": "text/A2/初级4_07.txt",
+  "words": 96,
+  "paras": 3,
+  "title": "My Dog"
+ },
+ {
+  "level": "A2",
+  "book": "初级4",
+  "piece": 8,
+  "file": "text/A2/初级4_08.txt",
+  "words": 78,
+  "paras": 5,
+  "title": "Clean the Beach"
+ },
+ {
+  "level": "A2",
+  "book": "初级4",
+  "piece": 9,
+  "file": "text/A2/初级4_09.txt",
+  "words": 134,
+  "paras": 6,
+  "title": "Sun and Wind"
+ },
+ {
+  "level": "A2",
+  "book": "初级4",
+  "piece": 10,
+  "file": "text/A2/初级4_10.txt",
+  "words": 82,
+  "paras": 5,
+  "title": "My Mouth"
+ },
+ {
+  "level": "A2",
+  "book": "初级4",
+  "piece": 11,
+  "file": "text/A2/初级4_11.txt",
+  "words": 77,
+  "paras": 6,
+  "title": "Water Animals"
+ },
+ {
+  "level": "A2",
+  "book": "初级4",
+  "piece": 12,
+  "file": "text/A2/初级4_12.txt",
+  "words": 84,
+  "paras": 5,
+  "title": "Raining Cats and Dogs"
+ },
+ {
+  "level": "A2",
+  "book": "初级4",
+  "piece": 13,
+  "file": "text/A2/初级4_13.txt",
+  "words": 115,
+  "paras": 4,
+  "title": "How Did He Know?"
+ },
+ {
+  "level": "A2",
+  "book": "初级4",
+  "piece": 14,
+  "file": "text/A2/初级4_14.txt",
+  "words": 95,
+  "paras": 4,
+  "title": "Drawing a Snake - based on a Chinese tale Long ago, there wa"
+ },
+ {
+  "level": "A2",
+  "book": "初级4",
+  "piece": 15,
+  "file": "text/A2/初级4_15.txt",
+  "words": 152,
+  "paras": 6,
+  "title": "Where Does Milk Come from?"
+ },
+ {
+  "level": "A2",
+  "book": "初级5",
+  "piece": 1,
+  "file": "text/A2/初级5_01.txt",
+  "words": 65,
+  "paras": 4,
+  "title": "Nature"
+ },
+ {
+  "level": "A2",
+  "book": "初级5",
+  "piece": 2,
+  "file": "text/A2/初级5_02.txt",
+  "words": 65,
+  "paras": 3,
+  "title": "One Eye Open"
+ },
+ {
+  "level": "A2",
+  "book": "初级5",
+  "piece": 3,
+  "file": "text/A2/初级5_03.txt",
+  "words": 159,
+  "paras": 8,
+  "title": "Fire Station"
+ },
+ {
+  "level": "A2",
+  "book": "初级5",
+  "piece": 4,
+  "file": "text/A2/初级5_04.txt",
+  "words": 77,
+  "paras": 5,
+  "title": "Thunder"
+ },
+ {
+  "level": "A2",
+  "book": "初级5",
+  "piece": 5,
+  "file": "text/A2/初级5_05.txt",
+  "words": 78,
+  "paras": 4,
+  "title": "Writing on Paper"
+ },
+ {
+  "level": "A2",
+  "book": "初级5",
+  "piece": 6,
+  "file": "text/A2/初级5_06.txt",
+  "words": 81,
+  "paras": 5,
+  "title": "About Rice"
+ },
+ {
+  "level": "A2",
+  "book": "初级5",
+  "piece": 7,
+  "file": "text/A2/初级5_07.txt",
+  "words": 88,
+  "paras": 6,
+  "title": "Baby in the Car!"
+ },
+ {
+  "level": "A2",
+  "book": "初级5",
+  "piece": 8,
+  "file": "text/A2/初级5_08.txt",
+  "words": 170,
+  "paras": 7,
+  "title": "Joe's Sweet Tooth"
+ },
+ {
+  "level": "A2",
+  "book": "初级5",
+  "piece": 9,
+  "file": "text/A2/初级5_09.txt",
+  "words": 86,
+  "paras": 5,
+  "title": "The Penny"
+ },
+ {
+  "level": "A2",
+  "book": "初级5",
+  "piece": 10,
+  "file": "text/A2/初级5_10.txt",
+  "words": 74,
+  "paras": 4,
+  "title": "The Circus"
+ },
+ {
+  "level": "A2",
+  "book": "初级5",
+  "piece": 11,
+  "file": "text/A2/初级5_11.txt",
+  "words": 88,
+  "paras": 3,
+  "title": "Amy Gets a Bike"
+ },
+ {
+  "level": "A2",
+  "book": "初级5",
+  "piece": 12,
+  "file": "text/A2/初级5_12.txt",
+  "words": 73,
+  "paras": 2,
+  "title": "Campfire When we go camping, we like to make a campfire at n"
+ },
+ {
+  "level": "A2",
+  "book": "初级5",
+  "piece": 13,
+  "file": "text/A2/初级5_13.txt",
+  "words": 96,
+  "paras": 6,
+  "title": "Can You See?"
+ },
+ {
+  "level": "A2",
+  "book": "初级5",
+  "piece": 14,
+  "file": "text/A2/初级5_14.txt",
+  "words": 92,
+  "paras": 4,
+  "title": "How Big Can It Grow?"
+ },
+ {
+  "level": "A2",
+  "book": "初级5",
+  "piece": 15,
+  "file": "text/A2/初级5_15.txt",
+  "words": 94,
+  "paras": 5,
+  "title": "Go Under the Water"
+ },
+ {
+  "level": "A2",
+  "book": "初级6",
+  "piece": 1,
+  "file": "text/A2/初级6_01.txt",
+  "words": 80,
+  "paras": 3,
+  "title": "A Bird That Cannot Fly?"
+ },
+ {
+  "level": "A2",
+  "book": "初级6",
+  "piece": 2,
+  "file": "text/A2/初级6_02.txt",
+  "words": 86,
+  "paras": 4,
+  "title": "Wash Your Hands"
+ },
+ {
+  "level": "A2",
+  "book": "初级6",
+  "piece": 3,
+  "file": "text/A2/初级6_03.txt",
+  "words": 82,
+  "paras": 5,
+  "title": "Honey"
+ },
+ {
+  "level": "A2",
+  "book": "初级6",
+  "piece": 4,
+  "file": "text/A2/初级6_04.txt",
+  "words": 61,
+  "paras": 5,
+  "title": "Think Twice"
+ },
+ {
+  "level": "A2",
+  "book": "初级6",
+  "piece": 5,
+  "file": "text/A2/初级6_05.txt",
+  "words": 74,
+  "paras": 2,
+  "title": "Are Clouds Heavy?"
+ },
+ {
+  "level": "A2",
+  "book": "初级6",
+  "piece": 6,
+  "file": "text/A2/初级6_06.txt",
+  "words": 88,
+  "paras": 3,
+  "title": "Staying Cool"
+ },
+ {
+  "level": "A2",
+  "book": "初级6",
+  "piece": 7,
+  "file": "text/A2/初级6_07.txt",
+  "words": 70,
+  "paras": 5,
+  "title": "Polar Bears"
+ },
+ {
+  "level": "A2",
+  "book": "初级6",
+  "piece": 8,
+  "file": "text/A2/初级6_08.txt",
+  "words": 77,
+  "paras": 6,
+  "title": "Which One First?"
+ },
+ {
+  "level": "A2",
+  "book": "初级6",
+  "piece": 9,
+  "file": "text/A2/初级6_09.txt",
+  "words": 165,
+  "paras": 6,
+  "title": "Uncle's Phone"
+ },
+ {
+  "level": "A2",
+  "book": "初级6",
+  "piece": 10,
+  "file": "text/A2/初级6_10.txt",
+  "words": 77,
+  "paras": 5,
+  "title": "A Green Christmas"
+ },
+ {
+  "level": "A2",
+  "book": "初级6",
+  "piece": 11,
+  "file": "text/A2/初级6_11.txt",
+  "words": 83,
+  "paras": 3,
+  "title": "Too Many Pockets"
+ },
+ {
+  "level": "A2",
+  "book": "初级6",
+  "piece": 12,
+  "file": "text/A2/初级6_12.txt",
+  "words": 149,
+  "paras": 6,
+  "title": "The Party One hot summer day, Mouse decided to have a party."
+ },
+ {
+  "level": "A2",
+  "book": "初级6",
+  "piece": 13,
+  "file": "text/A2/初级6_13.txt",
+  "words": 177,
+  "paras": 7,
+  "title": "How Old Are You?"
+ },
+ {
+  "level": "A2",
+  "book": "初级6",
+  "piece": 14,
+  "file": "text/A2/初级6_14.txt",
+  "words": 156,
+  "paras": 6,
+  "title": "Molly Can't Fall Asleep"
+ },
+ {
+  "level": "A2",
+  "book": "初级6",
+  "piece": 15,
+  "file": "text/A2/初级6_15.txt",
+  "words": 133,
+  "paras": 6,
+  "title": "The Same but Different"
+ },
+ {
+  "level": "A2",
+  "book": "初级7",
+  "piece": 1,
+  "file": "text/A2/初级7_01.txt",
+  "words": 128,
+  "paras": 8,
+  "title": "Cat Adventure"
+ },
+ {
+  "level": "A2",
+  "book": "初级7",
+  "piece": 2,
+  "file": "text/A2/初级7_02.txt",
+  "words": 137,
+  "paras": 7,
+  "title": "A Bear's Visit"
+ },
+ {
+  "level": "A2",
+  "book": "初级7",
+  "piece": 3,
+  "file": "text/A2/初级7_03.txt",
+  "words": 143,
+  "paras": 4,
+  "title": "Leo's Garden"
+ },
+ {
+  "level": "A2",
+  "book": "初级7",
+  "piece": 4,
+  "file": "text/A2/初级7_04.txt",
+  "words": 152,
+  "paras": 9,
+  "title": "The Big Tree"
+ },
+ {
+  "level": "A2",
+  "book": "初级7",
+  "piece": 5,
+  "file": "text/A2/初级7_05.txt",
+  "words": 69,
+  "paras": 3,
+  "title": "Camping with Friends"
+ },
+ {
+  "level": "A2",
+  "book": "初级7",
+  "piece": 6,
+  "file": "text/A2/初级7_06.txt",
+  "words": 89,
+  "paras": 5,
+  "title": "A Windy Day"
+ },
+ {
+  "level": "A2",
+  "book": "初级7",
+  "piece": 7,
+  "file": "text/A2/初级7_07.txt",
+  "words": 87,
+  "paras": 3,
+  "title": "Names"
+ },
+ {
+  "level": "A2",
+  "book": "初级7",
+  "piece": 8,
+  "file": "text/A2/初级7_08.txt",
+  "words": 89,
+  "paras": 6,
+  "title": "Pumpkins for Sale"
+ },
+ {
+  "level": "A2",
+  "book": "初级7",
+  "piece": 9,
+  "file": "text/A2/初级7_09.txt",
+  "words": 77,
+  "paras": 4,
+  "title": "Learn to Wait"
+ },
+ {
+  "level": "A2",
+  "book": "初级7",
+  "piece": 10,
+  "file": "text/A2/初级7_10.txt",
+  "words": 79,
+  "paras": 4,
+  "title": "What ls It?"
+ },
+ {
+  "level": "A2",
+  "book": "初级7",
+  "piece": 11,
+  "file": "text/A2/初级7_11.txt",
+  "words": 129,
+  "paras": 7,
+  "title": "A Messy Room"
+ },
+ {
+  "level": "A2",
+  "book": "初级7",
+  "piece": 12,
+  "file": "text/A2/初级7_12.txt",
+  "words": 125,
+  "paras": 4,
+  "title": "Mom's Favourite Sweater"
+ },
+ {
+  "level": "A2",
+  "book": "初级7",
+  "piece": 13,
+  "file": "text/A2/初级7_13.txt",
+  "words": 77,
+  "paras": 6,
+  "title": "The Power of Ice"
+ },
+ {
+  "level": "A2",
+  "book": "初级7",
+  "piece": 14,
+  "file": "text/A2/初级7_14.txt",
+  "words": 182,
+  "paras": 8,
+  "title": "Dentist Visit"
+ },
+ {
+  "level": "A2",
+  "book": "初级7",
+  "piece": 15,
+  "file": "text/A2/初级7_15.txt",
+  "words": 77,
+  "paras": 5,
+  "title": "Sneeze"
+ },
+ {
+  "level": "A2",
+  "book": "初级8",
+  "piece": 1,
+  "file": "text/A2/初级8_01.txt",
+  "words": 83,
+  "paras": 3,
+  "title": "Zebra Stripes"
+ },
+ {
+  "level": "A2",
+  "book": "初级8",
+  "piece": 2,
+  "file": "text/A2/初级8_02.txt",
+  "words": 84,
+  "paras": 4,
+  "title": "Learning to Fish"
+ },
+ {
+  "level": "A2",
+  "book": "初级8",
+  "piece": 3,
+  "file": "text/A2/初级8_03.txt",
+  "words": 107,
+  "paras": 2,
+  "title": "Sun and Moon - based on a Philippine folk tale One day, the "
+ },
+ {
+  "level": "A2",
+  "book": "初级8",
+  "piece": 4,
+  "file": "text/A2/初级8_04.txt",
+  "words": 63,
+  "paras": 3,
+  "title": "Two Heads Are Better Than One"
+ },
+ {
+  "level": "A2",
+  "book": "初级8",
+  "piece": 5,
+  "file": "text/A2/初级8_05.txt",
+  "words": 79,
+  "paras": 6,
+  "title": "Trains Go Under the Water"
+ },
+ {
+  "level": "A2",
+  "book": "初级8",
+  "piece": 6,
+  "file": "text/A2/初级8_06.txt",
+  "words": 186,
+  "paras": 6,
+  "title": "The Boys and the Old Man - based on a Korean folk tale Two b"
+ },
+ {
+  "level": "A2",
+  "book": "初级8",
+  "piece": 7,
+  "file": "text/A2/初级8_07.txt",
+  "words": 95,
+  "paras": 5,
+  "title": "Water in Three Ways"
+ },
+ {
+  "level": "A2",
+  "book": "初级8",
+  "piece": 8,
+  "file": "text/A2/初级8_08.txt",
+  "words": 164,
+  "paras": 7,
+  "title": "Chinese Animal Years"
+ },
+ {
+  "level": "A2",
+  "book": "初级8",
+  "piece": 9,
+  "file": "text/A2/初级8_09.txt",
+  "words": 156,
+  "paras": 3,
+  "title": "Living Things"
+ },
+ {
+  "level": "A2",
+  "book": "初级8",
+  "piece": 10,
+  "file": "text/A2/初级8_10.txt",
+  "words": 151,
+  "paras": 3,
+  "title": "Our Friendly Sun Look up. Look at the sky. But do not look a"
+ },
+ {
+  "level": "A2",
+  "book": "初级8",
+  "piece": 11,
+  "file": "text/A2/初级8_11.txt",
+  "words": 187,
+  "paras": 5,
+  "title": "Cry Wolf - based on a European tale Have you ever heard of t"
+ },
+ {
+  "level": "A2",
+  "book": "初级8",
+  "piece": 12,
+  "file": "text/A2/初级8_12.txt",
+  "words": 148,
+  "paras": 5,
+  "title": "Surprise"
+ },
+ {
+  "level": "A2",
+  "book": "初级8",
+  "piece": 13,
+  "file": "text/A2/初级8_13.txt",
+  "words": 168,
+  "paras": 5,
+  "title": "What's the Difference?"
+ },
+ {
+  "level": "A2",
+  "book": "初级8",
+  "piece": 14,
+  "file": "text/A2/初级8_14.txt",
+  "words": 146,
+  "paras": 9,
+  "title": "Can You Solve This Riddle?"
+ },
+ {
+  "level": "A2",
+  "book": "初级8",
+  "piece": 15,
+  "file": "text/A2/初级8_15.txt",
+  "words": 163,
+  "paras": 7,
+  "title": "What Animal Is This?"
+ },
+ {
+  "level": "B1",
+  "book": "中级1",
+  "piece": 1,
+  "file": "text/B1/中级1_01.txt",
+  "words": 88,
+  "paras": 5,
+  "title": "Not Me!"
+ },
+ {
+  "level": "B1",
+  "book": "中级1",
+  "piece": 2,
+  "file": "text/B1/中级1_02.txt",
+  "words": 67,
+  "paras": 3,
+  "title": "Insect Names"
+ },
+ {
+  "level": "B1",
+  "book": "中级1",
+  "piece": 3,
+  "file": "text/B1/中级1_03.txt",
+  "words": 72,
+  "paras": 3,
+  "title": "eep, peep, yeep!"
+ },
+ {
+  "level": "B1",
+  "book": "中级1",
+  "piece": 4,
+  "file": "text/B1/中级1_04.txt",
+  "words": 75,
+  "paras": 5,
+  "title": "fhe Amazing Brain"
+ },
+ {
+  "level": "B1",
+  "book": "中级1",
+  "piece": 5,
+  "file": "text/B1/中级1_05.txt",
+  "words": 88,
+  "paras": 6,
+  "title": "Hot Air Balloon"
+ },
+ {
+  "level": "B1",
+  "book": "中级1",
+  "piece": 6,
+  "file": "text/B1/中级1_06.txt",
+  "words": 80,
+  "paras": 5,
+  "title": "The Colour of Food"
+ },
+ {
+  "level": "B1",
+  "book": "中级1",
+  "piece": 7,
+  "file": "text/B1/中级1_07.txt",
+  "words": 121,
+  "paras": 8,
+  "title": "What Colour Is That?"
+ },
+ {
+  "level": "B1",
+  "book": "中级1",
+  "piece": 8,
+  "file": "text/B1/中级1_08.txt",
+  "words": 143,
+  "paras": 8,
+  "title": "a house. \"There! It's done.\" I left my house in the corner o"
+ },
+ {
+  "level": "B1",
+  "book": "中级1",
+  "piece": 9,
+  "file": "text/B1/中级1_09.txt",
+  "words": 104,
+  "paras": 6,
+  "title": "Special Places"
+ },
+ {
+  "level": "B1",
+  "book": "中级1",
+  "piece": 10,
+  "file": "text/B1/中级1_10.txt",
+  "words": 138,
+  "paras": 7,
+  "title": "animals cry to protect their eyes. But humans are the only a"
+ },
+ {
+  "level": "B1",
+  "book": "中级1",
+  "piece": 11,
+  "file": "text/B1/中级1_11.txt",
+  "words": 160,
+  "paras": 7,
+  "title": "lungs work really hard. That's why you should take good care"
+ },
+ {
+  "level": "B1",
+  "book": "中级1",
+  "piece": 12,
+  "file": "text/B1/中级1_12.txt",
+  "words": 151,
+  "paras": 4,
+  "title": "Help the Whales"
+ },
+ {
+  "level": "B1",
+  "book": "中级1",
+  "piece": 13,
+  "file": "text/B1/中级1_13.txt",
+  "words": 130,
+  "paras": 7,
+  "title": "A huge flock of geese was flying right by"
+ },
+ {
+  "level": "B1",
+  "book": "中级1",
+  "piece": 14,
+  "file": "text/B1/中级1_14.txt",
+  "words": 174,
+  "paras": 6,
+  "title": "we lose about 100 hairs a day.\" says Mr. Howard The Barber S"
+ },
+ {
+  "level": "B1",
+  "book": "中级1",
+  "piece": 15,
+  "file": "text/B1/中级1_15.txt",
+  "words": 134,
+  "paras": 4,
+  "title": "A Star for My Birthday"
+ },
+ {
+  "level": "B1",
+  "book": "中级2",
+  "piece": 1,
+  "file": "text/B1/中级2_01.txt",
+  "words": 131,
+  "paras": 6,
+  "title": "thinking of all the fun she was going to have with her new b"
+ },
+ {
+  "level": "B1",
+  "book": "中级2",
+  "piece": 2,
+  "file": "text/B1/中级2_02.txt",
+  "words": 134,
+  "paras": 5,
+  "title": "A Big Cat"
+ },
+ {
+  "level": "B1",
+  "book": "中级2",
+  "piece": 3,
+  "file": "text/B1/中级2_03.txt",
+  "words": 125,
+  "paras": 4,
+  "title": "My grandma said, \"Don't worry. Good things come to those who"
+ },
+ {
+  "level": "B1",
+  "book": "中级2",
+  "piece": 4,
+  "file": "text/B1/中级2_04.txt",
+  "words": 155,
+  "paras": 6,
+  "title": "will remember you. If you keep busy like this all the time, "
+ },
+ {
+  "level": "B1",
+  "book": "中级2",
+  "piece": 5,
+  "file": "text/B1/中级2_05.txt",
+  "words": 144,
+  "paras": 4,
+  "title": "When the Earth Shakes"
+ },
+ {
+  "level": "B1",
+  "book": "中级2",
+  "piece": 6,
+  "file": "text/B1/中级2_06.txt",
+  "words": 158,
+  "paras": 6,
+  "title": "Too Much Talking really hear them?\" (based on a Chinese folk"
+ },
+ {
+  "level": "B1",
+  "book": "中级2",
+  "piece": 7,
+  "file": "text/B1/中级2_07.txt",
+  "words": 153,
+  "paras": 5,
+  "title": "Cars for Kids"
+ },
+ {
+  "level": "B1",
+  "book": "中级2",
+  "piece": 8,
+  "file": "text/B1/中级2_08.txt",
+  "words": 150,
+  "paras": 6,
+  "title": "talks to the whole school and everyone listens. The Mouse an"
+ },
+ {
+  "level": "B1",
+  "book": "中级2",
+  "piece": 9,
+  "file": "text/B1/中级2_09.txt",
+  "words": 119,
+  "paras": 7,
+  "title": "very famous all around the world. But Bao Xishun is very shy"
+ },
+ {
+  "level": "B1",
+  "book": "中级2",
+  "piece": 10,
+  "file": "text/B1/中级2_10.txt",
+  "words": 132,
+  "paras": 7,
+  "title": "with the school's tallest and shortest boys on the same team"
+ },
+ {
+  "level": "B1",
+  "book": "中级2",
+  "piece": 11,
+  "file": "text/B1/中级2_11.txt",
+  "words": 164,
+  "paras": 7,
+  "title": "rid of these pretty yellow flowers."
+ },
+ {
+  "level": "B1",
+  "book": "中级2",
+  "piece": 12,
+  "file": "text/B1/中级2_12.txt",
+  "words": 136,
+  "paras": 8,
+  "title": "No More Pork"
+ },
+ {
+  "level": "B1",
+  "book": "中级2",
+  "piece": 13,
+  "file": "text/B1/中级2_13.txt",
+  "words": 168,
+  "paras": 4,
+  "title": "Why Is the Sky Blue?"
+ },
+ {
+  "level": "B1",
+  "book": "中级2",
+  "piece": 14,
+  "file": "text/B1/中级2_14.txt",
+  "words": 126,
+  "paras": 6,
+  "title": "Head in the Sand"
+ },
+ {
+  "level": "B1",
+  "book": "中级2",
+  "piece": 15,
+  "file": "text/B1/中级2_15.txt",
+  "words": 134,
+  "paras": 5,
+  "title": "At the Fair"
+ },
+ {
+  "level": "B1",
+  "book": "中级3",
+  "piece": 1,
+  "file": "text/B1/中级3_01.txt",
+  "words": 77,
+  "paras": 5,
+  "title": "Family Names"
+ },
+ {
+  "level": "B1",
+  "book": "中级3",
+  "piece": 2,
+  "file": "text/B1/中级3_02.txt",
+  "words": 72,
+  "paras": 2,
+  "title": "A Proverb"
+ },
+ {
+  "level": "B1",
+  "book": "中级3",
+  "piece": 3,
+  "file": "text/B1/中级3_03.txt",
+  "words": 151,
+  "paras": 8,
+  "title": "Canada Day"
+ },
+ {
+  "level": "B1",
+  "book": "中级3",
+  "piece": 4,
+  "file": "text/B1/中级3_04.txt",
+  "words": 174,
+  "paras": 7,
+  "title": "tiger was looking around. The other animals in the forest - "
+ },
+ {
+  "level": "B1",
+  "book": "中级3",
+  "piece": 5,
+  "file": "text/B1/中级3_05.txt",
+  "words": 88,
+  "paras": 5,
+  "title": "More About Dinosaurs"
+ },
+ {
+  "level": "B1",
+  "book": "中级3",
+  "piece": 6,
+  "file": "text/B1/中级3_06.txt",
+  "words": 145,
+  "paras": 5,
+  "title": "fighting, the donkey walks away. And the shadow goes away to"
+ },
+ {
+  "level": "B1",
+  "book": "中级3",
+  "piece": 7,
+  "file": "text/B1/中级3_07.txt",
+  "words": 80,
+  "paras": 4,
+  "title": "Practice Makes Perfect"
+ },
+ {
+  "level": "B1",
+  "book": "中级3",
+  "piece": 8,
+  "file": "text/B1/中级3_08.txt",
+  "words": 109,
+  "paras": 4,
+  "title": "Jow Ican see verything in The Video Camera ront of my house,"
+ },
+ {
+  "level": "B1",
+  "book": "中级3",
+  "piece": 9,
+  "file": "text/B1/中级3_09.txt",
+  "words": 99,
+  "paras": 6,
+  "title": "A New Year's Promise"
+ },
+ {
+  "level": "B1",
+  "book": "中级3",
+  "piece": 10,
+  "file": "text/B1/中级3_10.txt",
+  "words": 147,
+  "paras": 1,
+  "title": "I went to the first lesson. It was very difficult. My finger"
+ },
+ {
+  "level": "B1",
+  "book": "中级3",
+  "piece": 11,
+  "file": "text/B1/中级3_11.txt",
+  "words": 150,
+  "paras": 7,
+  "title": "What to Be"
+ },
+ {
+  "level": "B1",
+  "book": "中级3",
+  "piece": 12,
+  "file": "text/B1/中级3_12.txt",
+  "words": 164,
+  "paras": 6,
+  "title": "half billion times. You know what else is really amazing? Yo"
+ },
+ {
+  "level": "B1",
+  "book": "中级3",
+  "piece": 13,
+  "file": "text/B1/中级3_13.txt",
+  "words": 165,
+  "paras": 4,
+  "title": "the sides of their heads. Do Fish Breathe Water? passes thro"
+ },
+ {
+  "level": "B1",
+  "book": "中级3",
+  "piece": 14,
+  "file": "text/B1/中级3_14.txt",
+  "words": 121,
+  "paras": 4,
+  "title": "in Sweden visit farms. On one Earth Day, people in Japan mad"
+ },
+ {
+  "level": "B1",
+  "book": "中级3",
+  "piece": 15,
+  "file": "text/B1/中级3_15.txt",
+  "words": 147,
+  "paras": 6,
+  "title": "Tomorrow"
+ },
+ {
+  "level": "B1",
+  "book": "中级4",
+  "piece": 1,
+  "file": "text/B1/中级4_01.txt",
+  "words": 167,
+  "paras": 4,
+  "title": "\"Without wind, the hot areas would be too hot, and the cold "
+ },
+ {
+  "level": "B1",
+  "book": "中级4",
+  "piece": 2,
+  "file": "text/B1/中级4_02.txt",
+  "words": 150,
+  "paras": 5,
+  "title": "Old Dog, New Tricks"
+ },
+ {
+  "level": "B1",
+  "book": "中级4",
+  "piece": 3,
+  "file": "text/B1/中级4_03.txt",
+  "words": 159,
+  "paras": 7,
+  "title": "the same. Each snowflake has its own shape. And every snowfl"
+ },
+ {
+  "level": "B1",
+  "book": "中级4",
+  "piece": 4,
+  "file": "text/B1/中级4_04.txt",
+  "words": 167,
+  "paras": 7,
+  "title": "grams. It's a muscle and it does a lot of work for you."
+ },
+ {
+  "level": "B1",
+  "book": "中级4",
+  "piece": 5,
+  "file": "text/B1/中级4_05.txt",
+  "words": 153,
+  "paras": 7,
+  "title": "important thing is to get out of the house."
+ },
+ {
+  "level": "B1",
+  "book": "中级4",
+  "piece": 6,
+  "file": "text/B1/中级4_06.txt",
+  "words": 144,
+  "paras": 6,
+  "title": "people of Venice build dams and barriers to keep the water a"
+ },
+ {
+  "level": "B1",
+  "book": "中级4",
+  "piece": 7,
+  "file": "text/B1/中级4_07.txt",
+  "words": 169,
+  "paras": 6,
+  "title": "teaspoons. and it was floating in the water."
+ },
+ {
+  "level": "B1",
+  "book": "中级4",
+  "piece": 8,
+  "file": "text/B1/中级4_08.txt",
+  "words": 132,
+  "paras": 4,
+  "title": "Recycling Cans"
+ },
+ {
+  "level": "B1",
+  "book": "中级4",
+  "piece": 9,
+  "file": "text/B1/中级4_09.txt",
+  "words": 159,
+  "paras": 5,
+  "title": "sheep, he found that another sheep was missing. The wolf had"
+ },
+ {
+  "level": "B1",
+  "book": "中级4",
+  "piece": 10,
+  "file": "text/B1/中级4_10.txt",
+  "words": 189,
+  "paras": 2,
+  "title": "\"Why does it pop?\" asks Mr. Kelly. No one knows the answer. "
+ },
+ {
+  "level": "B1",
+  "book": "中级4",
+  "piece": 11,
+  "file": "text/B1/中级4_11.txt",
+  "words": 153,
+  "paras": 2,
+  "title": "Summer Vacation mother that summer will be boring, she smile"
+ },
+ {
+  "level": "B1",
+  "book": "中级4",
+  "piece": 12,
+  "file": "text/B1/中级4_12.txt",
+  "words": 168,
+  "paras": 4,
+  "title": "What's That in the Sky?"
+ },
+ {
+  "level": "B1",
+  "book": "中级4",
+  "piece": 13,
+  "file": "text/B1/中级4_13.txt",
+  "words": 159,
+  "paras": 8,
+  "title": "Hold That Thought"
+ },
+ {
+  "level": "B1",
+  "book": "中级4",
+  "piece": 14,
+  "file": "text/B1/中级4_14.txt",
+  "words": 119,
+  "paras": 7,
+  "title": "bigger."
+ },
+ {
+  "level": "B1",
+  "book": "中级4",
+  "piece": 15,
+  "file": "text/B1/中级4_15.txt",
+  "words": 150,
+  "paras": 9,
+  "title": "seem right, ll tell you or Mom.\""
+ },
+ {
+  "level": "B1",
+  "book": "中级5",
+  "piece": 1,
+  "file": "text/B1/中级5_01.txt",
+  "words": 153,
+  "paras": 5,
+  "title": "Kenny's Adventure"
+ },
+ {
+  "level": "B1",
+  "book": "中级5",
+  "piece": 2,
+  "file": "text/B1/中级5_02.txt",
+  "words": 144,
+  "paras": 4,
+  "title": "Chicken Eggs"
+ },
+ {
+  "level": "B1",
+  "book": "中级5",
+  "piece": 3,
+  "file": "text/B1/中级5_03.txt",
+  "words": 155,
+  "paras": 4,
+  "title": "The pumpkins made big leaves as they grew. The leaves kept t"
+ },
+ {
+  "level": "B1",
+  "book": "中级5",
+  "piece": 4,
+  "file": "text/B1/中级5_04.txt",
+  "words": 173,
+  "paras": 5,
+  "title": "the heat from the sun,\" he explains. \"The sun heats up the g"
+ },
+ {
+  "level": "B1",
+  "book": "中级5",
+  "piece": 5,
+  "file": "text/B1/中级5_05.txt",
+  "words": 154,
+  "paras": 3,
+  "title": "special clothing for protection. He has a special hat with a"
+ },
+ {
+  "level": "B1",
+  "book": "中级5",
+  "piece": 6,
+  "file": "text/B1/中级5_06.txt",
+  "words": 162,
+  "paras": 6,
+  "title": "Food for Thought"
+ },
+ {
+  "level": "B1",
+  "book": "中级5",
+  "piece": 7,
+  "file": "text/B1/中级5_07.txt",
+  "words": 154,
+  "paras": 5,
+  "title": "own season. Otherwise, I would have nothing to harvest. Ever"
+ },
+ {
+  "level": "B1",
+  "book": "中级5",
+  "piece": 8,
+  "file": "text/B1/中级5_08.txt",
+  "words": 168,
+  "paras": 4,
+  "title": "Save Water"
+ },
+ {
+  "level": "B1",
+  "book": "中级5",
+  "piece": 9,
+  "file": "text/B1/中级5_09.txt",
+  "words": 143,
+  "paras": 5,
+  "title": "paper and read them clearly and loudly, just like a real jud"
+ },
+ {
+  "level": "B1",
+  "book": "中级5",
+  "piece": 10,
+  "file": "text/B1/中级5_10.txt",
+  "words": 151,
+  "paras": 4,
+  "title": "Where Does Our Food Go?"
+ },
+ {
+  "level": "B1",
+  "book": "中级5",
+  "piece": 11,
+  "file": "text/B1/中级5_11.txt",
+  "words": 152,
+  "paras": 6,
+  "title": "No Couch Potatoes"
+ },
+ {
+  "level": "B1",
+  "book": "中级5",
+  "piece": 12,
+  "file": "text/B1/中级5_12.txt",
+  "words": 156,
+  "paras": 7,
+  "title": "heard of people getting worms for their birthday. But you're"
+ },
+ {
+  "level": "B1",
+  "book": "中级5",
+  "piece": 13,
+  "file": "text/B1/中级5_13.txt",
+  "words": 174,
+  "paras": 7,
+  "title": "Sweet Watermelons It's another hot day. Anna feels that wate"
+ },
+ {
+  "level": "B1",
+  "book": "中级5",
+  "piece": 14,
+  "file": "text/B1/中级5_14.txt",
+  "words": 163,
+  "paras": 4,
+  "title": "stories while we waited for our parents."
+ },
+ {
+  "level": "B1",
+  "book": "中级5",
+  "piece": 15,
+  "file": "text/B1/中级5_15.txt",
+  "words": 154,
+  "paras": 4,
+  "title": "millions of people from one place to another,"
+ },
+ {
+  "level": "B1",
+  "book": "中级6",
+  "piece": 1,
+  "file": "text/B1/中级6_01.txt",
+  "words": 166,
+  "paras": 4,
+  "title": "Using Your Words"
+ },
+ {
+  "level": "B1",
+  "book": "中级6",
+  "piece": 2,
+  "file": "text/B1/中级6_02.txt",
+  "words": 121,
+  "paras": 6,
+  "title": "water. Lightning can be very dangerous. When you see lightni"
+ },
+ {
+  "level": "B1",
+  "book": "中级6",
+  "piece": 3,
+  "file": "text/B1/中级6_03.txt",
+  "words": 140,
+  "paras": 4,
+  "title": "home a cheque for $15,000. His friends aren't laughing at hi"
+ },
+ {
+  "level": "B1",
+  "book": "中级6",
+  "piece": 4,
+  "file": "text/B1/中级6_04.txt",
+  "words": 174,
+  "paras": 7,
+  "title": "How Do Birds Eat?"
+ },
+ {
+  "level": "B1",
+  "book": "中级6",
+  "piece": 5,
+  "file": "text/B1/中级6_05.txt",
+  "words": 117,
+  "paras": 4,
+  "title": "Guess the Holiday!"
+ },
+ {
+  "level": "B1",
+  "book": "中级6",
+  "piece": 6,
+  "file": "text/B1/中级6_06.txt",
+  "words": 144,
+  "paras": 6,
+  "title": "How Fast Are You?"
+ },
+ {
+  "level": "B1",
+  "book": "中级6",
+  "piece": 7,
+  "file": "text/B1/中级6_07.txt",
+  "words": 123,
+  "paras": 6,
+  "title": "Pisa. It was an amazing thing. But, as soon as they were don"
+ },
+ {
+  "level": "B1",
+  "book": "中级6",
+  "piece": 8,
+  "file": "text/B1/中级6_08.txt",
+  "words": 177,
+  "paras": 6,
+  "title": "Don't Forget!"
+ },
+ {
+  "level": "B1",
+  "book": "中级6",
+  "piece": 9,
+  "file": "text/B1/中级6_09.txt",
+  "words": 140,
+  "paras": 5,
+  "title": "The Long Wire"
+ },
+ {
+  "level": "B1",
+  "book": "中级6",
+  "piece": 10,
+  "file": "text/B1/中级6_10.txt",
+  "words": 136,
+  "paras": 3,
+  "title": "Small, Big and Tall"
+ },
+ {
+  "level": "B1",
+  "book": "中级6",
+  "piece": 11,
+  "file": "text/B1/中级6_11.txt",
+  "words": 171,
+  "paras": 2,
+  "title": "Ant watched the man work. to do? l have to help Dove.\" Quick"
+ },
+ {
+  "level": "B1",
+  "book": "中级6",
+  "piece": 12,
+  "file": "text/B1/中级6_12.txt",
+  "words": 143,
+  "paras": 1,
+  "title": "Is Bat a Bird? (l (adapted from an Indian tale) Long ago, th"
+ },
+ {
+  "level": "B1",
+  "book": "中级6",
+  "piece": 13,
+  "file": "text/B1/中级6_13.txt",
+  "words": 173,
+  "paras": 4,
+  "title": "leaders decided to make peace. But they wondered what to do "
+ },
+ {
+  "level": "B1",
+  "book": "中级6",
+  "piece": 14,
+  "file": "text/B1/中级6_14.txt",
+  "words": 184,
+  "paras": 3,
+  "title": "Waiting for Hares (adapted from a Chinese fable) There once "
+ },
+ {
+  "level": "B1",
+  "book": "中级6",
+  "piece": 15,
+  "file": "text/B1/中级6_15.txt",
+  "words": 185,
+  "paras": 3,
+  "title": "He called out, Father. That way, it will be easier to climb."
+ },
+ {
+  "level": "B1",
+  "book": "中级7",
+  "piece": 1,
+  "file": "text/B1/中级7_01.txt",
+  "words": 125,
+  "paras": 5,
+  "title": "and carry them out of forests. There are even reports of ele"
+ },
+ {
+  "level": "B1",
+  "book": "中级7",
+  "piece": 2,
+  "file": "text/B1/中级7_02.txt",
+  "words": 145,
+  "paras": 4,
+  "title": "Gandhi spoke his native language. He also learned English. B"
+ },
+ {
+  "level": "B1",
+  "book": "中级7",
+  "piece": 3,
+  "file": "text/B1/中级7_03.txt",
+  "words": 134,
+  "paras": 6,
+  "title": "through the woods, playing his special flute."
+ },
+ {
+  "level": "B1",
+  "book": "中级7",
+  "piece": 4,
+  "file": "text/B1/中级7_04.txt",
+  "words": 139,
+  "paras": 5,
+  "title": "A Day to Say \" Like You!\""
+ },
+ {
+  "level": "B1",
+  "book": "中级7",
+  "piece": 5,
+  "file": "text/B1/中级7_05.txt",
+  "words": 178,
+  "paras": 6,
+  "title": "the side, and finally the teeth at the back of our mouth."
+ },
+ {
+  "level": "B1",
+  "book": "中级7",
+  "piece": 6,
+  "file": "text/B1/中级7_06.txt",
+  "words": 163,
+  "paras": 4,
+  "title": "before leaves. The discovery made us all very excited! Mom a"
+ },
+ {
+  "level": "B1",
+  "book": "中级7",
+  "piece": 7,
+  "file": "text/B1/中级7_07.txt",
+  "words": 148,
+  "paras": 1,
+  "title": "tears wash away any dirt that gets past our eyelashes. Want "
+ },
+ {
+  "level": "B1",
+  "book": "中级7",
+  "piece": 8,
+  "file": "text/B1/中级7_08.txt",
+  "words": 194,
+  "paras": 5,
+  "title": "and the flowers of many colours."
+ },
+ {
+  "level": "B1",
+  "book": "中级7",
+  "piece": 9,
+  "file": "text/B1/中级7_09.txt",
+  "words": 159,
+  "paras": 4,
+  "title": "The waves were racing one after another towards the shore. A"
+ },
+ {
+  "level": "B1",
+  "book": "中级7",
+  "piece": 10,
+  "file": "text/B1/中级7_10.txt",
+  "words": 177,
+  "paras": 2,
+  "title": "Which Hand Do You Use?"
+ },
+ {
+  "level": "B1",
+  "book": "中级7",
+  "piece": 11,
+  "file": "text/B1/中级7_11.txt",
+  "words": 167,
+  "paras": 2,
+  "title": "\"That was strange,\" he thought. He jumped into the air again"
+ },
+ {
+  "level": "B1",
+  "book": "中级7",
+  "piece": 12,
+  "file": "text/B1/中级7_12.txt",
+  "words": 158,
+  "paras": 3,
+  "title": "north and south melts, many cities will be flooded. Millions"
+ },
+ {
+  "level": "B1",
+  "book": "中级7",
+  "piece": 13,
+  "file": "text/B1/中级7_13.txt",
+  "words": 196,
+  "paras": 2,
+  "title": "A couple of frogs dove down and brought up some soil. The re"
+ },
+ {
+  "level": "B1",
+  "book": "中级7",
+  "piece": 14,
+  "file": "text/B1/中级7_14.txt",
+  "words": 157,
+  "paras": 2,
+  "title": "A huge loong thrust his head through Lord Ye's window, his t"
+ },
+ {
+  "level": "B1",
+  "book": "中级7",
+  "piece": 15,
+  "file": "text/B1/中级7_15.txt",
+  "words": 154,
+  "paras": 2,
+  "title": "\" learned something beautiful,\" the young man replied. \"The "
+ },
+ {
+  "level": "B1",
+  "book": "中级8",
+  "piece": 1,
+  "file": "text/B1/中级8_01.txt",
+  "words": 179,
+  "paras": 5,
+  "title": "kitchen helpers ran to get things in place. The chefs worked"
+ },
+ {
+  "level": "B1",
+  "book": "中级8",
+  "piece": 2,
+  "file": "text/B1/中级8_02.txt",
+  "words": 158,
+  "paras": 7,
+  "title": "that there is a word in English with 45 letters in it. Can y"
+ },
+ {
+  "level": "B1",
+  "book": "中级8",
+  "piece": 3,
+  "file": "text/B1/中级8_03.txt",
+  "words": 166,
+  "paras": 6,
+  "title": "in your ears? This is caused by the weight of the water. Ima"
+ },
+ {
+  "level": "B1",
+  "book": "中级8",
+  "piece": 4,
+  "file": "text/B1/中级8_04.txt",
+  "words": 177,
+  "paras": 5,
+  "title": "back where I can't reach, 1 will let you sit on me and eat a"
+ },
+ {
+  "level": "B1",
+  "book": "中级8",
+  "piece": 5,
+  "file": "text/B1/中级8_05.txt",
+  "words": 160,
+  "paras": 1,
+  "title": "At noon, Lillian looked at the sunflowers again. Amazing: Th"
+ },
+ {
+  "level": "B1",
+  "book": "中级8",
+  "piece": 6,
+  "file": "text/B1/中级8_06.txt",
+  "words": 146,
+  "paras": 4,
+  "title": "giraffes and elephants. This was the first time I observed t"
+ },
+ {
+  "level": "B1",
+  "book": "中级8",
+  "piece": 7,
+  "file": "text/B1/中级8_07.txt",
+  "words": 169,
+  "paras": 4,
+  "title": "enough electricity in your brain to turn on a small Brain Po"
+ },
+ {
+  "level": "B1",
+  "book": "中级8",
+  "piece": 8,
+  "file": "text/B1/中级8_08.txt",
+  "words": 156,
+  "paras": 5,
+  "title": "A smile slowly appeared on his face and they both laughed. H"
+ },
+ {
+  "level": "B1",
+  "book": "中级8",
+  "piece": 9,
+  "file": "text/B1/中级8_09.txt",
+  "words": 146,
+  "paras": 7,
+  "title": "Toothbrushes"
+ },
+ {
+  "level": "B1",
+  "book": "中级8",
+  "piece": 10,
+  "file": "text/B1/中级8_10.txt",
+  "words": 166,
+  "paras": 5,
+  "title": "shouted. Because of his speed and bravery, he was able to wa"
+ },
+ {
+  "level": "B1",
+  "book": "中级8",
+  "piece": 11,
+  "file": "text/B1/中级8_11.txt",
+  "words": 174,
+  "paras": 4,
+  "title": "was seventeen, he knew he wanted to be a lawyer. Every Hones"
+ },
+ {
+  "level": "B1",
+  "book": "中级8",
+  "piece": 12,
+  "file": "text/B1/中级8_12.txt",
+  "words": 146,
+  "paras": 7,
+  "title": "Now, China can feed many people with this special rice."
+ },
+ {
+  "level": "B1",
+  "book": "中级8",
+  "piece": 13,
+  "file": "text/B1/中级8_13.txt",
+  "words": 153,
+  "paras": 5,
+  "title": "Dridges. Try saying things like, \"Hey, that was a good job!\""
+ },
+ {
+  "level": "B1",
+  "book": "中级8",
+  "piece": 14,
+  "file": "text/B1/中级8_14.txt",
+  "words": 138,
+  "paras": 3,
+  "title": "Volcanoes active and others are asleep. There are thousands "
+ },
+ {
+  "level": "B1",
+  "book": "中级8",
+  "piece": 15,
+  "file": "text/B1/中级8_15.txt",
+  "words": 163,
+  "paras": 6,
+  "title": "people. Finally, she could stop walking long hours in the Wh"
+ },
+ {
+  "level": "B2",
+  "book": "高级1",
+  "piece": 1,
+  "file": "text/B2/高级1_01.txt",
+  "words": 162,
+  "paras": 3,
+  "title": "Lemonade Stand"
+ },
+ {
+  "level": "B2",
+  "book": "高级1",
+  "piece": 2,
+  "file": "text/B2/高级1_02.txt",
+  "words": 168,
+  "paras": 3,
+  "title": "A Special Treat"
+ },
+ {
+  "level": "B2",
+  "book": "高级1",
+  "piece": 3,
+  "file": "text/B2/高级1_03.txt",
+  "words": 166,
+  "paras": 3,
+  "title": "A Dumpling Party"
+ },
+ {
+  "level": "B2",
+  "book": "高级1",
+  "piece": 4,
+  "file": "text/B2/高级1_04.txt",
+  "words": 176,
+  "paras": 3,
+  "title": "Soaring Through the Sky"
+ },
+ {
+  "level": "B2",
+  "book": "高级1",
+  "piece": 5,
+  "file": "text/B2/高级1_05.txt",
+  "words": 159,
+  "paras": 3,
+  "title": "Apple Time"
+ },
+ {
+  "level": "B2",
+  "book": "高级1",
+  "piece": 6,
+  "file": "text/B2/高级1_06.txt",
+  "words": 176,
+  "paras": 2,
+  "title": "The Greedy Dog (based on a Buropean fable) There once was a "
+ },
+ {
+  "level": "B2",
+  "book": "高级1",
+  "piece": 7,
+  "file": "text/B2/高级1_07.txt",
+  "words": 188,
+  "paras": 3,
+  "title": "Busy As.."
+ },
+ {
+  "level": "B2",
+  "book": "高级1",
+  "piece": 8,
+  "file": "text/B2/高级1_08.txt",
+  "words": 162,
+  "paras": 3,
+  "title": "27 Needles"
+ },
+ {
+  "level": "B2",
+  "book": "高级1",
+  "piece": 9,
+  "file": "text/B2/高级1_09.txt",
+  "words": 183,
+  "paras": 3,
+  "title": "Monster Dad"
+ },
+ {
+  "level": "B2",
+  "book": "高级1",
+  "piece": 10,
+  "file": "text/B2/高级1_10.txt",
+  "words": 188,
+  "paras": 3,
+  "title": "When Teeth Become Weak"
+ },
+ {
+  "level": "B2",
+  "book": "高级1",
+  "piece": 11,
+  "file": "text/B2/高级1_11.txt",
+  "words": 149,
+  "paras": 3,
+  "title": "Red Wolves"
+ },
+ {
+  "level": "B2",
+  "book": "高级1",
+  "piece": 12,
+  "file": "text/B2/高级1_12.txt",
+  "words": 166,
+  "paras": 3,
+  "title": "The Race"
+ },
+ {
+  "level": "B2",
+  "book": "高级1",
+  "piece": 13,
+  "file": "text/B2/高级1_13.txt",
+  "words": 156,
+  "paras": 3,
+  "title": "Dark or Light - It's Amazing"
+ },
+ {
+  "level": "B2",
+  "book": "高级1",
+  "piece": 14,
+  "file": "text/B2/高级1_14.txt",
+  "words": 185,
+  "paras": 2,
+  "title": "' Turtle and Mr. Leopard (based on an African tale) Long ago"
+ },
+ {
+  "level": "B2",
+  "book": "高级1",
+  "piece": 15,
+  "file": "text/B2/高级1_15.txt",
+  "words": 193,
+  "paras": 3,
+  "title": "Plant a Seed"
+ },
+ {
+  "level": "B2",
+  "book": "高级3",
+  "piece": 1,
+  "file": "text/B2/高级3_01.txt",
+  "words": 177,
+  "paras": 3,
+  "title": "Zebras"
+ },
+ {
+  "level": "B2",
+  "book": "高级3",
+  "piece": 2,
+  "file": "text/B2/高级3_02.txt",
+  "words": 181,
+  "paras": 3,
+  "title": "Our New Year's Show"
+ },
+ {
+  "level": "B2",
+  "book": "高级3",
+  "piece": 3,
+  "file": "text/B2/高级3_03.txt",
+  "words": 153,
+  "paras": 3,
+  "title": "The Mixing Bowl"
+ },
+ {
+  "level": "B2",
+  "book": "高级3",
+  "piece": 4,
+  "file": "text/B2/高级3_04.txt",
+  "words": 190,
+  "paras": 3,
+  "title": "The Little Things"
+ },
+ {
+  "level": "B2",
+  "book": "高级3",
+  "piece": 5,
+  "file": "text/B2/高级3_05.txt",
+  "words": 168,
+  "paras": 3,
+  "title": "Nature's Way"
+ },
+ {
+  "level": "B2",
+  "book": "高级3",
+  "piece": 6,
+  "file": "text/B2/高级3_06.txt",
+  "words": 185,
+  "paras": 3,
+  "title": "Earthquakes"
+ },
+ {
+  "level": "B2",
+  "book": "高级3",
+  "piece": 7,
+  "file": "text/B2/高级3_07.txt",
+  "words": 180,
+  "paras": 3,
+  "title": "Henry Ford"
+ },
+ {
+  "level": "B2",
+  "book": "高级3",
+  "piece": 8,
+  "file": "text/B2/高级3_08.txt",
+  "words": 207,
+  "paras": 3,
+  "title": "Desert Fox"
+ },
+ {
+  "level": "B2",
+  "book": "高级3",
+  "piece": 9,
+  "file": "text/B2/高级3_09.txt",
+  "words": 210,
+  "paras": 3,
+  "title": "First Man in Space"
+ },
+ {
+  "level": "B2",
+  "book": "高级3",
+  "piece": 10,
+  "file": "text/B2/高级3_10.txt",
+  "words": 235,
+  "paras": 3,
+  "title": "Puzzling About the Platypus"
+ },
+ {
+  "level": "B2",
+  "book": "高级3",
+  "piece": 11,
+  "file": "text/B2/高级3_11.txt",
+  "words": 271,
+  "paras": 3,
+  "title": "Look at a Leaf"
+ },
+ {
+  "level": "B2",
+  "book": "高级3",
+  "piece": 12,
+  "file": "text/B2/高级3_12.txt",
+  "words": 251,
+  "paras": 4,
+  "title": "Cars"
+ },
+ {
+  "level": "B2",
+  "book": "高级3",
+  "piece": 13,
+  "file": "text/B2/高级3_13.txt",
+  "words": 293,
+  "paras": 5,
+  "title": "Ollie's Echo"
+ },
+ {
+  "level": "B2",
+  "book": "高级3",
+  "piece": 14,
+  "file": "text/B2/高级3_14.txt",
+  "words": 294,
+  "paras": 3,
+  "title": "My First Day as a Teacher"
+ },
+ {
+  "level": "B2",
+  "book": "高级3",
+  "piece": 15,
+  "file": "text/B2/高级3_15.txt",
+  "words": 271,
+  "paras": 3,
+  "title": "Moon in the Day"
+ },
+ {
+  "level": "B2",
+  "book": "高级4",
+  "piece": 1,
+  "file": "text/B2/高级4_01.txt",
+  "words": 299,
+  "paras": 3,
+  "title": "Paper Planes"
+ },
+ {
+  "level": "B2",
+  "book": "高级4",
+  "piece": 2,
+  "file": "text/B2/高级4_02.txt",
+  "words": 281,
+  "paras": 3,
+  "title": "Faster Than the Internet!"
+ },
+ {
+  "level": "B2",
+  "book": "高级4",
+  "piece": 3,
+  "file": "text/B2/高级4_03.txt",
+  "words": 274,
+  "paras": 3,
+  "title": "Tooth Fairy"
+ },
+ {
+  "level": "B2",
+  "book": "高级4",
+  "piece": 4,
+  "file": "text/B2/高级4_04.txt",
+  "words": 264,
+  "paras": 3,
+  "title": "It's All in the Family"
+ },
+ {
+  "level": "B2",
+  "book": "高级4",
+  "piece": 5,
+  "file": "text/B2/高级4_05.txt",
+  "words": 288,
+  "paras": 4,
+  "title": "Treasure Hunt"
+ },
+ {
+  "level": "B2",
+  "book": "高级4",
+  "piece": 6,
+  "file": "text/B2/高级4_06.txt",
+  "words": 280,
+  "paras": 3,
+  "title": "When the Fire Happened"
+ },
+ {
+  "level": "B2",
+  "book": "高级4",
+  "piece": 7,
+  "file": "text/B2/高级4_07.txt",
+  "words": 272,
+  "paras": 5,
+  "title": "Why We Cry"
+ },
+ {
+  "level": "B2",
+  "book": "高级4",
+  "piece": 8,
+  "file": "text/B2/高级4_08.txt",
+  "words": 270,
+  "paras": 5,
+  "title": "The Science Fair"
+ },
+ {
+  "level": "B2",
+  "book": "高级4",
+  "piece": 9,
+  "file": "text/B2/高级4_09.txt",
+  "words": 127,
+  "paras": 3,
+  "title": "fair n.展览会 pin v.(用大头钉等) build up 加大;加强:冒出了红色的气泡! keen ad.渴望"
+ },
+ {
+  "level": "B2",
+  "book": "高级4",
+  "piece": 10,
+  "file": "text/B2/高级4_10.txt",
+  "words": 132,
+  "paras": 3,
+  "title": "generation n.一代人 seed n. 种丁 own v. 拥有 thousands of 成千上万的 cut"
+ },
+ {
+  "level": "B2",
+  "book": "高级4",
+  "piece": 11,
+  "file": "text/B2/高级4_11.txt",
+  "words": 89,
+  "paras": 3,
+  "title": "virus n. 病毒 bacteria n. 细闲 alive adj. 活着的 intestinen.肠 copy "
+ },
+ {
+  "level": "B2",
+  "book": "高级4",
+  "piece": 12,
+  "file": "text/B2/高级4_12.txt",
+  "words": 156,
+  "paras": 4,
+  "title": "figure out 想出 separate v.(使)分开 nutritious adj. 有营养的 give.. a"
+ },
+ {
+  "level": "B2",
+  "book": "高级4",
+  "piece": 13,
+  "file": "text/B2/高级4_13.txt",
+  "words": 159,
+  "paras": 4,
+  "title": "thunderstorm n. 省雨 spot n. 地点 flash n. 闪光 wire n. 电线 electri"
+ },
+ {
+  "level": "B2",
+  "book": "高级4",
+  "piece": 14,
+  "file": "text/B2/高级4_14.txt",
+  "words": 131,
+  "paras": 3,
+  "title": "wish v.祝福 ungrateful adj. 忘恩负义的 continue v. 继续 do afavour 帮忙"
+ },
+ {
+  "level": "B2",
+  "book": "高级4",
+  "piece": 15,
+  "file": "text/B2/高级4_15.txt",
+  "words": 130,
+  "paras": 9,
+  "title": "allergic adj. 过敏的 scratch v. 抓,税 pet n.宠物v.抚摸 brand n. 品牌 so"
+ },
+ {
+  "level": "B2",
+  "book": "高级5",
+  "piece": 1,
+  "file": "text/B2/高级5_01.txt",
+  "words": 246,
+  "paras": 3,
+  "title": "Master of Disguise"
+ },
+ {
+  "level": "B2",
+  "book": "高级5",
+  "piece": 2,
+  "file": "text/B2/高级5_02.txt",
+  "words": 258,
+  "paras": 3,
+  "title": "Stick Together for Strength (adapted from Aesop's fables) A "
+ },
+ {
+  "level": "B2",
+  "book": "高级5",
+  "piece": 3,
+  "file": "text/B2/高级5_03.txt",
+  "words": 256,
+  "paras": 3,
+  "title": "A Dangerous Wind"
+ },
+ {
+  "level": "B2",
+  "book": "高级5",
+  "piece": 4,
+  "file": "text/B2/高级5_04.txt",
+  "words": 263,
+  "paras": 5,
+  "title": "Can You Hear Me?"
+ },
+ {
+  "level": "B2",
+  "book": "高级5",
+  "piece": 5,
+  "file": "text/B2/高级5_05.txt",
+  "words": 290,
+  "paras": 3,
+  "title": "Why Do Cats Land on Their Feet?"
+ },
+ {
+  "level": "B2",
+  "book": "高级5",
+  "piece": 6,
+  "file": "text/B2/高级5_06.txt",
+  "words": 244,
+  "paras": 3,
+  "title": "Athletes of the World"
+ },
+ {
+  "level": "B2",
+  "book": "高级5",
+  "piece": 7,
+  "file": "text/B2/高级5_07.txt",
+  "words": 279,
+  "paras": 3,
+  "title": "The Beating Heart"
+ },
+ {
+  "level": "B2",
+  "book": "高级5",
+  "piece": 8,
+  "file": "text/B2/高级5_08.txt",
+  "words": 291,
+  "paras": 3,
+  "title": "A Nice Big Blanket"
+ },
+ {
+  "level": "B2",
+  "book": "高级5",
+  "piece": 9,
+  "file": "text/B2/高级5_09.txt",
+  "words": 298,
+  "paras": 2,
+  "title": "One-Way Traffic (adapted from a European tale) Have you hear"
+ },
+ {
+  "level": "B2",
+  "book": "高级5",
+  "piece": 10,
+  "file": "text/B2/高级5_10.txt",
+  "words": 306,
+  "paras": 3,
+  "title": "Under the Burning Sun"
+ },
+ {
+  "level": "B2",
+  "book": "高级5",
+  "piece": 11,
+  "file": "text/B2/高级5_11.txt",
+  "words": 306,
+  "paras": 3,
+  "title": "I Should Have Stayed in Bed!"
+ },
+ {
+  "level": "B2",
+  "book": "高级5",
+  "piece": 12,
+  "file": "text/B2/高级5_12.txt",
+  "words": 310,
+  "paras": 3,
+  "title": "Dinosaur Dung"
+ },
+ {
+  "level": "B2",
+  "book": "高级5",
+  "piece": 13,
+  "file": "text/B2/高级5_13.txt",
+  "words": 318,
+  "paras": 5,
+  "title": "I Caught a Cold!"
+ },
+ {
+  "level": "B2",
+  "book": "高级5",
+  "piece": 14,
+  "file": "text/B2/高级5_14.txt",
+  "words": 284,
+  "paras": 3,
+  "title": "Bells and Clocks and Time"
+ },
+ {
+  "level": "B2",
+  "book": "高级5",
+  "piece": 15,
+  "file": "text/B2/高级5_15.txt",
+  "words": 332,
+  "paras": 5,
+  "title": "Dad's Old Car"
+ },
+ {
+  "level": "B2",
+  "book": "高级6",
+  "piece": 1,
+  "file": "text/B2/高级6_01.txt",
+  "words": 332,
+  "paras": 3,
+  "title": "Your Lucky Day!"
+ },
+ {
+  "level": "B2",
+  "book": "高级6",
+  "piece": 2,
+  "file": "text/B2/高级6_02.txt",
+  "words": 335,
+  "paras": 3,
+  "title": "Father's Dream"
+ },
+ {
+  "level": "B2",
+  "book": "高级6",
+  "piece": 3,
+  "file": "text/B2/高级6_03.txt",
+  "words": 321,
+  "paras": 3,
+  "title": "What Is It?"
+ },
+ {
+  "level": "B2",
+  "book": "高级6",
+  "piece": 4,
+  "file": "text/B2/高级6_04.txt",
+  "words": 306,
+  "paras": 2,
+  "title": "The Wise Man and the Fruit Tree (adapted from a Middle Easte"
+ },
+ {
+  "level": "B2",
+  "book": "高级6",
+  "piece": 5,
+  "file": "text/B2/高级6_05.txt",
+  "words": 353,
+  "paras": 3,
+  "title": "Flightless Bird"
+ },
+ {
+  "level": "B2",
+  "book": "高级6",
+  "piece": 6,
+  "file": "text/B2/高级6_06.txt",
+  "words": 319,
+  "paras": 2,
+  "title": "Getting the Coconuts Home (adapted from a traditional Filipi"
+ },
+ {
+  "level": "B2",
+  "book": "高级6",
+  "piece": 7,
+  "file": "text/B2/高级6_07.txt",
+  "words": 306,
+  "paras": 3,
+  "title": "A Flying Whale?"
+ },
+ {
+  "level": "B2",
+  "book": "高级6",
+  "piece": 8,
+  "file": "text/B2/高级6_08.txt",
+  "words": 354,
+  "paras": 3,
+  "title": "The Boy Named Liam"
+ },
+ {
+  "level": "B2",
+  "book": "高级6",
+  "piece": 9,
+  "file": "text/B2/高级6_09.txt",
+  "words": 330,
+  "paras": 5,
+  "title": "Collecting Things"
+ },
+ {
+  "level": "B2",
+  "book": "高级6",
+  "piece": 10,
+  "file": "text/B2/高级6_10.txt",
+  "words": 341,
+  "paras": 6,
+  "title": "was getting worse. My father decided that we should wait ins"
+ },
+ {
+  "level": "B2",
+  "book": "高级6",
+  "piece": 11,
+  "file": "text/B2/高级6_11.txt",
+  "words": 338,
+  "paras": 4,
+  "title": "be harvested. Another incredible thing about this grass is t"
+ },
+ {
+  "level": "B2",
+  "book": "高级6",
+  "piece": 12,
+  "file": "text/B2/高级6_12.txt",
+  "words": 342,
+  "paras": 3,
+  "title": "Two Brothers, One Dream"
+ },
+ {
+  "level": "B2",
+  "book": "高级6",
+  "piece": 13,
+  "file": "text/B2/高级6_13.txt",
+  "words": 339,
+  "paras": 4,
+  "title": "Getting Fire Under Control"
+ },
+ {
+  "level": "B2",
+  "book": "高级6",
+  "piece": 14,
+  "file": "text/B2/高级6_14.txt",
+  "words": 341,
+  "paras": 6,
+  "title": "\"You'll never be able to smash it with one of those little p"
+ },
+ {
+  "level": "B2",
+  "book": "高级6",
+  "piece": 15,
+  "file": "text/B2/高级6_15.txt",
+  "words": 332,
+  "paras": 3,
+  "title": "One Insect, Four Lives"
+ },
+ {
+  "level": "B2",
+  "book": "高级7",
+  "piece": 1,
+  "file": "text/B2/高级7_01.txt",
+  "words": 323,
+  "paras": 3,
+  "title": "What's in a Name?"
+ },
+ {
+  "level": "B2",
+  "book": "高级7",
+  "piece": 2,
+  "file": "text/B2/高级7_02.txt",
+  "words": 315,
+  "paras": 3,
+  "title": "Life Is a Swimming Pool"
+ },
+ {
+  "level": "B2",
+  "book": "高级7",
+  "piece": 3,
+  "file": "text/B2/高级7_03.txt",
+  "words": 309,
+  "paras": 3,
+  "title": "Why. Play Sports"
+ },
+ {
+  "level": "B2",
+  "book": "高级7",
+  "piece": 4,
+  "file": "text/B2/高级7_04.txt",
+  "words": 338,
+  "paras": 3,
+  "title": "A Birthday Wish"
+ },
+ {
+  "level": "B2",
+  "book": "高级7",
+  "piece": 5,
+  "file": "text/B2/高级7_05.txt",
+  "words": 281,
+  "paras": 3,
+  "title": "Energy"
+ },
+ {
+  "level": "B2",
+  "book": "高级7",
+  "piece": 6,
+  "file": "text/B2/高级7_06.txt",
+  "words": 313,
+  "paras": 3,
+  "title": "Growing Lesson"
+ },
+ {
+  "level": "B2",
+  "book": "高级7",
+  "piece": 7,
+  "file": "text/B2/高级7_07.txt",
+  "words": 298,
+  "paras": 3,
+  "title": "Time Machine"
+ },
+ {
+  "level": "B2",
+  "book": "高级7",
+  "piece": 8,
+  "file": "text/B2/高级7_08.txt",
+  "words": 320,
+  "paras": 5,
+  "title": "A Small Gift"
+ },
+ {
+  "level": "B2",
+  "book": "高级7",
+  "piece": 9,
+  "file": "text/B2/高级7_09.txt",
+  "words": 312,
+  "paras": 3,
+  "title": "When an Apple Falls"
+ },
+ {
+  "level": "B2",
+  "book": "高级7",
+  "piece": 10,
+  "file": "text/B2/高级7_10.txt",
+  "words": 338,
+  "paras": 3,
+  "title": "An Amazing Friend"
+ },
+ {
+  "level": "B2",
+  "book": "高级7",
+  "piece": 11,
+  "file": "text/B2/高级7_11.txt",
+  "words": 304,
+  "paras": 4,
+  "title": "people wrong. He announced that he would publicly eat one bu"
+ },
+ {
+  "level": "B2",
+  "book": "高级7",
+  "piece": 12,
+  "file": "text/B2/高级7_12.txt",
+  "words": 336,
+  "paras": 7,
+  "title": "galaxy is not the only galaxy in the universe. There are bil"
+ },
+ {
+  "level": "B2",
+  "book": "高级7",
+  "piece": 13,
+  "file": "text/B2/高级7_13.txt",
+  "words": 338,
+  "paras": 2,
+  "title": "The Prince and the Lion (from a traditional European tale) T"
+ },
+ {
+  "level": "B2",
+  "book": "高级7",
+  "piece": 14,
+  "file": "text/B2/高级7_14.txt",
+  "words": 333,
+  "paras": 3,
+  "title": "In the Spirit of Fairness"
+ },
+ {
+  "level": "B2",
+  "book": "高级7",
+  "piece": 15,
+  "file": "text/B2/高级7_15.txt",
+  "words": 310,
+  "paras": 2,
+  "title": "Ideas Are Easy (adapted from Aesop's Fables) The cat hunts t"
+ },
+ {
+  "level": "B2",
+  "book": "高级8",
+  "piece": 1,
+  "file": "text/B2/高级8_01.txt",
+  "words": 343,
+  "paras": 3,
+  "title": "The World's Oldest Tree"
+ },
+ {
+  "level": "B2",
+  "book": "高级8",
+  "piece": 2,
+  "file": "text/B2/高级8_02.txt",
+  "words": 353,
+  "paras": 3,
+  "title": "Whales: Swimming Mammals"
+ },
+ {
+  "level": "B2",
+  "book": "高级8",
+  "piece": 3,
+  "file": "text/B2/高级8_03.txt",
+  "words": 362,
+  "paras": 5,
+  "title": "horse and broke his leg. The boy could not walk. No one knew"
+ },
+ {
+  "level": "B2",
+  "book": "高级8",
+  "piece": 4,
+  "file": "text/B2/高级8_04.txt",
+  "words": 330,
+  "paras": 3,
+  "title": "Silent Music"
+ },
+ {
+  "level": "B2",
+  "book": "高级8",
+  "piece": 5,
+  "file": "text/B2/高级8_05.txt",
+  "words": 333,
+  "paras": 3,
+  "title": "An Honest Man's Reward (adapted from a traditional Middle Ea"
+ },
+ {
+  "level": "B2",
+  "book": "高级8",
+  "piece": 6,
+  "file": "text/B2/高级8_06.txt",
+  "words": 354,
+  "paras": 6,
+  "title": "Warren. \"The wind is a great way to make electricity. It's f"
+ },
+ {
+  "level": "B2",
+  "book": "高级8",
+  "piece": 7,
+  "file": "text/B2/高级8_07.txt",
+  "words": 314,
+  "paras": 7,
+  "title": "\"Perhaps we should go and save them.\" offered one monkey. \"A"
+ },
+ {
+  "level": "B2",
+  "book": "高级8",
+  "piece": 8,
+  "file": "text/B2/高级8_08.txt",
+  "words": 331,
+  "paras": 5,
+  "title": "variations in gravity when a watch changes position during u"
+ },
+ {
+  "level": "B2",
+  "book": "高级8",
+  "piece": 9,
+  "file": "text/B2/高级8_09.txt",
+  "words": 333,
+  "paras": 7,
+  "title": "they decided to ask a village elder what to do."
+ },
+ {
+  "level": "B2",
+  "book": "高级8",
+  "piece": 10,
+  "file": "text/B2/高级8_10.txt",
+  "words": 356,
+  "paras": 7,
+  "title": "gradually begin to use one side of the brain more than the o"
+ },
+ {
+  "level": "B2",
+  "book": "高级8",
+  "piece": 11,
+  "file": "text/B2/高级8_11.txt",
+  "words": 346,
+  "paras": 5,
+  "title": "The Turtle Who Talked Too Much (based on a traditional India"
+ },
+ {
+  "level": "B2",
+  "book": "高级8",
+  "piece": 12,
+  "file": "text/B2/高级8_12.txt",
+  "words": 342,
+  "paras": 3,
+  "title": "A Children's World Game"
+ },
+ {
+  "level": "B2",
+  "book": "高级8",
+  "piece": 13,
+  "file": "text/B2/高级8_13.txt",
+  "words": 341,
+  "paras": 5,
+  "title": "Insects Lend a Helping Hand silk is a tough material. One po"
+ },
+ {
+  "level": "B2",
+  "book": "高级8",
+  "piece": 14,
+  "file": "text/B2/高级8_14.txt",
+  "words": 357,
+  "paras": 5,
+  "title": "of the sun, the sun seems to disappear. This is a solar (sun"
+ },
+ {
+  "level": "B2",
+  "book": "高级8",
+  "piece": 15,
+  "file": "text/B2/高级8_15.txt",
+  "words": 363,
+  "paras": 3,
+  "title": "Magnets: Seeing Is Believing"
+ }
+]
