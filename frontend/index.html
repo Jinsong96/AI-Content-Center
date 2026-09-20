@@ -5137,11 +5137,27 @@ window.addEventListener("beforeunload", function(e){
   }
 });
 function paraEdit(el){
-  const k = el.getAttribute("data-k"), i = +el.getAttribute("data-i");
-  const g = GEN[k]; if(!g || !g.paras || !g.paras[i]) return;
+  /* 🔴 2026-09-20 修（「段落编辑无效」事故）：`data-k` / `data-i` 挂在**卡片 `.pcard`** 上，
+     而 oninput 传进来的 `this` 是**正文 `.pbody`** —— 原先直接 `el.getAttribute("data-k")`
+     只能拿到 null，`GEN[null]` 是 undefined，函数第二行就 `return` 了。
+     后果极隐蔽：contenteditable 是浏览器**原生**行为，文字看上去确实改了，
+     但内存 GEN / 本机草稿 / 存入文章库 / 审核环节**全都还是原文**，且全程零报错 ——
+     老师以为改好了，实际白改（实测：改完 genAfterEdit 仍为旧值、草稿未落盘、审核页显示原版）。
+     教训：**编辑类回调「落到哪」必须有断言，取不到宁可报错也不能静默返回**。 */
+  const card = el.closest(".pcard");
+  const k = card ? card.getAttribute("data-k") : null;
+  const i = card ? parseInt(card.getAttribute("data-i"), 10) : -1;
+  const g = k ? GEN[k] : null;
+  if(!card || !g || !Array.isArray(g.paras) || !g.paras[i]){
+    console.error("[paraEdit] 段落定位失败，本次编辑未生效", { key: k, idx: i, hasCard: !!card });
+    toast(L("这段修改没有被记录：页面状态异常，请刷新后重试",
+            "This edit was NOT recorded — unexpected page state. Please refresh and try again."));
+    return;
+  }
   const txt = el.innerText.replace(/\u00a0/g," ").trim();
   if(Array.isArray(g.paras[i])) g.paras[i][0] = txt; else g.paras[i].en = txt;
-  const card = el.closest(".pcard"); if(card){ const wc = card.querySelector(".pword"); if(wc){ const n = (txt.match(/[A-Za-z][A-Za-z''-]*/g)||[]).length; wc.textContent = n + " " + L("词","words"); } }
+  const wc = card.querySelector(".pword");
+  if(wc){ const n = (txt.match(/[A-Za-z][A-Za-z''-]*/g)||[]).length; wc.textContent = n + " " + L("词","words"); }
   queueDraftSave();
 }
 function paraCard(k,i,editable){
@@ -5149,6 +5165,8 @@ function paraCard(k,i,editable){
   const m = LVL_META[k] || {zh:k,en:k,color:"#E65425"};
   const wc = (txt.match(/[A-Za-z][A-Za-z''-]*/g)||[]).length;
   const edit = editable !== false;
+  /* ⚠️ data-k / data-i 挂在**卡片**上，不在里面的 .pbody 上：
+     paraEdit(this) 收到的是 .pbody，必须 el.closest(".pcard") 才能读到（2026-09-20 踩过）。 */
   return '<div class="pcard" data-k="'+k+'" data-i="'+i+'">'+
     '<div class="ph"><span class="pno">'+dispOf(k)+'</span><span class="ptag">'+L("第 "+(i+1)+" 段","Para "+(i+1))+'</span><span class="pword">'+wc+' '+L("词","words")+'</span></div>'+
     '<div class="pbody"'+(edit?' contenteditable="true" spellcheck="true" oninput="paraEdit(this)"':'')+'>'+esc(txt)+'</div>'+
