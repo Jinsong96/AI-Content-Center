@@ -1453,14 +1453,14 @@ function setBig(g){
 }
 
 const SPECS = {
-  A1:{name:"A1- · 入门 / Starter",words:"EVP A1 (~600)",avg:"7–9 词/句",max:"≤12 词",tense:"一般现在/过去",lex:"BR–400L",len:"135–165 词",clauses:"简单句（从句 0 层）",gloss:"3 目标词",
-      en:{words:"EVP A1 (~600)",avg:"7–9 words/sentence",max:"≤12 words",tense:"Simple present / past",lex:"BR–400L",len:"135–165 words",clauses:"Simple sentences (0 clauses)",gloss:"3 topic words"}},
-  A2:{name:"A2 · 初级 / Elementary",words:"EVP A1–A2 (~1,300)",avg:"10–13 词/句",max:"≤16 词",tense:"+ 进行/将来/完成",lex:"400–750L",len:"240–265 词",clauses:"who/that 关系从句",gloss:"3–4 目标词",
-      en:{words:"EVP A1–A2 (~1,300)",avg:"10–13 words/sentence",max:"≤16 words",tense:"+ continuous / future / perfect",lex:"400–750L",len:"240–265 words",clauses:"who / that relative clauses",gloss:"3–4 topic words"}},
-  B1:{name:"B1 · 中级 / Intermediate",words:"EVP A1–B1 (~2,800)",avg:"14–17 词/句",max:"≤22 词",tense:"+ 被动/过去完成",lex:"750–1050L",len:"342–418 词",clauses:"which/whose 从句",gloss:"4–5 目标词",
-      en:{words:"EVP A1–B1 (~2,800)",avg:"14–17 words/sentence",max:"≤22 words",tense:"+ passive / past perfect",lex:"750–1050L",len:"342–418 words",clauses:"which / whose clauses",gloss:"4–5 topic words"}},
-  "B2":{name:"B2+ · 中高级 / Upper-int.",words:"EVP A1–B2+C1 (~5,000)",avg:"18–24 词/句",max:"≤32 词",tense:"+ 虚拟/倒装/分词",lex:"1050–1350L",len:"495–605 词",clauses:"多重从句嵌套",gloss:"5 目标词",
-      en:{words:"EVP A1–B2+C1 (~5,000)",avg:"18–24 words/sentence",max:"≤32 words",tense:"+ subjunctive / inversion / participle",lex:"1050–1350L",len:"495–605 words",clauses:"nested clauses",gloss:"5 topic words"}},
+  A1:{name:"A1- · 入门 / Starter",words:"EVP A1 (~600)",avg:"6–9 词/句",max:"≤12 词",tense:"一般现在/过去",lex:"BR–400L",len:"128–172 词",clauses:"简单句（从句 0 层）",gloss:"3 目标词",
+      en:{words:"EVP A1 (~600)",avg:"6–9 words/sentence",max:"≤12 words",tense:"Simple present / past",lex:"BR–400L",len:"128–172 words",clauses:"Simple sentences (0 clauses)",gloss:"3 topic words"}},
+  A2:{name:"A2 · 初级 / Elementary",words:"EVP A1–A2 (~1,300)",avg:"10–13 词/句",max:"≤16 词",tense:"+ 进行/将来/完成",lex:"400–750L",len:"204–276 词",clauses:"who/that 关系从句",gloss:"3–4 目标词",
+      en:{words:"EVP A1–A2 (~1,300)",avg:"10–13 words/sentence",max:"≤16 words",tense:"+ continuous / future / perfect",lex:"400–750L",len:"204–276 words",clauses:"who / that relative clauses",gloss:"3–4 topic words"}},
+  B1:{name:"B1 · 中级 / Intermediate",words:"EVP A1–B1 (~2,800)",avg:"14–17 词/句",max:"≤22 词",tense:"+ 被动/过去完成",lex:"750–1050L",len:"323–437 词",clauses:"which/whose 从句",gloss:"4–5 目标词",
+      en:{words:"EVP A1–B1 (~2,800)",avg:"14–17 words/sentence",max:"≤22 words",tense:"+ passive / past perfect",lex:"750–1050L",len:"323–437 words",clauses:"which / whose clauses",gloss:"4–5 topic words"}},
+  "B2":{name:"B2+ · 中高级 / Upper-int.",words:"EVP A1–B2+C1 (~5,000)",avg:"18–24 词/句",max:"≤32 词",tense:"+ 虚拟/倒装/分词",lex:"1050–1350L",len:"468–632 词",clauses:"多重从句嵌套",gloss:"5 目标词",
+      en:{words:"EVP A1–B2+C1 (~5,000)",avg:"18–24 words/sentence",max:"≤32 words",tense:"+ subjunctive / inversion / participle",lex:"1050–1350L",len:"468–632 words",clauses:"nested clauses",gloss:"5 topic words"}},
 };
 /* 某档位（子档 key，或大档名）适用的规格 */
 function specOf(lvl){ return SPECS[bigOf(lvl) || lvl] || SPECS[BIG_GROUPS[0].big]; }
