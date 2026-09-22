@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Twee.com 竞品调研</title>
+<style>
+  :root{--bg:#FBFAF8;--card:#FFFFFF;--ink:#1A1A1A;--sub:#3D3A36;--muted:#8A8578;
+        --accent:#D4572A;--green:#2F6B4F;--amber:#8A6A1F;--blue:#3A5A8C;--red:#B33A3A;
+        --line:#E8E4DC;}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+       font-family:"PingFang SC","Hiragino Sans GB",system-ui,-apple-system,sans-serif;
+       line-height:1.75;font-size:15px;}
+  .wrap{max-width:860px;margin:0 auto;padding:48px 28px 80px;}
+  h1{font-size:26px;font-weight:700;margin:0 0 6px;}
+  h2{font-size:19px;font-weight:700;margin:40px 0 14px;padding-top:6px;border-top:1px solid var(--line);}
+  h3{font-size:16px;font-weight:700;margin:22px 0 8px;}
+  .lead{color:var(--sub);font-size:15px;margin:0 0 8px;}
+  .meta{color:var(--muted);font-size:13px;margin-bottom:28px;}
+  p{margin:8px 0;}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:18px 20px;margin:16px 0;}
+  table{width:100%;border-collapse:collapse;margin:14px 0;font-size:14px;}
+  th,td{border:1px solid var(--line);padding:9px 11px;text-align:left;vertical-align:top;}
+  th{background:#F4F1EA;font-weight:600;}
+  .pill{display:inline-block;font-size:11.5px;font-weight:600;padding:2px 9px;border-radius:20px;margin-right:5px;white-space:nowrap;}
+  .p-实测{background:#EAF3DE;color:var(--green);}
+  .p-官方{background:#E6F1FB;color:var(--blue);}
+  .p-第三方{background:#FAEEDA;color:var(--amber);}
+  .p-未核实{background:#FCEBEB;color:var(--red);}
+  .obs{background:var(--card);border-left:3px solid var(--accent);border-radius:0 10px 10px 0;
+       padding:14px 18px;margin:14px 0;}
+  .obs .t{font-weight:700;color:var(--accent);margin-bottom:4px;}
+  .imp{background:#FBF3EF;border-left:3px solid var(--green);border-radius:0 10px 10px 0;padding:14px 18px;margin:14px 0;}
+  .imp .t{font-weight:700;color:var(--green);margin-bottom:4px;}
+  ol,ul{margin:8px 0;padding-left:22px;}
+  li{margin:5px 0;}
+  .ans{background:#F4F1EA;border-radius:10px;padding:14px 18px;margin:12px 0;color:var(--ink);}
+  .ans b{color:var(--accent);}
+  .small{font-size:13px;color:var(--muted);}
+  code{background:#F1EEE7;padding:2px 6px;border-radius:5px;font-size:13px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>Twee.com 竞品调研</h1>
+<p class="lead">起因：Bryan 觉得 ReadPal demo「无论前端交互还是后端文章质量都不太行」，要看 Twee 怎么做的。</p>
+<p class="meta">阿墨 · 2026-09-22 · 数据均网页实测采集（curl + 标题核对 + JSON-LD 抽取）</p>
+
+<h2>01 一句话结论</h2>
+<div class="ans">
+<div style="font-weight:700;margin-bottom:6px;">Twee 和 ReadPal 是两种产品形态，你的不爽不等于「我们做得差」，而是交付单元与交互范式不同。</div>
+<b>Twee</b> 卖「老师点一下、材料就来」的<b>即时爽感</b>；<b>ReadPal</b> 卖「批量生产供 APP 的规范分级内容」的<b>产线可靠性</b>。
+但 Twee 有三样东西我们确实没有、且值得抄：<b>① 点一下出结果</b>、<b>② AI 批改</b>、<b>③ CEFR 等级即时选择+校验</b>。
+</div>
+
+<h2>02 Twee 是什么（产品定位 · 官方自述）</h2>
+<table>
+<tr><th>项</th><th>内容</th><th>口径</th></tr>
+<tr><td>定位 slogan</td><td>Create, Share and Grade Language Lessons in Minutes</td><td><span class="pill p-官方">官方自述</span></td></tr>
+<tr><td>一句话</td><td>一站式语言教学平台：生成 + 分享 + AI 批改</td><td><span class="pill p-官方">官方自述</span></td></tr>
+<tr><td>用户</td><td>语言老师（学校老师 / 私教 / 外教），非学习者为主</td><td><span class="pill p-官方">官方自述</span></td></tr>
+<tr><td>团队</td><td>10 人，跨国（美/以色列/阿根廷/斯洛文尼亚等）</td><td><span class="pill p-官方">官方自述</span></td></tr>
+<tr><td>创立</td><td>2023年10月</td><td><span class="pill p-官方">官方自述</span></td></tr>
+<tr><td>语言</td><td>10 种语言</td><td><span class="pill p-官方">官方自述</span></td></tr>
+<tr><td>工具数</td><td>40+ AI 工具（7 大类）</td><td><span class="pill p-官方">官方自述</span></td></tr>
+</table>
+
+<h2>03 规模数据（官方自述，未第三方交叉验证）</h2>
+<table>
+<tr><th>数字</th><th>含义</th><th>标注</th></tr>
+<tr><td>6M</td><td>过去一年生成的练习数</td><td>官方口径，未独立验证</td></tr>
+<tr><td>&gt;500K</td><td>已使用过的老师数</td><td>同上</td></tr>
+<tr><td>2M</td><td>月下载 ready-made 内容</td><td>同上</td></tr>
+<tr><td>&gt;5 hrs</td><td>老师自报每周节省</td><td>自报，样本不明</td></tr>
+</table>
+<p class="small">⚠️ 这些都是官网「Twee in Numbers」的自述，没有第三方审计。汇报时别说成「已验证」。</p>
+
+<h2>04 核心功能全景（实测 tools 页抓取）</h2>
+<p>7 大类、40+ 工具，核心是「每个工具一个原子动作、几十秒出结果」：</p>
+<table>
+<tr><th>类</th><th>代表工具</th><th>说明</th></tr>
+<tr><td>Reading</td><td>Create Text on Any Topic / Open Questions / ABCD Questions / True-False</td><td>给定话题+词汇 → 生成对应 CEFR 档文本或题目</td></tr>
+<tr><td>Vocabulary</td><td>Fill in the Gap / Word-Definition Matching / Essential Vocabulary</td><td>词表 → 生成各种练习</td></tr>
+<tr><td>Writing</td><td>Essay Topics / Creative Writing / Quotes</td><td>写作任务</td></tr>
+<tr><td>Speaking</td><td>Discussion Questions / Pros and Cons / Fun Facts</td><td>口语讨论</td></tr>
+<tr><td>Grammar</td><td>Grammar Rules / Error Correction / Gaps with ABCD</td><td>语法练习</td></tr>
+<tr><td>Listening</td><td>Audio&Video Question Creator / Convert to Text / Summary GapFill</td><td>上传音视频或贴 YouTube 链接 → 出题/转写</td></tr>
+<tr><td>Utility (Pro)</td><td><b>CEFR Level Checker</b> / <b>Simplify or Upgrade Your Text</b></td><td>⭐ 这两个与我们最相关</td></tr>
+</table>
+
+<div class="obs">
+<div class="t">关键观察 1：Twee 把「降级改写」做成了即时工具，而不是重流程</div>
+<p>它的 <b>Simplify or Upgrade Your Text</b> = 我们的「母稿向下改写」，但 Twee 的交互是：<b>粘贴任意文本 → 选目标 CEFR 档 → 点一下 → 直接出结果</b>，没有「导入→分段→人工审核→生成→文章库」这条长链条。</p>
+<p>它的 <b>CEFR Level Checker</b> = 我们的「分级校准」，但它是「贴一段文字 → 立刻告诉你 CEFR 等级」，一个即时反馈工具。</p>
+<p>差别本质：<b>Twee 把分级做成「即时、单步、可验」；我们做成「批量、多阶段、重审核」。</b></p>
+</div>
+
+<div class="obs">
+<div class="t">关键观察 2：Twee 有「AI 批改」，我们没有</div>
+<p>每个练习旁边都有 <b>Check with AI</b>（Pro），学生作答后 AI 自动评分（选择/填空/开放题都支持）。这是 Twee 的「Grade」环节，也是它「分享给学生互动」闭环的最后一环。</p>
+<p>ReadPal 定位是「内容生产后台，不做分发/评分」，所以这块缺失是<b>产品定位决定的</b>，不是缺陷。但如果你的目标是给同事 demo，缺少「生成后的效果验证」会让 demo 显得「残缺」。</p>
+</div>
+
+<h2>05 定价（实测 pricing 页）</h2>
+<table>
+<tr><th>档</th><th>价格</th><th>核心权益</th></tr>
+<tr><td>Trial</td><td>免费</td><td>任意工具 5 次；音频 500 credits</td></tr>
+<tr><td>Basic</td><td>$6.50/月（年付）</td><td>基础工具 100 次/月；音频 2500 credits</td></tr>
+<tr><td>Pro</td><td>$10.50/月（年付）</td><td><b>Pro 工具 + Media 100 次 + AI 批改 + CEFR Level Checker + 导出/加 logo + 音频转文字</b></td></tr>
+<tr><td>Schools</td><td>询价</td><td>多老师 + 班级管理 + 全部 Pro 权益</td></tr>
+</table>
+<p class="small">关键点：<b>CEFR Level Checker、AI 批改、Media（音视频）都是 Pro 才有的</b>，这些正好是「体验差距」的感知来源。</p>
+
+<h2>06 内容质量长什么样（实测抓一篇 B2 教案）</h2>
+<div class="card">
+<p><b>样本</b>：Why Gen Z Is Struggling to Leave Home（B2 · 60min · Adults · Group · Video）</p>
+<p>一篇教案 = 5 个连贯环节：</p>
+<ol>
+<li><b>讨论题 + 视频</b>：5 道 open question + 内嵌 YouTube 视频（05:43）</li>
+<li><b>词汇匹配</b>：词 ↔ 释义</li>
+<li><b>用新词填空</b>：完形</li>
+<li><b>再看视频选答案</b>：选择题</li>
+<li><b>读观点讨论</b>：批判性讨论</li>
+</ol>
+<p>每步都可 <b>Check with AI</b> 批改、可 <b>Add your exercise</b> 自定义；页头标齐元数据（CEFR 档 / 年龄 / 时长 / 形式 / 媒体 / 主题标签）。</p>
+</div>
+<div class="obs">
+<div class="t">关键观察 3：Twee 的内容质量靠「结构化骨架 + 逐环节验收」保证</div>
+<p>一篇教案被拆成 5 个明确环节，每个环节都有固定意图（热身→词汇→练习→听力→讨论），<b>每一小步都容易单独验收</b>。「基于 CEFR / Fully Customizable / AI Assessment」三项是它的质量背书标签。</p>
+<p>对照我们：一套 4 档文章是一次性生成的，出了问题（像这次的标题错位、A2 串位）<b>要整篇回头看</b>，难拆成小步验。这是「生成质量觉得不行」的结构性原因之一。</p>
+</div>
+
+<h2>07 第三方评价（实测抓取 educraft.tech 2024-06）</h2>
+<div class="card">
+<p><b>评测者</b>：Theodosis Karageorgakis（教师，2024-06-25）</p>
+<p>核心观点：</p>
+<ul>
+<li>Twee 与 ChatGPT 的关键差别 = <b>「内建工具已埋好 prompt，老师不用会写 prompt」</b>（用 ChatGPT 得自己会写 prompt 才出好结果）。</li>
+<li>最爱的功能：Create Text on Any Topic（选话题+词表+难度 → 出对应阅读材料）；「把文本变易/变难」的工具（= Simplify/Upgrade）。</li>
+<li>商业模式：freemium，Pro 有 affiliate 折扣码。</li>
+</ul>
+</div>
+
+<h2>08 对我们的启示（重点）</h2>
+
+<div class="imp">
+<div class="t">启示 1：交互范式——「点一下出结果」是我们最该抄的</div>
+<p>Twee 每个工具都是「填一句话 → 几秒出结果 → 一键导出/分享」。我们的 demo 是「导入母稿 → 分段 → 逐段审核 → 生成 → 文章库」，<b>中间太多人工确认环节</b>，demo 时「爽感」完全不一样。</p>
+<p><b>动作</b>：评估是否给 ReadPal 加一条「快速出文」捷径——不用走完整授权链路，贴一段素材 → 选档 → 直接出文章+题目预览。哪怕正式流程保留，demo 也要有一键路径。（这是方向建议，需你拍板，不擅自加）</p>
+</div>
+
+<div class="imp">
+<div class="t">启示 2：缺「AI 批改」和「Level Checker」这类即时反馈</div>
+<p>我们缺两样让人「一眼觉得厉害」的东西：CEFR 即时校验（贴文出等级）和 AI 批改。前者其实我们后端已有 EVP 词汇校验，只是没做成「独立即时工具」露出来；后者是定位差异，可讨论要不要加。</p>
+<p><b>动作</b>：把已有的「分级校验」做成可见的即时反馈，成本低、观感提升大。</p>
+</div>
+
+<div class="imp">
+<div class="t">启示 3：生成质量的根，可能不在提示词，而在「交付单元太大、难一次验好」</div>
+<p>这次抓到的标题错位、A2 串位，本质是「一套 4 档文章一次性生成」的复杂度太高。Twee 用「小步交付 + 结构化骨架」规避了这个问题。</p>
+<p><b>动作</b>：保持我们「段落级自适应」核心（这是 Twee 没有的差异化壁垒），但把每一档的生成验收做得更细（已做 nodeSemCheck + 自动重跑），并考虑「分段结果先给老师看、确认后再批量生成」是否已经在走这条正路。</p>
+</div>
+
+<h2>09 汇报时可以直接说的三句话</h2>
+<ol>
+<li>「Twee 和我们是两种产品：它卖即时的单练习工具，我们卖批量供 APP 的分级文章——不该照抄，但它的『点一下出结果』和 CEFR 即时校验值得我们补。」</li>
+<li>「Twee 有 40+ 工具、50 万老师、Pro 才开放 AI 批改和音视频，证明『老师省时间』是刚需，我们的方向对。」</li>
+<li>「我们真正缺的不是功能数量，而是『即时反馈』——把已有能力（分级校验、向下改写）做成点一下就能看结果，观感会立刻不一样。」</li>
+</ol>
+
+<h2>10 风险与反面（主动讲）</h2>
+<ul>
+<li>Twee 的规模数字全是官网自述，未经第三方审计，别在正式汇报里当硬数据引用。</li>
+<li>Twee 的「AI 批改」「Media 音视频」是它相对我们的差异化，但我们对标的场景（供阅读 APP 的分级内容）它<b>反而没有</b>——不要因为看它顺眼就丢掉自己的核心。</li>
+<li>Twee 是「给老师用的备课/练习工具」，ReadPal 是「给教研/运营用的内容工厂」，用户和 KPI 不同，功能不能一比一迁移。</li>
+</ul>
+
+<h2>11 附录 · 来源（逐个实测）</h2>
+<table>
+<tr><th>链接</th><th>实测结果</th></tr>
+<tr><td>https://twee.com/</td><td>200 · 标题「Twee – Tweak your lessons with the power of AI」</td></tr>
+<tr><td>https://twee.com/price</td><td>200 · 标题「Pricing | Twee」</td></tr>
+<tr><td>https://twee.com/tools</td><td>200 · 标题「AI Tools for Teachers…」</td></tr>
+<tr><td>https://twee.com/about</td><td>200 · 标题「About Twee…」</td></tr>
+<tr><td>https://twee.com/esl-lesson-plans/why-gen-z-is-struggling-to-leave-home</td><td>200 · 教案页（B2 · 含 JSON-LD LearningResource）</td></tr>
+<tr><td>https://educraft.tech/twee-the-english-teachers-assistant-you-didnt-know-you-needed/</td><td>200 · 第三方评测（2024-06）</td></tr>
+<tr><td>https://www.educatorstechnology.com/…/twee-ai-powered-tool-for-teachers.html</td><td>404（页不存在，已剔除）</td></tr>
+</table>
+
+</div>
+</body>
+</html>
