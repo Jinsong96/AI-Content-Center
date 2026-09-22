@@ -532,7 +532,7 @@ node tools/ui_audit.mjs --url=http://127.0.0.1:8899/index.html --role=produce \
 | 函数 | 职责 |
 |---|---|
 | `pickHot(i)` / `pickRealHot(h)` | **只选中**：写 `state.hot` / `state.realHot`（两者互斥）+ 高亮，`render()`。**不再调 `startLiveRun`、不跳页**。运行中（`status==="running"`）被拦截（Q1=B：不能边跑边挑） |
-| `hotPeekHTML()` | 右下固定面板 `.hotpeek`：标题/中文/原文/来源链接/热度 + 「开始敏感排查」按钮 + 「✕ 取消选中」；running 时换成锁定提示条 |
+| `hotPeekHTML()` | 右下固定面板 `.hotpeek`：标题/中文/原文/来源链接/热度 + 「开始敏感排查」按钮 + 「✕ 取消选中」。**只在挑选阶段显示**：`cur==1`（热点页）+ `status==="idle"`（未开跑）+ 已选中，三者缺一即返回空 ⇒ 确认进入下一步后立刻消失 |
 | `confirmHotRun()` | **唯一流程入口**：无正文热点此时才弹「粘贴原文」→ `startLiveRun` → 跳 02 |
 | `cancelHotSel()` | 清空 `realHot`/`hot`/`hotTopic` |
 | `mountHotPeek()` | 面板挂到 `body`（`stage` 每次 innerHTML 重建会清掉它），`render()` 里每次调用 |
