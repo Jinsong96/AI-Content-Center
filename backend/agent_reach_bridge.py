@@ -2935,6 +2935,94 @@ class Handler(BaseHTTPRequestHandler):
         except Exception as e:
             return self._send({"ok": False, "error": "upstream error: %s" % e}, 502)
 
+    def _proxy_licgen(self, api_key, payload):
+        """授权母稿「向下生成」（图 B）代理：带「段落错位整条自动重跑」。
+
+        Bryan（2026-09-22）拍板：nodeSemCheck 判出某档段落「信息点串位」时，
+        **自动整条重跑该工作流**（Dify 图内无法单独重跑某一档，只能整条重来）。
+
+        策略（避免死循环 / 成本失控）：
+        - 最多重跑 **1 次**（即最多调用图 B 两次）。
+        - 第一次跑完解析 outputs.sem_json 的 bad_total；>0 则重跑一次。
+        - 第二次仍 >0 则回**第二次**结果（不无限重试），并附 `_sem_reprompted=True`
+          告知前端「已自动重跑过、仍有错位，需人工介入」。
+        - sem_json 解析失败（模型没吐合法 JSON）不触发重跑 —— 判不出错位就放行，
+          避免因解析问题误重跑烧钱。
+        """
+        def _parse_bad_total(obj):
+            try:
+                outs = (obj or {}).get("data", {}).get("outputs", {}) or {}
+                sem = outs.get("sem_json")
+                if isinstance(sem, str):
+                    sem = sem.strip()
+                    # 剥掉可能的 markdown 代码块包裹
+                    i, j = sem.find("{"), sem.rfind("}")
+                    if i >= 0 and j > i:
+                        sem = sem[i:j + 1]
+                    sem = json.loads(sem)
+                if isinstance(sem, dict):
+                    return int(sem.get("bad_total") or 0)
+            except Exception:
+                pass
+            return None  # None = 解析不出，视为「拿不准」，不触发重跑
+
+        def _run_once_raw(p):
+            """向上游跑一次并返回解析后的 dict（不落到 _send，便于判错位后决定重跑）。"""
+            if not api_key:
+                return {"_err": "missing upstream api key on server"}
+            data = json.dumps(p, ensure_ascii=False).encode("utf-8")
+            req = urllib.request.Request("https://api.dify.ai/v1/workflows/run", data=data, headers={
+                "Authorization": "Bearer " + api_key,
+                "Content-Type": "application/json",
+                "User-Agent": UA,
+                "Accept": "application/json",
+            })
+            try:
+                with urllib.request.urlopen(req, timeout=300) as r:
+                    raw = r.read().decode("utf-8", "ignore")
+                return json.loads(raw)
+            except urllib.error.HTTPError as e:
+                detail = ""
+                try:
+                    detail = e.read().decode("utf-8", "ignore")[:400]
+                except Exception:
+                    pass
+                return {"_err": "upstream http %s" % e.code, "_detail": detail}
+            except Exception as e:
+                return {"_err": "upstream error: %s" % e}
+
+        first_raw = _run_once_raw(payload)
+        if "_err" in first_raw:
+            detail = first_raw.get("_detail", "")
+            code = 502
+            m = re.match(r"upstream http (\d+)", first_raw["_err"])
+            if m:
+                code = int(m.group(1))
+            return self._send({"ok": False, "error": first_raw["_err"], "detail": detail}, code)
+
+        bad = _parse_bad_total(first_raw)
+        if bad is None or bad <= 0:
+            # 无错位（或判不出）→ 直接回第一次结果
+            first_raw["_sem_reprompted"] = False
+            return self._send(first_raw, 200)
+
+        # 有错位 → 整条重跑一次
+        note_error("licgen.sem", "bad_total=%s 触发整条重跑" % bad, severity="warn",
+                   path="/api/dify/workflows/run")
+        second_raw = _run_once_raw(payload)
+        if "_err" in second_raw:
+            detail = second_raw.get("_detail", "")
+            code = 502
+            m = re.match(r"upstream http (\d+)", second_raw["_err"])
+            if m:
+                code = int(m.group(1))
+            return self._send({"ok": False, "error": second_raw["_err"], "detail": detail}, code)
+        bad2 = _parse_bad_total(second_raw)
+        second_raw["_sem_reprompted"] = True
+        second_raw["_sem_bad_before"] = bad
+        second_raw["_sem_bad_after"] = (bad2 if bad2 is not None else -1)
+        return self._send(second_raw, 200)
+
     def _serve_index(self):
         """托管前端单页。Railway 单服务部署时前后端同域，API 走相对路径即可。
         密钥来自环境变量；环境变量缺失时回落到 frontend/config.local.js
@@ -3044,11 +3132,14 @@ class Handler(BaseHTTPRequestHandler):
             if not kn:
                 return self._send({"ok": False, "error": "unknown wf (expect fact|gen|main|licprep|licgen)"}, 400)
             # 授权链路两条都比 fact/gen 长：图 B 要连做 3 档改写 + 压缩 + 出题，给足 300s
+            pf = {"inputs": body.get("inputs") or {},
+                  "response_mode": body.get("response_mode") or "blocking",
+                  "user": body.get("user") or "frontend-demo"}
+            # licgen（图 B）走「段落错位整条自动重跑」代理；其余仍纯透传
+            if wf == "licgen":
+                return self._proxy_licgen(self._env_key(kn), pf)
             return self._proxy_post(
-                "https://api.dify.ai/v1/workflows/run", self._env_key(kn),
-                {"inputs": body.get("inputs") or {},
-                 "response_mode": body.get("response_mode") or "blocking",
-                 "user": body.get("user") or "frontend-demo"},
+                "https://api.dify.ai/v1/workflows/run", self._env_key(kn), pf,
                 timeout=300 if wf in ("licprep", "licgen") else 180)
         # ---- 代理：SiliconFlow（LLM / 文生图），请求体原样透传 ----
         if path.startswith("/api/sf/"):
