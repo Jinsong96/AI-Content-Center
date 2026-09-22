@@ -308,6 +308,30 @@ body{font-family:var(--font);color:var(--text);background:var(--bg);overflow:hid
 .fstat-warn{background:#FFF9F5;color:#D04418;border:1px solid #F9BB8E}
 .fstat-bad{background:#FFEDE4;color:#9E3512;border:1px solid #FFDFCF}
 .hotcard .fstat{margin-bottom:6px}
+/* 热点卡选中态（2026-09-22 拆分「挑」与「跑」：点卡只选中，不跑流程） */
+.hotcard.sel{border-color:var(--pri);box-shadow:0 0 0 2px var(--pri) inset, var(--shadow-lg)}
+.hotcard.locked{cursor:not-allowed;opacity:.62}
+/* 右下「素材预览」面板：挑素材阶段只看不跑，确认点才进流程 */
+.hotpeek{position:fixed;right:18px;bottom:18px;z-index:1200;width:392px;max-width:calc(100vw - 36px);
+  background:#fff;border:1px solid var(--border2);border-radius:14px;box-shadow:0 14px 44px rgba(16,24,40,.22);
+  padding:16px 18px 14px;animation:pop .28s both;display:flex;flex-direction:column;max-height:min(72vh,640px)}
+.hotpeek .hp-k{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.hotpeek .hp-k b{font-size:13px;font-weight:800;letter-spacing:.2px}
+.hotpeek .hp-x{margin-left:auto;cursor:pointer;color:var(--muted);font-size:16px;line-height:1;padding:4px 6px;border-radius:7px}
+.hotpeek .hp-x:hover{background:var(--bg);color:var(--ink)}
+.hotpeek h4{font-size:14px;font-weight:700;line-height:1.5;margin:0 0 3px}
+.hotpeek .hp-cn{font-size:12px;color:var(--sub);margin-bottom:8px}
+.hotpeek .hp-meta{display:flex;gap:12px;flex-wrap:wrap;font-size:11px;color:var(--muted);margin-bottom:9px}
+.hotpeek .hp-meta b{color:var(--pri)}
+.hotpeek .hp-body{font-size:12.5px;line-height:1.75;color:var(--ink);overflow-y:auto;
+  border-top:1px dashed var(--border);border-bottom:1px dashed var(--border);padding:9px 2px;margin-bottom:11px;white-space:pre-wrap}
+.hotpeek .hp-link{font-size:11.5px;margin-bottom:11px;word-break:break-all}
+.hotpeek .hp-link a{color:#E65425;text-decoration:underline}
+.hotpeek .hp-bar{display:flex;align-items:center;gap:10px}
+.hotpeek .hp-bar .btn{flex:1}
+.hotpeek .hp-note{font-size:11px;color:var(--muted);line-height:1.5}
+.hotpeek .hp-running{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--sub);
+  background:var(--bg);border:1px solid var(--border2);border-radius:9px;padding:9px 12px;line-height:1.6}
 /* 无原文热点的「粘贴原文」弹窗 */
 .modal-mask{position:fixed;inset:0;background:rgba(16,24,40,.45);z-index:9999;display:flex;align-items:center;justify-content:center;padding:24px}
 .modal{background:#fff;border-radius:14px;max-width:560px;width:100%;padding:22px 22px 18px;box-shadow:0 12px 40px rgba(16,24,40,.18)}
@@ -4834,7 +4858,9 @@ function s1(){
     </label>
   </div>
   <div class="hotgrid" id="hotgrid"></div>
-  ${state.hot !== undefined ? nextBtn("进入敏感排查","Screen sensitivity") : waitBtn(L("请先选择一个热点","Pick a trend first"))}` + wfStrip();
+  ${(state.hot !== undefined || state.realHot)
+      ? `<div class="nextbar"><div class="hint">${L("已选中 · 点右下「开始敏感排查」才会跑流程","Selected — hit “Start sensitivity screen” (bottom-right) to run")}</div></div>`
+      : waitBtn(L("请先选择一个热点","Pick a trend first"))}` + wfStrip();
 }
 /* ---- Agent-Reach 真实抓取（后端桥接层，失败回退内置数据） ---- */
 /* 记录最近一次请求失败的原因。原来 !r.ok 与异常都返回 null，
@@ -5052,8 +5078,13 @@ function cancelPasteHot(){ state.pendingHot = null; render(); }
 function skipPasteHot(){
   const h = state.pendingHot; if(!h) return;
   state.pendingHot = null;
-  h._skipPaste = true;
-  pickRealHot(h);
+  /* 2026-09-22：不再跳过粘贴就直接开跑（跳过粘贴 = 拿薄素材硬跑，Bryan 明确反对静默硬跑）。
+     关闭弹窗、取消这条的选中，让用户重选或去粘贴原文。 */
+  h._skipPaste = false;
+  state.realHot = null; state.hotTopic = null;
+  render();
+  toast(L("已取消选中。请粘贴原文后再开始，或另选一条有正文的热点。",
+          "Deselected — paste the source text before starting, or pick a trend that has full text."));
 }
 function submitPasteHot(){
   const h = state.pendingHot; if(!h) return;
@@ -5065,20 +5096,108 @@ function submitPasteHot(){
   h.fulltext_len = txt.length;
   h.fulltext_status = "ok";
   h.fulltext_err = "";
-  pickRealHot(h);
+  confirmHotRun();                  /* 原文补齐了，继续走确认开跑 */
 }
 function pickRealHot(h){
   if(!h) return;
-  /* 源头拦截：没有可用正文时先引导粘贴，避免用户走完整个流程才发现抽不到事实卡 */
-  if(!hasUsableText(h) && !h._skipPaste){ state.pendingHot = h; render(); return; }
-  h._skipPaste = false;
+  /* 运行锁（2026-09-22 Bryan 拍板 Q1=B）：任务在跑时不许换选 —— 挑好了、确认了才跑，
+     跑的时候就专心等它跑完，不提供「边跑边挑」。 */
+  if(state.live && state.live.status === "running"){
+    toast(L("AI 正在排查 / 生成中，完成后才能重选素材","AI is running — you can re-pick a material once it finishes"));
+    return;
+  }
+  /* 拆分「挑」与「跑」（2026-09-22 Bryan 拍板）：点卡只选中 + 预览，**不跑流程、不跳页**；
+     真正的 startLiveRun 只在右下面板点「开始敏感排查」时才触发（见 confirmHotRun）。 */
   state.realHot = h;
+  state.hot = undefined;          /* 两类热点互斥：选了真实卡就清掉演示卡的选中 */
   state.hotTopic = h.topic;
-  state.extracted = false;
-  state.topicSel = null; resetTags();
+  render();
+}
+
+/* 右下「素材预览」面板：挑素材阶段只看不跑。 */
+function hotPeekHTML(){
+  if(state.route !== "trend") return "";
+  const running = state.live && state.live.status === "running";
+  const h = curHot();
+  if(running){
+    return `<div class="hotpeek"><div class="hp-running"><span class="pulse"></span>
+      ${L("AI 正在排查 / 生成中，完成后才能重选素材。","AI is running — you can re-pick a material once it finishes.")}</div></div>`;
+  }
+  if(!h) return "";
+  const topic = h.topic || h.title || "";
+  const cn = (h.cn && h.cn !== topic) ? h.cn : "";
+  const body = (h.fulltext || h.summary || "").trim();
+  const src = h.source || "";
+  const url = (h.url || "").trim();
+  const heat = (h.heat != null) ? h.heat : null;
+  const srcs = (h.srcs != null) ? h.srcs : null;
+  return `<div class="hotpeek" id="hotpeek">
+    <div class="hp-k"><b> ${L("素材预览","Preview")}</b>
+      <span class="tint neutral">${L("未开始 · 仅查看","Not started · view only")}</span>
+      <span class="hp-x" onclick="cancelHotSel()" title="${L("取消选中","Deselect")}">✕</span></div>
+    <h4>${esc(topic)}</h4>
+    ${cn ? `<div class="hp-cn">${esc(cn)}</div>` : ""}
+    <div class="hp-meta">
+      ${src ? `<span>${L("来源","Source")} <b>${esc(src)}</b></span>` : ""}
+      ${heat != null ? `<span>${L("热度","Heat")} <b>${heat}</b></span>` : ""}
+      ${srcs != null ? `<span>${L("信源","Sources")} <b>${srcs}</b></span>` : ""}
+    </div>
+    <div class="hp-body">${esc(body || L("（这条热点没有正文预览）","(no preview text)"))}</div>
+    ${url ? `<div class="hp-link"> ${L("原文链接","Source link")}：<a href="${esc(url)}" target="_blank" rel="noopener">${esc(url)}</a></div>` : ""}
+    <div class="hp-bar">
+      <button class="btn" onclick="confirmHotRun()"> ${L("开始敏感排查","Start sensitivity screen")} →</button>
+    </div>
+    <div class="hp-note" style="margin-top:8px">${L("点上方按钮才开始跑流程（先敏感排查，再事实抽取）；此前换选不消耗任何调用。",
+      "The workflow only starts after you hit the button above (sensitivity screen → fact extraction); switching picks before that costs nothing.")}</div>
+  </div>`;
+}
+
+/* 取消选中（收起预览、回到「未挑」状态）。 */
+function cancelHotSel(){
+  state.realHot = null; state.hot = undefined; state.hotTopic = null;
+  render();
+}
+
+/* 确认开跑：唯一的流程入口。真实卡 / 演示卡 / 自定义卡统一从这里进 startLiveRun。 */
+function confirmHotRun(){
+  if(state.live && state.live.status === "running"){
+    toast(L("AI 正在运行中，请稍候…","AI run in progress, please wait…")); return;
+  }
+  const h = curHot();
+  if(!h){ toast(L("请先选择一条热点","Pick a trend first")); return; }
+  /* 无可用正文：此时才引导粘贴（原来是点卡就弹，现在挪到「确认」这一步）。 */
+  if(state.realHot && !hasUsableText(h) && !h._skipPaste){ state.pendingHot = h; render(); return; }
+  if(state.realHot) state.realHot._skipPaste = false;
+  state.extracted = false;   /* 重置事实抽取状态，选中新热点后重新抽取 */
+  state.topicSel = null;     /* 重置选题多选，让新热点按自身 tags 智能推荐 */ resetTags();
   GEN = {};
-  startLiveRun(h.fulltext || h.summary || h.topic, h.topic, h.source);
+  startLiveRun(h.fulltext || h.summary || h.topic, h.topic || h.title, h.source);
   if(state.user){ cur = 2; refreshRail(); stage.scrollTop = 0; render(); }
+}
+
+/* 把右下面板挂到 body（stage 每次 innerHTML 重建，面板得放 body 上才不会被清掉）。
+   离开热点页 / 取消选中 / 开始跑之后由 hotPeekHTML() 返回空串 ⇒ 这里同步移除。 */
+function mountHotPeek(){
+  let el = document.getElementById("hotpeek");
+  const html = hotPeekHTML();
+  if(!html){ if(el) el.remove(); return; }
+  if(el) el.remove();
+  const d = document.createElement("div");
+  d.innerHTML = html;
+  document.body.appendChild(d.firstElementChild);
+}
+
+/* 选中演示热点（HOTS）：只选中 + 预览，**不跑流程**（拆分「挑」与「跑」，2026-09-22）。 */
+function pickHot(i){
+  const h = HOTS[i]; if(!h || !h.summary) return;
+  if(state.live && state.live.status === "running"){
+    toast(L("AI 正在排查 / 生成中，完成后才能重选素材","AI is running — you can re-pick a material once it finishes"));
+    return;
+  }
+  state.hot = i;
+  state.realHot = null;         /* 与真实卡互斥 */
+  state.hotTopic = h.topic;
+  render();
 }
 function renderHots(){
   const g = $("#hotgrid"); if(!g) return;
@@ -5131,7 +5250,10 @@ function renderHots(){
     const step = Math.max(6, Math.min(90, Math.round(1500 / Math.max(1, real.length))));
     real.forEach((h, i) => {
       setTimeout(()=>{
-        const d = document.createElement("div"); d.className = "hotcard";
+        const running = state.live && state.live.status === "running";
+        const isSel = state.realHot === h;
+        const d = document.createElement("div");
+        d.className = "hotcard" + (isSel ? " sel" : "") + (running ? " locked" : "");
         d.onclick = () => pickRealHot(h);
         const themeZh = DIRS[h.theme] ? DIRS[h.theme].zh : (h.theme||"");
         const subLabel = h.sub ? (themeZh + " · " + h.sub) : themeZh;
@@ -5163,11 +5285,13 @@ function renderHots(){
   }
   items.forEach(({h, idx}, i) => {
     setTimeout(()=>{
-      const d = document.createElement("div"); d.className = "hotcard";
+      const running = state.live && state.live.status === "running";
+      const d = document.createElement("div");
+      d.className = "hotcard" + (state.hot === idx ? " sel" : "") + (running ? " locked" : "");
       const selId = "hotSel_"+idx;
       d.innerHTML = `<div style="display:flex;align-items:flex-start;gap:8px">
         <input type="checkbox" id="${selId}" style="margin-top:3px;flex-shrink:0" onchange="updateBatchBtn()">
-        <div style="flex:1;min-width:0;cursor:pointer" onclick="state.hot=${idx};pickHot(${idx});render();">
+        <div style="flex:1;min-width:0;cursor:pointer" onclick="pickHot(${idx})">
           <div class="rank">#${h.rank}</div>
           <h4>${h.topic}</h4><div class="cn">${h.cn}</div>
           ${h.source ? `<div class="srctag"><i style="background:#D04418"></i>${L("真实热点","Real")} · ${h.source}</div>` : ""}
@@ -5201,7 +5325,9 @@ function renderCustomHots(g, immediate){
   cust.forEach((h, i) => {
     const make = () => {
       const T = SRC_TYPES[h.type] || SRC_TYPES.other;
-      const d = document.createElement("div"); d.className = "hotcard custom";
+      const running = state.live && state.live.status === "running";
+      const d = document.createElement("div");
+      d.className = "hotcard custom" + (state.realHot === h ? " sel" : "") + (running ? " locked" : "");
       d.onclick = () => pickRealHot(h);
       const link = h.url
         ? `<a href="${esc(h.url)}" target="_blank" rel="noopener" style="color:#E65425;text-decoration:underline" onclick="event.stopPropagation()">${L("打开原文","Open source")}</a>`
@@ -5217,17 +5343,17 @@ function renderCustomHots(g, immediate){
     if(immediate) make(); else setTimeout(make, 110*i);
   });
 }
-/* 选中真实热点：把文章原文喂给 AI 实时引擎，真实走敏感排查 + 4 档生成 */
+/* 选中演示热点（HOTS）：只选中 + 预览，**不跑流程**（拆分「挑」与「跑」，2026-09-22）。 */
 function pickHot(i){
   const h = HOTS[i]; if(!h || !h.summary) return;
-  state.hotTopic = h.topic;
+  if(state.live && state.live.status === "running"){
+    toast(L("AI 正在排查 / 生成中，完成后才能重选素材","AI is running — you can re-pick a material once it finishes"));
+    return;
+  }
   state.hot = i;
-  state.extracted = false;   /* 重置事实抽取状态，选中新热点后重新抽取 */
-  state.topicSel = null;     /* 重置选题多选，让新热点按自身 tags 智能推荐 */ resetTags();
-  GEN = {};           /* 兜底生成稿立即基于选中素材刷新（真实生成仍由 AI 覆盖） */
-  startLiveRun(h.fulltext || h.summary, h.topic, h.source);
-  /* 跳转到 02 敏感排除页，实时展示排查过程与结果（原热点头条保留在热点页顶部） */
-  if(state.user){ cur = 2; refreshRail(); stage.scrollTop = 0; render(); }
+  state.realHot = null;         /* 与真实卡互斥 */
+  state.hotTopic = h.topic;
+  render();
 }
 
 /* ---------- Stage 2 ---------- */
@@ -7470,6 +7596,7 @@ function render(){
   const roBanner = ro ? `<div class="ro-banner">${L("只读查看 · 本步骤由「"+ownerLabel(cur)+"」职能操作","Read-only · this step is operated by "+ownerLabel(cur))}</div>` : "";
   stage.innerHTML=`<div class="wrap${ro?" ro":""}">${backBarHTML()}${roBanner}${fns[cur]()}</div>`;
   renderPasteModal();   /* 无原文热点的「粘贴原文」弹窗（state.pendingHot 为空时自动移除） */
+  mountHotPeek();       /* 右下「素材预览」面板（state 未选中时自动移除） */
   if(cur===0) renderBank();
   if(cur===1) renderHots();
   if(cur===7) typewriter();
