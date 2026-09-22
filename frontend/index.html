@@ -5764,7 +5764,7 @@ function s6(){
     }
     return head("08", L("内容生成","Graded Generation")) +
     artWorkflowBar() +
-      `<div class="note" style="padding:48px;text-align:center;margin:16px 0">${L("尚未选择素材。请先到 01 素材选择页选择素材并运行工作流，此处将展示真实生成的 4 档文章。","No material selected yet. Go to step 01 to pick a material and run the workflow first.")}</div>` + wfStrip();
+      `<div class="note" style="padding:48px;text-align:center;margin:16px 0">${L("还没有可展示的文章。请先在上一步完成素材准备，再回到这里生成 4 档文章。","No article to show yet. Prepare the material in the previous step first, then generate the 4 levels here.")}</div>` + wfStrip();
   }
   const cap = offCap(state.lvl);
   const lf = liveFacts();
