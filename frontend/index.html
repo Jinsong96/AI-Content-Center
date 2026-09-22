@@ -5685,19 +5685,25 @@ function setStyle(k){
   render();
 }
 function s6(){
-  /* 授权母稿链路：确认分段后跳到本页，这里显示「生成文章」按钮，点它才真正跑图 B。
-     优先级最高 —— 先于 hasArticle/running 判断，否则会误进「尚未选择素材」占位。 */
-  if(state.route === "licensed" && licState().pendingGen){
-    const st = licState();
-    const tgts = LIC_TARGETS[st.prep ? st.prep.level : ""] || [];
-    const nSeg = (st.prep && st.prep.segs) ? st.prep.segs.length : 0;
-    return head("08", L("内容生成","Graded Generation")) +
-      artWorkflowBar() +
-      `<div class="note" style="padding:40px;text-align:center;margin:16px 0">
-        <p style="margin:0 0 14px">${L("分段已确认，即将向下生成 " + tgts.map(function(k){ return nkDisp(k); }).join(" + ") + "（" + nSeg + " 段）。点击下方按钮开始生成。",
-          "Segmentation confirmed — about to generate " + tgts.map(function(k){ return nkDisp(k); }).join(" + ") + " from " + nSeg + " paragraphs. Click below to start.")}</p>
-        <button class="btn" onclick="licRunGen()">${L("生成文章","Generate articles")}</button>
-      </div>` + wfStrip();
+  /* 授权母稿链路：只要还没产出文章、且不在生成中，就显示「生成文章」按钮，
+     绝不落到下面那句「还没有可展示的文章」兜底文案（授权链能进本页 = 母稿已导入分段）。
+     覆盖两种进入方式：① pendingGen（确认页跳过来）② 生成中的瞬时重渲染闪一下。 */
+  if(state.route === "licensed"){
+    const g0 = GEN[state.lvl];
+    const _has = !!(g0 && g0.paras && g0.paras.length);
+    const _running = state.live.status === "running";
+    if(!_has && !_running && licState().prep){
+      const st = licState();
+      const tgts = LIC_TARGETS[st.prep ? st.prep.level : ""] || [];
+      const nSeg = (st.prep && st.prep.segs) ? st.prep.segs.length : 0;
+      return head("08", L("内容生成","Graded Generation")) +
+        artWorkflowBar() +
+        `<div class="note" style="padding:40px;text-align:center;margin:16px 0">
+          <p style="margin:0 0 14px">${L("分段已确认，即将向下生成 " + tgts.map(function(k){ return nkDisp(k); }).join(" + ") + "（" + nSeg + " 段）。点击下方按钮开始生成。",
+            "Segmentation confirmed — about to generate " + tgts.map(function(k){ return nkDisp(k); }).join(" + ") + " from " + nSeg + " paragraphs. Click below to start.")}</p>
+          <button class="btn" onclick="licRunGen()">${L("生成文章","Generate articles")}</button>
+        </div>` + wfStrip();
+    }
   }
   const g = GEN[state.lvl];
   const hasArticle = !!(g && g.paras && g.paras.length);
