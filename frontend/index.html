@@ -6885,7 +6885,7 @@ function topicLabelOf(a){
   return c ? L(c.zh, c.en) : L("未分类","Other");
 }
 /* ---------- 11 · 文章库（统计 + 列表 + 人工审核入口） ---------- */
-/* ==================== 文章库 · 导出（Markdown / zip） ==================== */
+/* ==================== 文章库 · 导出（Word .docx） ==================== */
 /* 文件名安全化：去非法字符、压缩空白、截断 */
 function safeFileName(s){
   return String(s == null ? "" : s).replace(/[\\/:*?"<>|\r\n\t]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 50) || "untitled";
@@ -6894,10 +6894,12 @@ function safeFileName(s){
 function cleanPara(t){
   return String(t == null ? "" : t).replace(/\{(?:f\d*|w)\}([^{]*)\{f\}/g, "$1");
 }
-/* 文章 Markdown：# 标题 + 4 档（# A1/A2/B1/B2），段落空行分隔 */
-function buildArticleMD(a){
+/* 单篇全文 Markdown：# 标题 + 按档推进，每档「先文章段落、后该档题目」。
+   即 A1-(文章段落…→题目Q1/Q2/Q3) → A2(段落…→题目) → B1 → B2+，一个文档内四档并列。 */
+function buildArticleAllLevelsMD(a){
   const out = ["# " + (a.title || "Untitled"), ""];
   allKeys().forEach(function(k){
+    /* 该档文章段落 */
     const paras = (a.paras && a.paras[k]) || [];
     const list = [];
     if(paras.length){
@@ -6906,66 +6908,25 @@ function buildArticleMD(a){
       const raw = (a.articles && a.articles[k]) || "";
       raw.split(/\n{2,}/).forEach(function(p){ const c = cleanPara(p).trim(); if(c) list.push(c); });
     }
-    if(!list.length) return;
+    /* 该档题目 */
+    const quiz = (a.quiz && a.quiz[k]) || [];
+    if(!list.length && !quiz.length) return;
     out.push("# " + k, "");
     list.forEach(function(c){ out.push(c, ""); });
-  });
-  return out.join("\n").replace(/\n+$/, "\n");
-}
-/* 单档文章 Markdown：# 标题 + 该档段落（文件名已标档位，正文不重复 # A1） */
-function buildArticleLevelMD(a, k){
-  const out = ["# " + (a.title || "Untitled"), ""];
-  const paras = (a.paras && a.paras[k]) || [];
-  const list = [];
-  if(paras.length){
-    paras.forEach(function(t){ const c = cleanPara(t).trim(); if(c) list.push(c); });
-  } else {
-    const raw = (a.articles && a.articles[k]) || "";
-    raw.split(/\n{2,}/).forEach(function(p){ const c = cleanPara(p).trim(); if(c) list.push(c); });
-  }
-  list.forEach(function(c){ out.push(c, ""); });
-  return out.join("\n").replace(/\n+$/, "\n");
-}
-/* 题目 Markdown：# 标题 + 4 档，每题题干/选项/答案/解析 */
-function buildQuizMD(a){
-  const out = ["# " + (a.title || "Untitled"), ""];
-  allKeys().forEach(function(k){
-    const list = (a.quiz && a.quiz[k]) || [];
-    if(!list.length) return;
-    out.push("# " + k, "");
-    list.forEach(function(q, i){
-      out.push("Q" + (i+1) + ". " + cleanPara(q.q || ""));
-      (q.options || []).forEach(function(o, oi){
-        out.push(("ABCD"[oi] || (oi+1)) + ". " + cleanPara(o));
+    if(quiz.length){
+      out.push("", "## 题目", "");
+      quiz.forEach(function(q, i){
+        out.push("Q" + (i+1) + ". " + cleanPara(q.q || ""));
+        (q.options || []).forEach(function(o, oi){
+          out.push(("ABCD"[oi] || (oi+1)) + ". " + cleanPara(o));
+        });
+        out.push("答案：" + ("ABCD"[q.answer] || "—"));
+        if(q.explain) out.push("解析：" + cleanPara(q.explain));
+        out.push("");
       });
-      out.push("答案：" + ("ABCD"[q.answer] || "—"));
-      if(q.explain) out.push("解析：" + cleanPara(q.explain));
-      out.push("");
-    });
+    }
   });
   return out.join("\n").replace(/\n+$/, "\n");
-}
-/* 单档题目 Markdown：# 标题 + 该档题目（题干/选项/答案/解析） */
-function buildQuizLevelMD(a, k){
-  const out = ["# " + (a.title || "Untitled"), ""];
-  const list = (a.quiz && a.quiz[k]) || [];
-  list.forEach(function(q, i){
-    out.push("Q" + (i+1) + ". " + cleanPara(q.q || ""));
-    (q.options || []).forEach(function(o, oi){
-      out.push(("ABCD"[oi] || (oi+1)) + ". " + cleanPara(o));
-    });
-    out.push("答案：" + ("ABCD"[q.answer] || "—"));
-    if(q.explain) out.push("解析：" + cleanPara(q.explain));
-    out.push("");
-  });
-  return out.join("\n").replace(/\n+$/, "\n");
-}
-/* 文件名去重：重名时追加文章短 ID */
-function uniqueName(base, ext, used, sid){
-  let name = base + ext;
-  if(used[name]) name = base + "-" + sid + ext;
-  used[name] = true;
-  return name;
 }
 /* Word(.docx) 导出：用 JSZip 打包最小 WordprocessingML，零额外依赖，Word/WPS 均可打开。
    内容结构 = 标题（Heading1）+ 各档（Heading2）+ 段落（正文），与 MD 同源。 */
@@ -6986,23 +6947,29 @@ function mdToDocxBody(md, withNumbers){
   const paras = [];
   let firstHeading = true;
   let paraIndex = 0;
+  let inQuiz = false;   /* 题目区：不施加段落序号（题目靠 Q1/A/B/C 自编号） */
   lines.forEach(function(line){
     const t = line.replace(/\r$/, "");
-    if(/^#\s/.test(t)){
-      const txt = t.replace(/^#\s+/, "").trim();
+    if(/^#+\s/.test(t)){
+      const txt = t.replace(/^#+\s+/, "").trim();
       if(/^(A1|A2|B1|B2)$/.test(txt)){
         paras.push(docxParagraph(nkDisp(txt), "DocLevel"));   /* 档位：加粗一级标题 */
         paraIndex = 0;
+        inQuiz = false;
       } else if(firstHeading){
         paras.push(docxParagraph(txt, "DocTitle"));           /* 第一个 # = 文章标题：居中 */
         firstHeading = false;
+      } else if(txt === "题目"){
+        paras.push(docxParagraph(txt, "DocLevel"));           /* 「题目」小节标题：加粗 */
+        paraIndex = 0;
+        inQuiz = true;
       } else {
-        paras.push(docxParagraph(txt, "DocLevel"));
+        paras.push(docxParagraph(txt, "DocLevel"));           /* 其余 #/## 小节标题：加粗 */
         paraIndex = 0;
       }
     } else if(t.trim()){
       const c = t.trim();
-      if(withNumbers){
+      if(withNumbers && !inQuiz){
         const prefix = paraIndex < DOCX_CIRCLE.length ? DOCX_CIRCLE[paraIndex] : ("(" + (paraIndex + 1) + ")");
         paras.push(docxParagraph(prefix + " " + c, "Normal"));
         paraIndex++;
@@ -7042,40 +7009,30 @@ function buildDocxBlob(md, withNumbers){
   doc.folder("word").file("document.xml", xml);
   return doc.generateAsync({ type: "blob" });
 }
-/* 导出：单篇 / 批量，打成 zip（每篇 文章 MD + 题目 MD + 文章 docx + 题目 docx） */
+/* 导出：单篇 → 一个 .docx；多选 → 每篇各自一个 .docx，一次下载多个。
+   文档内容 = # 标题 + 逐档(先文章段落、后该档题目)，4 档全在一个 Word 里。 */
 async function exportArticles(ids){
   if(typeof JSZip === "undefined"){ toast(L("导出组件未加载，请联网后刷新重试","Export module not loaded — check network and refresh")); return; }
   const bank = loadBank();
   const arts = (ids || []).map(function(id){ return bank.find(function(x){ return x.id === id; }); }).filter(Boolean);
   if(!arts.length){ toast(L("没有可导出的文章","Nothing to export")); return; }
-  const zip = new JSZip();
-  const used = {};
-  for(let i = 0; i < arts.length; i++){
-    const a = arts[i];
-    const base = safeFileName(a.title);
-    const sid = String(a.id || "").slice(0, 6);
-    zip.file(uniqueName(base + "-文章", ".md", used, sid), buildArticleMD(a));
-    zip.file(uniqueName(base + "-题目", ".md", used, sid), buildQuizMD(a));
-    /* Word 版：与 MD 同源，打包进同一个 zip */
-    zip.file(uniqueName(base + "-文章", ".docx", used, sid), await buildDocxBlob(buildArticleMD(a), true));
-    zip.file(uniqueName(base + "-题目", ".docx", used, sid), await buildDocxBlob(buildQuizMD(a), false));
-    /* 分档导出：每个难度等级单独出 文章/题目 各 md + docx，命名 标题_{档位} / 标题_{档位}_题目 */
-    for(const k of allKeys()){
-      const lvl = nkDisp(k);   /* A1- / A2 / B1 / B2+ */
-      zip.file(uniqueName(base + "_" + lvl, ".md", used, sid), buildArticleLevelMD(a, k));
-      zip.file(uniqueName(base + "_" + lvl + "_题目", ".md", used, sid), buildQuizLevelMD(a, k));
-      zip.file(uniqueName(base + "_" + lvl, ".docx", used, sid), await buildDocxBlob(buildArticleLevelMD(a, k), true));
-      zip.file(uniqueName(base + "_" + lvl + "_题目", ".docx", used, sid), await buildDocxBlob(buildQuizLevelMD(a, k), false));
+  try {
+    /* 逐篇生成 docx blob（每篇内所有难度、先文章后题目） */
+    const built = [];
+    for(let i = 0; i < arts.length; i++){
+      const a = arts[i];
+      const blob = await buildDocxBlob(buildArticleAllLevelsMD(a), true);
+      built.push({ name: safeFileName(a.title) + ".docx", blob: blob });
     }
-  }
-  zip.generateAsync({ type:"blob" }).then(function(blob){
-    const url = URL.createObjectURL(blob);
-    const dl = document.createElement("a");
-    dl.href = url;
-    dl.download = (arts.length === 1 ? safeFileName(arts[0].title) : "readpal-articles-" + new Date().toISOString().slice(0,10)) + ".zip";
-    document.body.appendChild(dl); dl.click();
-    setTimeout(function(){ document.body.removeChild(dl); URL.revokeObjectURL(url); }, 1000);
-  }).catch(function(e){ toast(L("导出失败：","Export failed: ") + (e && e.message)); });
+    built.forEach(function(b){
+      const url = URL.createObjectURL(b.blob);
+      const dl = document.createElement("a");
+      dl.href = url;
+      dl.download = b.name;
+      document.body.appendChild(dl); dl.click();
+      setTimeout(function(){ document.body.removeChild(dl); URL.revokeObjectURL(url); }, 1200);
+    });
+  } catch(e){ toast(L("导出失败：","Export failed: ") + (e && e.message)); }
 }
 function exportArticle(id){ exportArticles([id]); }
 function exportSelected(){ exportArticles(Object.keys(artSel).filter(function(k){ return artSel[k]; })); }
