@@ -468,7 +468,7 @@ node tools/ui_audit.mjs --url=http://127.0.0.1:8899/index.html --role=produce \
 
    ⚠️ **回归用例里不许在 `licSet` 后面补 `render()`** —— 手动重绘会把这类 bug 整个盖住，
    这正是旧 51 项用例漏掉它的原因。改档位/勾精简一律走真实事件
-   （`s.dispatchEvent(new Event("change",{bubbles:true}))`），见 `probe_lic_flow.mjs` 第 **1b** 组。
+   （`s.dispatchEvent(new Event("change",{bubbles:true}))`），见 `probe_lic_flow.mjs` 第 **1b / 1c** 组。
 
 8. ⚠️ **展示类数字不许用 `licSegRange().n`** —— 那个 n 被 `LIC_REF_MIN/MAX`（6–30）夹过，
    只作 `licRange()` 防脏值用。段数跑出该范围时「N 段 × 每段词数 = 区间」会变成假话。
@@ -530,8 +530,17 @@ node tools/ui_audit.mjs --url=http://127.0.0.1:8899/index.html --role=produce \
 
 ```bash
 cd frontend && python3 -m http.server 8899 &
-node tools/probe_lic_flow.mjs --url=http://127.0.0.1:8899/index.html --port=9242   # 57 项断言（第 1b 组走真实 DOM 事件，见硬约定 7）
+node tools/probe_lic_flow.mjs --url=http://127.0.0.1:8899/index.html --port=9242   # 62 项断言
 ```
+
+其中 **1b / 1c 两组专治「改了状态不重绘」**（见硬约定 7），**全程不许调 `render()`**：
+- **1b**：真实 `change` 事件改档位 / 勾精简 → 就绪红条、行内预估、底部按钮三处必须立刻变。
+- **1c**：真实 `input` + `click` 走完 **粘贴 → 加入列表 → 移除**（Bryan 实际操作的前半段），
+  断言列表条数、输入框清空、红条点名第几篇、底部是否回落到 `waitBtn`。
+
+⚠️ **`waitBtn()` 渲染的不是 `<button>`** —— 断言「底部不可点」要用
+`!!document.querySelector(".nextbar button") === false` + `.nextbar` 文案含「请先补全」，
+抓 `.nextbar button` 的 `textContent` 只会拿到空串（踩过一次）。
 
 ## 前端骨架速查（2026-09-10 现状）
 
