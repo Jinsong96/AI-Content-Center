@@ -5831,7 +5831,6 @@ function s7(){
   return head("09", L("AI 校验","AI Validation")) +
     artWorkflowBar() +
   `<div class="validate"><div id="vcol"></div><div id="vcol2"></div></div>
-  <div id="vsum"></div>
   ${nextBtn("提交人工审核","Submit to review")}` + wfStrip();
 }
 let validating = false;
@@ -5869,6 +5868,7 @@ function runValidate(){
 }
 function showVSum(){
   const s=$("#vsum");
+  if(!s) return;   /* #vsum 已从 AI 校验页移除（2026-09-22 轻量化），这里只在别处存在时才渲染 */
   let big="—";
   let txt=`${L("尚未运行 AI 工作流，暂无真实校验结果。运行后此处展示各档位的真实校验得分。","No AI run yet — no real validation. Run the workflow to see the real per-level check score.")}`;
   const vj = liveVJ();
