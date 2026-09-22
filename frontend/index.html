@@ -4287,11 +4287,25 @@ function licTotalHTML(){
 }
 
 /* ---- 生成：图 B ---- */
+/* 确认分段后：不再立即生成，而是标记「待生成」并跳到 08 内容生成页，在那里点「生成文章」才真正跑图 B。
+   （2026-09-22 Bryan 拍板轻量化：把「生成」从确认页挪到生成页，确认页只负责「进入下一步」。） */
+function licGoGen(){
+  const st = licState(); const a = licCurArt();
+  if(!st.prep || !a){ toast(L("还没有可生成的分段结果","No prepared segmentation yet")); return; }
+  const segs = st.prep.segs.map(function(x){ return String(x||"").trim(); }).filter(function(x){ return x; });
+  if(!segs.length){ toast(L("分段内容为空，无法生成","Segmentation is empty — cannot generate")); return; }
+  if(licBusyBlocked("gen")) return;
+  /* 标记「授权链路待生成」：s6 页据此显示「生成文章」按钮（而不是热点/素材链路的 runGeneration） */
+  st.pendingGen = true;
+  go(6);
+}
 function licRunGen(){
   const st = licState(); const a = licCurArt();
   if(!st.prep || !a){ toast(L("还没有可生成的分段结果","No prepared segmentation yet")); return; }
   const segs = st.prep.segs.map(function(x){ return String(x||"").trim(); }).filter(function(x){ return x; });
   if(!segs.length){ toast(L("分段内容为空，无法生成","Segmentation is empty — cannot generate")); return; }
+  /* 开始真正生成：清掉「待生成」标记，避免生成页按钮与进行中状态打架 */
+  st.pendingGen = false;
   /* 🔴 不再有段数上限（2026-09-22 用户拍板：放开、只提示不阻断）。
      段数由内容决定；下游按「段数 × 每段规格词数」现算全文目标，段数多就文章长一点，不会算错。 */
   if(licBusyBlocked("gen")) return;
@@ -4411,10 +4425,10 @@ function licConfirmHTML(){
     </div>
     <p style="color:var(--sub);margin:0 0 12px;font-size:13px;line-height:1.7">
       ${P.simplified
-        ? L("这是逐段改写的<b>骨架</b>，确认后才会开始生成低档文章。每段词数不理想可以就地改、合并或删除。",
-            "This is the <b>skeleton</b> used for rewriting. Edit, merge or delete paragraphs if the word counts look off.")
-        : L("这是逐段改写的<b>骨架</b>。正文<b>逐字保留原样</b>，切分点已按每段 <b>" + band[0] + "–" + band[1] + "</b> 词自动调匀（只移动切分点，不改一个字）；越界的段会标出来。确认后才会开始生成低档文章。",
-            "This is the <b>skeleton</b> used for rewriting. The text is <b>kept verbatim</b>; boundaries were auto-balanced to <b>" + band[0] + "–" + band[1] + "</b> words per paragraph (only cut points move — not a single word changes). Out-of-range paragraphs are flagged. Confirm to start generating.")}
+        ? L("逐段改写的骨架，确认后生成低档文章。词数不合适可就地改。",
+            "Rewrite skeleton. Edit if word counts look off.")
+        : L("逐段改写的骨架，正文逐字保留。越界的段会标出来。",
+            "Rewrite skeleton, text kept verbatim. Out-of-range paragraphs are flagged.")}
     </p>
     ${P.fallback ? '<div class="licneed bad" style="margin-bottom:10px">'
         + "<b>" + L("精简没跑出来　","Condensing did not run　") + "</b>"
@@ -4431,11 +4445,11 @@ function licConfirmHTML(){
         + "</div>" : ""}
     <div style="margin-top:6px">${rows}</div>
     <div class="nextbar" style="justify-content:flex-start;gap:10px;flex-wrap:wrap">
-      <button class="btn" onclick="licRunGen()">${L("确认，生成 " + tgts.map(function(k){ return nkDisp(k); }).join(" + "), "Confirm — generate " + tgts.map(function(k){ return nkDisp(k); }).join(" + "))} →</button>
+      <button class="btn" onclick="licGoGen()">${L("确认，进入下一步","Confirm, next step")} →</button>
       <button class="btn sec" onclick="licPrepOne()">${L("重新预处理","Re-prepare")}</button>
       ${(st.qi || 0) > 0 ? '<button class="btn sec" onclick="licPrevArt()">← ' + L("上一篇","Previous") + "</button>" : ""}
       ${((st.qi || 0) < n - 1) ? '<button class="btn sec" onclick="licNextArt()">' + L("下一篇（跳过这篇）","Next (skip this one)") + " →</button>" : ""}
-      <span class="hint">${L("生成后到「文章生产」查看各档校对与逐段审核；母稿本身也会一并入库。","Results appear under “Article Production”; the master itself is saved to the library too.")}</span>
+      <span class="hint">${L("生成后到「文章生产」查看各档校对与逐段审核。","Results appear under “Article Production” for proofreading.")}</span>
     </div>
   </div>`;
 }
@@ -5689,6 +5703,20 @@ function setStyle(k){
   render();
 }
 function s6(){
+  /* 授权母稿链路：确认分段后跳到本页，这里显示「生成文章」按钮，点它才真正跑图 B。
+     优先级最高 —— 先于 hasArticle/running 判断，否则会误进「尚未选择素材」占位。 */
+  if(state.route === "licensed" && licState().pendingGen){
+    const st = licState();
+    const tgts = LIC_TARGETS[st.prep ? st.prep.level : ""] || [];
+    const nSeg = (st.prep && st.prep.segs) ? st.prep.segs.length : 0;
+    return head("08", L("内容生成","Graded Generation")) +
+      artWorkflowBar() +
+      `<div class="note" style="padding:40px;text-align:center;margin:16px 0">
+        <p style="margin:0 0 14px">${L("分段已确认，即将向下生成 " + tgts.map(function(k){ return nkDisp(k); }).join(" + ") + "（" + nSeg + " 段）。点击下方按钮开始生成。",
+          "Segmentation confirmed — about to generate " + tgts.map(function(k){ return nkDisp(k); }).join(" + ") + " from " + nSeg + " paragraphs. Click below to start.")}</p>
+        <button class="btn" onclick="licRunGen()">${L("生成文章","Generate articles")}</button>
+      </div>` + wfStrip();
+  }
   const g = GEN[state.lvl];
   const hasArticle = !!(g && g.paras && g.paras.length);
   const running = state.live.status === "running";
