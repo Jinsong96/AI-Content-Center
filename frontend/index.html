@@ -6290,7 +6290,6 @@ function alignedViewHTML(editable){
   html+=bigBarOnce();
   html+=alignWarnHTML();
   html+=semWarnHTML();
-  html+='<p class="lede">'+L("AI 已自动切分并对齐 4 档的段落，请在下方逐段校读并修正——点击任意段落文字即可编辑，改动会自动保存到本机，误刷新不会丢；写入文章库后才算定稿。","AI has auto-split and aligned the four levels of this group — click any paragraph text to edit. Edits auto-save to this browser, so an accidental refresh will not lose them; they are final only once saved to the article library.")+' <span id="draftStat" class="draftstat"></span></p>';
   /* B4：段数已并入 bigbar 计数徽标，不再另起一排纯展示 pill */
   html+=alignModeBarHTML();
   html+=alignBodyHTML(true);
@@ -7145,7 +7144,6 @@ function sArticleBank(){
   /* 批量导出条 */
   if(appCount){
     html += `<div class="mat-filter-extra" style="margin-bottom:10px">
-      <span class="mf-count">${selCount ? L("已选 " + selCount + " 篇，可导出","Selected " + selCount + " — ready to export") : L("勾选文章左侧复选框，可批量导出","Tick the boxes to batch export")}</span>
       <button class="btn" onclick="exportSelected()" ${selCount ? "" : "disabled"}>${L("批量导出","Batch export")}</button>
     </div>`;
   }
