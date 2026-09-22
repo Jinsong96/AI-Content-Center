@@ -4148,7 +4148,10 @@ async function licPrepOne(){
      上下文变量插值，缺值属于踩线行为。现在两种模式都有明确值，分支不再有歧义。 */
   const inputs = { material: String(a.text || "").slice(0, 20000), level: bigOf(a.level) || "B2",
                    style: state.style || "default",
-                   need_simplify: a.simplify ? "true" : "false" };
+                   need_simplify: a.simplify ? "true" : "false",
+                   /* 标题单独传（图 A 用它 + 首段标题剔除代码兜底，避免「母稿第①段混入标题」
+                      导致的段数错位）。a.title 是导入时标的标题（文件名/手填），未填则空。 */
+                   title: String(a.title || "").slice(0, 500) };
   try {
     _runAbort = new AbortController();
     const data = await difyCall("licprep", inputs, AIWF_LICPREP.user, _runAbort.signal);
