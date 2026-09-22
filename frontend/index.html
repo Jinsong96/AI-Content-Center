@@ -4434,6 +4434,8 @@ function licConfirmHTML(){
 
 function intakeBackBar(){
   const r = ROUTES.find(x=>x.id===state.route);
+  /* CEFR分级（licensed）标题已是「01 CEFR分级」，无需再重复一个红色入口标签（2026-09-22 轻量化） */
+  if(r.id === "licensed") return "";
   return `<div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap">
     <span class="tint" style="background:${r.color}1A;color:${r.color};font-weight:700">${r.ico} ${L(r.name,r.nameEn)}</span>
     ${r.id==="trend" ? `<span style="font-size:12px;color:var(--muted)">${L("点击下方「进入热点搜集」查看真实热点榜单","Hit \"To trend discovery\" below to see real hot topics")}</span>` : ""}
