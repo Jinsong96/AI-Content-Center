@@ -263,7 +263,15 @@ SEGMENT_SYS = '''你是英语分级阅读内容编辑。把下面这段文字**�
    ⚠️ 照搬原文的自然段是**错误**的 —— 原文一段 50 词，就必须拆成约 31 + 19 或两段各 25。
 4. **段数不用凑**：段数 = 全文词数 ÷ 每段目标，自然算出来是多少就是多少（大约 8–15 段）。
    不要为了凑某个段数把段落拉长或切碎。
-5. 不要保留原文的小标题、编号、markdown 标记（`#`、`*`、`-` 等）。
+5. **标题必须剔除，不得进入段落骨架**：
+   - 若【标题】字段非空，正文里与之相同（或高度相似）的那一行就是标题，**直接丢弃**。
+   - 即便【标题】字段为空，正文**第一行/第一段如果是标题**（极短、独立的名词短语、
+     不是完整句、与后文话题独立），也**必须丢弃**，不作为第一段。
+   - 不要保留原文的小标题、编号、markdown 标记（`#`、`*`、`-` 等）。
+
+🔴 **标题定义**：标题 = 一个孤立的短语（如 `Making money from your spare room`），
+   它**不是一句话**（没有主语+谓语结构的完整陈述），是文章的题目。正文第一段往往
+   才是真正的开头（如 `If a stranger offered you money...`）。务必分清「标题」和「第一段正文」。
 
 ⚠️ 输出的所有段落**按顺序拼接起来必须等于原文，一个词都不差**（连标点都不改）。
    你唯一的自由是**决定在哪里断开**。
@@ -278,6 +286,7 @@ SEGMENT_SYS = '''你是英语分级阅读内容编辑。把下面这段文字**�
 
 【母稿档位】{{#nodeStart.level#}}
 【是否需要精简】{{#nodeStart.need_simplify#}}
+【标题】（单独提供，若为空表示正文里可能混有标题需要自行识别剔除）：{{#nodeStart.title#}}
 
 【正文】
 {{#nodeFinal.final_text#}}
@@ -296,9 +305,43 @@ SEGMENT_SYS = '''你是英语分级阅读内容编辑。把下面这段文字**�
 #                  **不按长度重排** —— 精简稿是模型按内容大意切的，重排会切坏大意。
 #
 #   全程只移动切分点，**一个字都不改**（拼起来仍与原文逐字一致）。
-CLEAN_CODE = r'''function main({ level, need_simplify, master, raw, fallback }) {
+CLEAN_CODE = r'''function main({ level, need_simplify, master, raw, fallback, title }) {
   const strip = (s) => String(s == null ? '' : s).replace(/```json/gi, '').replace(/```/g, '').trim();
   const wc = (t) => (String(t || '').match(/[A-Za-z][A-Za-z''-]*/g) || []).length;
+
+  /* ---- 0) 标题兜底：即便模型没按指令剔除，代码也把「首段=标题」硬去掉 ----
+     · 若有 title 入参且正文首段等于/包含该标题 → 直接丢弃首段；
+     · 否则用标题形态启发式：首段词数极短（≤6 词）且是「非陈述句」（不含句末标点，
+       或整段就是一个短语）→ 视为标题丢弃。
+     这是给「母稿第①段混入标题 → 段数错位」的代码级防线，不依赖 LLM 自觉。 */
+  const isTitleLine = (s) => {
+    const t = String(s || '').trim();
+    if (!t) return false;
+    const n = wc(t);
+    if (n > 6) return false;                 /* 标题不会太长 */
+    if (/[.!?]$/.test(t)) return false;      /* 以句末标点结尾 → 是句子，不是标题 */
+    const hasVerb = /\b(am|is|are|was|were|be|been|being|have|has|had|do|does|did|will|would|can|could|shall|should|may|might|must|say|said|says|start|started|starts|help|helps|helped|make|makes|made|use|uses|used|take|takes|took|go|goes|went|come|comes|came|get|gets|got|give|gives|gave|keep|keeps|kept|find|finds|found|think|thinks|thought|know|knows|knew|want|wants|wanted|need|needs|needed|try|tries|tried|look|looks|looked|work|works|worked|live|lives|lived|mean|means|believe|believes|believed|tell|tells|told|run|runs|walk|walks|eat|eats|see|sees|saw|watch|watches|read|reads|write|writes|play|plays|learn|learns|love|loves|like|likes|buy|buys|sell|sells|pay|pays|cost|costs|offer|offers|rent|rents|store|stores|share|shares|link|links|connect|connects)\b/i.test(t);
+    if (hasVerb) return false;               /* 含谓语动词 → 更可能是句子开头 */
+    return true;                             /* 极短、无句末标点、无谓语 → 标题 */
+  };
+  const stripTitle = (arr) => {
+    const t = String(title || '').trim();
+    if (arr.length && t) {
+      const first = arr[0].trim();
+      const norm = (x) => x.toLowerCase().replace(/[^a-z0-9]+/g, ' ').replace(/\s+/g, ' ').trim();
+      const fn = norm(first), tn = norm(t);
+      /* 首段 == 标题，或首段以标题开头（标题+正文挤在一段） */
+      if (fn && (fn === tn || fn.indexOf(tn) === 0)) {
+        const rest = first.slice(first.toLowerCase().indexOf(t.toLowerCase()) + t.length).trim();
+        if (rest) arr[0] = rest;             /* 标题和正文挤在一段 → 剥掉标题保留正文 */
+        else arr.shift();                    /* 首段纯标题 → 整段丢弃 */
+        return true;
+      }
+    }
+    /* 无 title 时用形态启发式 */
+    if (arr.length && isTitleLine(arr[0])) { arr.shift(); return true; }
+    return false;
+  };
 
   /* ---- 1) 从模型输出里抠出 JSON（模型常带前后缀或 markdown 包裹） ---- */
   let segs = [];
@@ -315,6 +358,10 @@ CLEAN_CODE = r'''function main({ level, need_simplify, master, raw, fallback }) 
   if (!segs.length) {
     segs = txt.split(/\n\s*\n/).map((s) => s.trim()).filter((s) => s.length > 0);
   }
+
+  /* 首段标题剔除（代码硬兜底，在质检前做，避免标题被当正文段参与长度重排） */
+  let titleDropped = false;
+  if (segs.length) titleDropped = stripTitle(segs);
 
   const lv = String(level || '').trim();
   const spec = { B1: [323, 437, 28, 35], B2: [468, 632, 41, 50] }[lv] || null;
@@ -536,6 +583,7 @@ CLEAN_CODE = r'''function main({ level, need_simplify, master, raw, fallback }) 
     fallback: fb ? 'true' : 'false',
     auto_fixed: String(autoFixed),
     out_of_band: String(outOfBand),
+    title_dropped: titleDropped ? 'true' : 'false',
     /* 精简模式下「段数跑出 10–15」或「全文字数越区间」都算失败
        （精简的目的就是落进该档规格）；不精简模式 wcBad / segBad 恒为 false ⇒ 只提示不判失败。 */
     ok: (!segBad && !wcBad && !!spec && segs.length > 0) ? 'true' : 'false',
@@ -554,6 +602,8 @@ def build():
             'variables': [
                 {'label': '母稿原文', 'variable': 'material', 'type': 'paragraph',
                  'required': True, 'max_length': 20000, 'options': []},
+                {'label': '标题（单独摘出，正文不含标题）', 'variable': 'title', 'type': 'paragraph',
+                 'required': False, 'max_length': 500, 'options': []},
                 {'label': '母稿档位（人工标注）', 'variable': 'level', 'type': 'select',
                  'required': True, 'max_length': 48, 'options': ['B1', 'B2']},
                 {'label': '是否需要精简（超出该档字数时才为 true）', 'variable': 'need_simplify',
@@ -623,6 +673,7 @@ def build():
             'variables': [
                 {'variable': 'level', 'value_selector': ['nodeStart', 'level']},
                 {'variable': 'need_simplify', 'value_selector': ['nodeStart', 'need_simplify']},
+                {'variable': 'title', 'value_selector': ['nodeStart', 'title']},
                 {'variable': 'master', 'value_selector': ['nodeFinal', 'final_text']},
                 {'variable': 'raw', 'value_selector': ['nodeSegment', 'text']},
                 {'variable': 'fallback', 'value_selector': ['nodeFinal', 'fallback']},
@@ -630,7 +681,7 @@ def build():
             'outputs': {k: {'children': None, 'type': 'string'} for k in
                         ('segments_json', 'seg_count', 'para_words', 'word_count',
                          'master_text', 'level', 'need_simplify', 'seg_note', 'fallback',
-                         'auto_fixed', 'out_of_band', 'ok', 'warn')},
+                         'auto_fixed', 'out_of_band', 'title_dropped', 'ok', 'warn')},
         }),
         shell('nodeEnd', 'end', 1740, 280, {
             'type': 'end',
@@ -641,7 +692,7 @@ def build():
                 {'variable': k, 'value_selector': ['nodeClean', k]}
                 for k in ('segments_json', 'seg_count', 'para_words', 'word_count',
                           'master_text', 'level', 'need_simplify', 'seg_note', 'fallback',
-                          'auto_fixed', 'out_of_band', 'ok', 'warn')
+                          'auto_fixed', 'out_of_band', 'title_dropped', 'ok', 'warn')
             ],
         }),
     ]
