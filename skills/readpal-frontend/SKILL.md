@@ -1225,7 +1225,7 @@ curl "$LIVE/api/scan?urls=<逗号分隔的候选地址>&limit=1"
 |---|---|---|
 | **EVP 词汇分级校验** | `backend/evp_vocab_check.py` + `evp_wordlist.json`（9751 词头） | 接口 `POST /api/vocab-check`，入参 `{articles:{A1:text,...}, words:{A1:[..]}}` |
 | **档位区间门** | 前端 `genLevelGate()` / `minLevelKey()` | 素材 `level_lo` 高于 A1 时弹确认，跳过低档；`state.genSkipConfirmed` 记录已确认 |
-| **文章导出** | 前端 `exportArticle(s)` / `buildDocxBlob()` | Markdown + Word(.docx)，按档位拆文件，打包 zip |
+| **文章导出** | 前端 `exportArticle(s)` / `buildDocxBlob()` / `buildArticleAllLevelsMD()` | 单 .docx（单篇一个 / 多选各自多个），4 档并列、每档先文章后题目 |
 | **TTS / 封面图暂停** | 后端 `TTS_PAUSED = True`（约 2395 行） | `/api/tts` 与 `/api/tts/batch` 直接返回 503 `paused:true` |
 
 ### EVP 词汇校验：口径与阈值（改动前必看）
@@ -1260,15 +1260,21 @@ VOCAB_THRESHOLD= {"A1":0.07, "A2":0.10, "B1":0.036, "B2":0.016}  # 超纲率阈�
   生成提示词里会出现【本轮禁用词】段）。⚠️ 改这块时**先推 GEN 图、再上前端** ——
   前端传了 Dify 未声明的入参有报错风险。
 
-### 文章导出：依赖 CDN 的 JSZip
+### 文章导出：单 .docx + 依赖 CDN 的 JSZip
 
 `exportArticles()` 第一件事是 `typeof JSZip === "undefined"` 检查 → 未加载则 toast
-「导出组件未加载，请联网后刷新重试」。**zip 打包靠 CDN 上的 JSZip**，
+「导出组件未加载，请联网后刷新重试」。**docx 打包靠 CDN 上的 JSZip**，
 所以「导出点了没反应」先看控制台有没有 JSZip 加载失败，而不是查导出逻辑。
 
+- 导出**改为单 .docx**（2026-09-22）：单篇导出 → 一个 .docx；多选 → 每篇各一个 .docx，一次下载多个。
+  不再打 zip、不再出 .md、不再按档拆文件。
+- 文档结构 = `# 标题` → 逐档 `# A1-/A2/B1/B2+`，**每档先文章段落（带 ①② 序号）、后该档题目**。
+  题目靠 Q1/A/B/C/答案/解析自编号，`## 题目` 作加粗小标题（`mdToDocxBody` 遇 `## 题目` 进入 `inQuiz` 态，
+  关闭段落序号，遇下一个 `# A1/A2/B1/B2` 复位）。
 - Word 导出是**手写最小 WordprocessingML**（`buildDocxBlob` / `mdToDocxBody`），零额外依赖，
   排版规格：标题居中 / 档位加粗 / 正文序号 / Times New Roman 12 号 / 1.5 倍行距 / 两端对齐。
-- 文件名规则：`标题_档位` / `标题_档位_题目`（`safeFileName()` + `uniqueName()` 防重名）。
+- 组装链路：`buildArticleAllLevelsMD(a)` 产 MD → `buildDocxBlob(md, true)` 产 blob → 下载。
+- 文件名：`safeFileName(标题) + ".docx"`。已删死代码 `buildArticleMD/buildQuizMD/buildArticleLevelMD/buildQuizLevelMD/uniqueName`。
 
 ### 其它行为变化
 
