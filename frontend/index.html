@@ -4460,9 +4460,9 @@ function s0(){
   if(!state.route){
     return head("01", L("素材选择","Material Selection")) +
     `<div class="routegrid">
-      ${ROUTES.map((r,i)=>`<div class="srccard" style="animation-delay:${.06*i}s;padding:22px 20px" onclick="pickRoute('${r.id}')">
-        <div style="font-size:30px;margin-bottom:8px">${r.ico}</div>
-        <h4 style="font-size:16px">${L(r.name,r.nameEn)}</h4>
+      ${ROUTES.map((r,i)=>`<div class="srccard" style="animation-delay:${.06*i}s;padding:22px 20px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;min-height:96px" onclick="pickRoute('${r.id}')">
+        ${r.ico ? `<div style="font-size:30px;margin-bottom:8px">${r.ico}</div>` : ""}
+        <h4 style="font-size:16px;margin:0">${L(r.name,r.nameEn)}</h4>
       </div>`).join("")}
     </div>
     ${waitBtn(L("请先选择素材","Pick an intake route"))}` + wfStrip();
