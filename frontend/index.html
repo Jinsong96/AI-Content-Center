@@ -1525,8 +1525,7 @@ function bigBarHTML(){
       if(["A1","A2","B1","B2"].indexOf(g.big) < minIdx) return '';   /* 低于区间下界的档不显示 */
       const n = bigParaCount(g.big);
       return '<div class="bigtab' + (cur === g.big ? ' sel' : '') + (n ? '' : ' blank') + '" onclick="setBig(\'' + g.big + '\')"><b>' + (LEVEL_BY_KEY[g.big] ? LEVEL_BY_KEY[g.big].d : g.big) + '</b><span>' + L(g.zh, g.en) + '</span><span class="bt-n' + (n ? '' : ' off') + '"><i></i>' + n + ' ' + L("段","paras") + '</span></div>';
-    }).join("") +
-    '<span class="bigbar-r">' + L("共 4 档 · 徽标为该档已生成段落数","4 levels · badge = paragraphs generated") + '</span></div>';
+    }).join("") + '</div>';
 }
 function bigBarOnce(){ return _bigBarUsed ? "" : bigBarHTML(); }
 /* 切换大档：三栏仅显示该大档的 4 档；当前档不在新大档内则落到其第一个子档 */
@@ -6196,9 +6195,7 @@ function semWarnHTML(){
       + '</div></div>';
   }
   if(!s.badTotal){
-    return '<div class="semok">' + L("逐段大意核对：各档均与母稿逐段对应，无错位。",
-      "Per-paragraph check: every level matches the master paragraph by paragraph.")
-      + (s.summary ? '　' + esc(s.summary) : "") + '</div>';
+    return "";   /* 无错位：不再显示「逐段大意核对：…无错位」提示（2026-09-22 轻量化） */
   }
   let h = '<div class="alignwarn"><div class="aw-h"><span class="aw-ico">!</span>'
         + L("逐段大意核对：发现错位", "Per-paragraph check: mismatches found") + '</div><ul>';
