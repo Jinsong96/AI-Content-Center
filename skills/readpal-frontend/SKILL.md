@@ -452,18 +452,45 @@ node tools/ui_audit.mjs --url=http://127.0.0.1:8899/index.html --role=produce \
 4. **`licSegBad()` 是"每段词数是否标红"的唯一判据**：
    保留原文按 ±5 合格带判、精简按严格规格判。图 A 的质检程序会先把每段拉进带内，
    所以标红的基本只剩「一整句话超长、无处可切」这类真问题。
-5. **段数只提示不阻断**：黄条**只在段数跑出 8–15 时**出现（`LIC_SEG_OK_LO/HI`），
+5. **段数只提示不阻断**：黄条**只在段数跑出 10–15 时**出现（`LIC_SEG_OK_LO=10` / `LIC_SEG_OK_HI=15`），
    配一颗「仍然继续生成」（`onclick="licRunGen()"`）；底部原本的「确认，生成 …」照旧可用。
+   ⚠️ **下界 2026-09-22 由 8 收到 10** —— B1 硬区间 323–437 ÷ 每段 28–35 ⇒ 8 段最多 280 词，够不着下界。
    ⚠️ 段数现在由「词数 ÷ 每段目标」算出来（319 词 B1 → 10 段），**再喊「推荐 12 段」就是噪音**。
+6. **精简模式的口径**（Bryan 2026-09-22 拍板，**取代「正好 12 段」**）：
+   硬指标 = **全文字数落进该档硬区间**（B1 323–437 / B2 468–632）；段数按大意自然分，
+   **10–15 段只是兜底判定区间**。`LIC_DEF_SEG` 只用于 `licRange()` 的**展示估算**，别拿它当契约。
 
 ### 来自图 A 的四个信号（都要读，别只看 `warn`）
 
 | 字段 | 含义 | 前端行为 |
 |---|---|---|
-| `ok` | **只有勾了精简**才会 false（段数≠12 或词数越界） | 红条 + 重跑出口 |
-| `seg_note` | 段数跑出 8–15 的非阻断提示 | 黄条 + 继续按钮 |
+| `ok` | **只有勾了精简**才会 false（词数越出该档硬区间，或段数跑出 10–15） | 红条 + 重跑出口 |
+| `seg_note` | 段数跑出 10–15 的非阻断提示 | 黄条 + 继续按钮 |
 | `fallback` | 勾了精简却没拿到精简稿 → 已自动回落为保留原文 | **必须显式提示** |
 | `out_of_band` | 质检兜底后**仍**越界的段数（如整句 60 词，句末无处可切） | 图 A 同时写进 `warn`，界面照常显示 |
+|  | ⚠️ `out_of_band` 的 warn **只在保留原文模式报** —— 精简稿跑的是段数兜底而非长度重排 |  |
+
+### 来自图 B 的第六个信号：`sem_json`（逐段大意核对，2026-09-22 新增）
+
+图 B 新增 `nodeSemCheck`（LLM）→ `nodeEnd.outputs.sem_json`。**这是提醒，不计入分数、不拦入库。**
+
+| 函数 | 职责 |
+|---|---|
+| `semResult()` | 解析 `sem_json`：剥 markdown 包裹（取首 `{` 到末 `}`）、按 `LEVEL_BY_KEY` 过滤、算 `badTotal` |
+| `semBadSegs()` | 返回 `{档位: [错位段号]}`，供行标记用 |
+| `semWarnHTML()` | 三种态：**无法解析**（报原始片段）· 全过（`.semok` 虚线框）· 有错位（`.alignwarn` 黄条） |
+
+三处挂载：`alignedViewHTML()`、`s9()`（正文上方）、`showVSum()`（校验面板，附一句
+「不计入上面的分数 —— 它是提醒，不拦住入库」）。
+
+**段落对照视图行标记**：`alignBodyHTML()` 给被点名的行加 `class="alignrow sembad"`
+（`.arow-no` 变琥珀色 `#FFFAEB/#F79009/#B54708`）。
+
+三条踩过的坑：
+- `sem_json` **缺失不是错误**（老图 / 热点链路没有这个字段）⇒ 返回 `null`、不显示，别报红。
+- 文案**不能用 markdown 星号** —— HTML 不解析 `**`，会原样显示。用 `<b>`。
+- 行标记测试**不能依赖当前路由**已渲染对齐视图；直接
+  `d.innerHTML = alignBodyHTML(false); document.body.appendChild(d)` 再 `querySelectorAll`。
 
 ### 校验面板
 
@@ -475,7 +502,7 @@ node tools/ui_audit.mjs --url=http://127.0.0.1:8899/index.html --role=produce \
 
 ```bash
 cd frontend && python3 -m http.server 8899 &
-node tools/probe_lic_flow.mjs --url=http://127.0.0.1:8899/index.html --port=9242   # 42 项断言
+node tools/probe_lic_flow.mjs --url=http://127.0.0.1:8899/index.html --port=9242   # 51 项断言
 ```
 
 ## 前端骨架速查（2026-09-10 现状）
