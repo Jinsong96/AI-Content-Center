@@ -1,0 +1,257 @@
+// ReadPal · 授权链路（第四入口）回归 —— 覆盖 2026-09-22 的「保留原文 + 段数只提示不阻断」
+//
+// 用法：
+//   cd frontend && python3 -m http.server 8899      # 另开一个终端
+//   node tools/probe_lic_flow.mjs --url=http://127.0.0.1:8899/index.html --port=9242
+//
+// 覆盖：入口卡 / 导入面板（参考段数 6–30）/ 分段确认页三态（12 段无提示 · 20 段黄条+继续按钮 ·
+//       精简未达标红条）/ 保留原文不标红 / 精简回落显式提示 / 校验分母与母稿档说明 /
+//       逐段编辑不丢焦点 / 合并删除 / 期望段数动态 / 窄屏不塌。
+// 断言数 37 项，退出码 0 = 全过且无 JS 异常。
+import fs from 'node:fs';
+import { spawn } from 'node:child_process';
+import os from 'node:os';
+import path from 'node:path';
+
+const argv = process.argv.slice(2);
+const arg = (k, d = null) => { const h = argv.find(a => a.startsWith(`--${k}=`)); return h ? h.slice(k.length + 3) : d; };
+const URL_ = arg('url', 'http://127.0.0.1:8899/index.html');
+const PORT = Number(arg('port', process.env.CDP_PORT || 9242));
+const CDP = `http://127.0.0.1:${PORT}`;
+const PROFILE = path.join(os.tmpdir(), `readpal_licprobe_${PORT}`);
+const SHOT = arg('out', '/tmp/licshot2');
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+function findChrome() {
+  const c = [process.env.CHROME_BIN, '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+    '/Applications/Chromium.app/Contents/MacOS/Chromium', '/usr/bin/google-chrome',
+    '/usr/bin/chromium'].filter(Boolean);
+  return c.find(p => { try { return fs.statSync(p).isFile(); } catch { return false; } });
+}
+const alive = async () => { try { await fetch(`${CDP}/json/version`); return true; } catch { return false; } };
+async function ensureChrome() {
+  if (await alive()) return null;
+  const bin = findChrome();
+  if (!bin) { console.error('✗ 找不到 Chrome'); process.exit(1); }
+  fs.rmSync(PROFILE, { recursive: true, force: true });
+  spawn(bin, ['--headless=new', '--disable-gpu', '--no-sandbox', `--remote-debugging-port=${PORT}`,
+    `--user-data-dir=${PROFILE}`, '--hide-scrollbars', 'about:blank'], { stdio: 'ignore' });
+  for (let i = 0; i < 40; i++) { await sleep(400); if (await alive()) return true; }
+  console.error('✗ Chrome 启动超时'); process.exit(1);
+}
+
+const R = [];
+const errs = [];
+const ok = (label, cond, detail) => R.push({ ok: !!cond, label, detail: detail == null ? '' : String(detail) });
+
+const ART = 'Virtual reality is spreading through history classrooms faster than most schools expected. ' +
+  'A study of more than two thousand students found measurable comprehension gains. ' +
+  'Teachers welcome the engagement, but cost and training remain unsolved. ' +
+  'Rural districts face the steepest climb of all. ' +
+  'Some have started sharing headsets on a rotating schedule.';
+
+async function main() {
+  await ensureChrome();
+  const tab = await (await fetch(`${CDP}/json/new?about:blank`, { method: 'PUT' })).json();
+  const ws = new WebSocket(tab.webSocketDebuggerUrl);
+  await new Promise(r => ws.addEventListener('open', r));
+  let id = 0; const pend = new Map();
+  ws.addEventListener('message', ev => {
+    const m = JSON.parse(ev.data);
+    if (m.id && pend.has(m.id)) { pend.get(m.id)(m); pend.delete(m.id); return; }
+    if (m.method === 'Runtime.exceptionThrown') {
+      const d = m.params?.exceptionDetails || {};
+      errs.push('exception: ' + (d.exception?.description || d.text || '').slice(0, 300));
+    }
+    if (m.method === 'Runtime.consoleAPICalled' && m.params?.type === 'error') {
+      errs.push('console.error: ' + (m.params.args || []).map(a => a.value ?? a.description ?? '').join(' ').slice(0, 300));
+    }
+  });
+  const send = (method, params = {}) => new Promise(res => { const i = ++id; pend.set(i, res); ws.send(JSON.stringify({ id: i, method, params })); });
+  const ev = async expr => {
+    const r = await send('Runtime.evaluate', { expression: expr, returnByValue: true, awaitPromise: true, userGesture: true });
+    if (r.result?.exceptionDetails) throw new Error(r.result.exceptionDetails.exception?.description || JSON.stringify(r.result.exceptionDetails).slice(0, 300));
+    return r.result?.result?.value;
+  };
+  await send('Runtime.enable'); await send('Page.enable');
+  await send('Network.enable');
+  await send('Network.setCacheDisabled', { cacheDisabled: true });
+  const view = (w, h) => send('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: 1, mobile: false });
+  const shot = async (w, h, name) => {
+    await view(w, h);
+    const r = await send('Page.captureScreenshot', { format: 'png' });
+    fs.writeFileSync(`${SHOT}_${name}.png`, Buffer.from(r.result.data, 'base64'));
+  };
+  const nav = async (w, h) => { await view(w, h); await send('Page.navigate', { url: URL_ }); await sleep(3500); };
+
+  // ---------- 1) 入口 + 导入面板 ----------
+  await nav(1440, 900);
+  await ev(`(function(){
+    var ov=document.getElementById("loginOv"); if(ov) ov.style.display="none";
+    state.user = { role:"produce", name:"curriculum_li", sources: initSources("produce") };
+    refreshUserChip(); buildRail(); render(); return "ok";
+  })()`);
+  await sleep(400);
+  ok('入口卡数量 = 4', (await ev(`document.querySelectorAll(".routegrid .srccard").length`)) === 4);
+  await ev(`pickRoute("licensed"); "ok"`);
+  await sleep(700);
+  ok('授权导入面板渲染', await ev(`!!document.getElementById("licPanel")`));
+
+  await ev(`(function(){
+    var st = licState(); st.arts = [];
+    licPush("VR in the Classroom", ${JSON.stringify(ART)});
+    render(); return 1;
+  })()`);
+  await sleep(250);
+
+  // 参考段数：改名 + 新的夹取范围（6–30）
+  const refLabel = await ev(`(function(){
+    var ls=document.querySelectorAll("#licPanel .licf span"); var t=[];
+    for(var i=0;i<ls.length;i++) t.push(ls[i].textContent);
+    return t.join("|");
+  })()`);
+  ok('字段改名「参考段数」（不再叫「目标段数」）', refLabel.indexOf('参考段数') >= 0 && refLabel.indexOf('目标段数') < 0, refLabel);
+  const clamp = await ev(`(function(){ licSet(licArts()[0].id,"target",99); return licArts()[0].target; })()`);
+  ok('参考段数夹到 30（旧上限 16 已放开）', clamp === 30, '实际 ' + clamp);
+  const clamp2 = await ev(`(function(){ licSet(licArts()[0].id,"target",1); return licArts()[0].target; })()`);
+  ok('参考段数下限 6', clamp2 === 6, '实际 ' + clamp2);
+  await ev(`(function(){ licSet(licArts()[0].id,"target",12); licSet(licArts()[0].id,"level","B2"); render(); return 1; })()`);
+  await sleep(200);
+  const calc = await ev(`(document.querySelectorAll("#licPanel .liccalc")[0]||{}).textContent||""`);
+  ok('字数区间文案改成「该档推荐 …（按 12 段估）」', calc.indexOf('推荐') >= 0 && calc.indexOf('492') >= 0, calc.slice(0, 110));
+  const emb = await ev(`(document.getElementById("licBar")||{}).textContent||""`);
+  ok('启动按钮不再写「精简 + 分段」，且说明默认保留原文',
+     emb.indexOf('分段') >= 0 && emb.indexOf('逐字保留原文') >= 0, emb.slice(0, 130));
+  await shot(1440, 900, '1_panel');
+
+  // ---------- 2) 确认页 · 不精简 + 12 段（无提示） ----------
+  const prepSet = (simplified, segs, extra) => ev(`(function(){
+    var A = licArts();
+    state.lic.queue = [A[0].id]; state.lic.qi = 0; state.lic.doneIds = [];
+    state.lic.prep = Object.assign({ id: A[0].id, level: "B2", simplified: ${simplified ? 'true' : 'false'},
+      masterText: "", rawWordCount: 0, segNote: "", ok: true, warn: "", warn_: "" }, ${JSON.stringify({ segs: segs })}, ${JSON.stringify(extra || {})});
+    render(); return 1;
+  })()`);
+  const seg12 = Array.from({ length: 12 }, (_, i) => ART);
+  const seg20 = Array.from({ length: 20 }, (_, i) => ART);
+
+  await prepSet(false, seg12, { segNote: "" });
+  await sleep(350);
+  ok('确认页渲染（保留原文）', await ev(`!!document.getElementById("licConfirm")`));
+  const title1 = await ev(`document.querySelector("#licConfirm b").textContent`);
+  ok('标题 = 确认分段（保留原文）', title1.indexOf('保留原文') >= 0, title1);
+  ok('12 段：不出现段数黄条', (await ev(`document.querySelectorAll("#licConfirm .licneed").length`)) === 0);
+  ok('保留原文模式：不显示「建议 28–35 词」（与档位规格无关）',
+     (await ev(`document.querySelectorAll("#licConfirm .licsegt").length`)) === 0);
+  ok('保留原文模式：每段词数不标红',
+     (await ev(`document.querySelectorAll("#licConfirm .licsegw.warn").length`)) === 0);
+  const tot1 = await ev(`document.getElementById("licSegTot").textContent.replace(/\\s+/g," ")`);
+  ok('全文行说明「母稿长度不参与规格校验」', tot1.indexOf('不参与规格校验') >= 0, tot1.slice(0, 140));
+  await shot(1440, 900, '2_confirm_plain12');
+
+  // ---------- 3) 确认页 · 不精简 + 20 段（提示 + 仍然继续生成，但不拦） ----------
+  await prepSet(false, seg20, { segNote: '按内容分成 20 段（推荐 12 段）' });
+  await sleep(350);
+  const bar = await ev(`(document.querySelector("#licConfirm .licneed")||{}).textContent||""`);
+  ok('20 段：出现段数提示（写明实际段数与推荐值）', bar.indexOf('20') >= 0 && bar.indexOf('12') >= 0, bar.slice(0, 110));
+  const contBtn = await ev(`(function(){
+    var b=document.querySelectorAll("#licConfirm .licneed button"); for(var i=0;i<b.length;i++){ if(b[i].textContent.indexOf("继续生成")>=0) return b[i].getAttribute("onclick")||""; } return "";
+  })()`);
+  ok('提示旁有「仍然继续生成」按钮（指向 licRunGen）', contBtn.indexOf('licRunGen') >= 0, contBtn);
+  ok('20 段：主生成按钮仍然可用（不阻断）',
+     (await ev(`(document.querySelector("#licConfirm .nextbar button")||{}).textContent||""`)).indexOf('B1') >= 0);
+  ok('20 段：每段仍不标红（保留原文）',
+     (await ev(`document.querySelectorAll("#licConfirm .licsegw.warn").length`)) === 0);
+  ok('段数上限拦截已移除（源码里不再有 LIC_MAX_SEG）',
+     (await ev(`typeof LIC_MAX_SEG === "undefined" && licRunGen.toString().indexOf("LIC_MAX_SEG") < 0 && licRunGen.toString().indexOf("段数超过上限") < 0`)));
+  await shot(1440, 900, '3_confirm_plain20');
+
+  // ---------- 4) 确认页 · 精简 + 12 段（判红 + 标题切换） ----------
+  await prepSet(true, seg12, { segNote: "" });
+  await sleep(350);
+  const title2 = await ev(`document.querySelector("#licConfirm b").textContent`);
+  ok('标题 = 确认分段与精简稿', title2.indexOf('精简稿') >= 0, title2);
+  ok('精简模式：显示「建议 28–35 词」', (await ev(`document.querySelectorAll("#licConfirm .licsegt").length`)) === 12);
+  ok('精简模式：每段词数越界标红（本用例每段 > 35 词 → 12 段全红）',
+     (await ev(`document.querySelectorAll("#licConfirm .licsegw.warn").length`)) === 12);
+  await shot(1440, 900, '4_confirm_simp12');
+
+  // ---------- 5) 确认页 · 精简 + 6 段（未达标 → 红条，且提示非阻断以外还有重跑路径） ----------
+  await prepSet(true, seg12.slice(0, 6), { ok: false, warn: '段数 6 不等于要求的 12 段' });
+  await sleep(350);
+  const bad = await ev(`(document.querySelector("#licConfirm .licneed.bad")||{}).textContent||""`);
+  ok('精简未达标：红条写明原因', bad.indexOf('段数 6') >= 0, bad.slice(0, 120));
+  ok('精简未达标：红条同时给出「重新预处理」出口',
+     (await ev(`document.querySelectorAll("#licConfirm .nextbar button").length`)) >= 2);
+  await shot(1440, 900, '5_confirm_simp6');
+
+  // ---------- 6) 交互不回归：单行刷新不丢焦点、合并/删除 ----------
+  await prepSet(false, seg12, {});
+  await sleep(300);
+  const before = await ev(`(function(){ window.__ta = document.querySelectorAll("#licConfirm .licseg textarea")[0]; window.__ta.focus(); return document.activeElement === window.__ta; })()`);
+  await ev(`(function(){ licSetSeg(0, "One two three four five six seven eight nine ten eleven twelve thirteen fourteen."); return 1; })()`);
+  const after = await ev(`(function(){ return { foc: document.activeElement === window.__ta, w: document.getElementById("licSegW0").textContent, others: document.getElementById("licSegW1").textContent }; })()`);
+  ok('打字时焦点不丢（未整页重渲染）', before && after.foc, 'focus=' + after.foc);
+  ok('只更新第 1 段徽标，其余段不动', after.w.indexOf('14') >= 0 && after.others.indexOf('14') < 0, JSON.stringify(after));
+  await ev(`licMergeSeg(0); "ok"`); await sleep(180);
+  ok('合并下一段后段数 = 11', (await ev(`document.querySelectorAll("#licConfirm .licseg").length`)) === 11);
+  await ev(`licDelSeg(0); "ok"`); await sleep(180);
+  ok('删一段后段数 = 10', (await ev(`document.querySelectorAll("#licConfirm .licseg").length`)) === 10);
+  const totAfter = await ev(`document.getElementById("licSegTot").textContent.replace(/\\s+/g," ")`);
+  ok('改完段数后全文行按新段数重算', /\\b10\\b/.test(totAfter) || totAfter.indexOf('10 段') >= 0 || totAfter.indexOf('10 ×') >= 0, totAfter.slice(0, 110));
+
+  // ---------- 7) 护栏：期望段数动态 ----------
+  const wn1 = await ev(`(function(){ state.live = { status:"done", licN: 20 }; return expectedParaCount(); })()`);
+  ok('期望段数取本轮授权分段数（20 段，超旧上限 16 仍生效）', wn1 === 20, String(wn1));
+  const wn2 = await ev(`(function(){ state.live = { status:"done" }; return expectedParaCount(); })()`);
+  ok('热点链路无 licN 时回退 12 段', wn2 === 12, String(wn2));
+  const wn3 = await ev(`(function(){ state.live = { status:"done", licN: 999 }; return expectedParaCount(); })()`);
+  ok('越界段数兜底 12（脏数据不崩）', wn3 === 12, String(wn3));
+  const wnTxt = await ev(`(function(){ state.live={status:"done",licN:20}; state.alignGuard={warn:"",off:[],counts:["A1- 18 段"]}; return alignWarnHTML(); })()`);
+  ok('告警文案说「不是 20 段」', String(wnTxt).indexOf('不是 20 段') >= 0, String(wnTxt).slice(0, 120));
+  await ev(`(function(){ state.live={status:"idle"}; state.alignGuard=null; return 1; })()`);
+
+  // ---------- 7b) 精简回落（fallback）必须显式提示，不能静默 ----------
+  await prepSet(true, seg12, { fallback: true, ok: false, warn: '勾了精简但没拿到精简稿（模型未按指令输出），已自动回落为保留原文' });
+  await sleep(320);
+  const fbTxt = await ev(`(document.querySelector("#licConfirm .licneed.bad")||{}).textContent||""`);
+  ok('精简未跑出来 → 显式提示已保留原文（不静默）',
+     fbTxt.indexOf('保留原文') >= 0 && fbTxt.indexOf('重新预处理') >= 0, fbTxt.slice(0, 120));
+
+  // ---------- 7c) 校验区：分母用后端回传值 + 说明母稿档不参与校验 ----------
+  const sumTxt = await ev(`(function(){
+    var d=document.createElement("div"); d.id="vsum"; document.body.appendChild(d);
+    state.live = { status:"done", licN:19, run:{ data:{ outputs:{
+      validation_json: JSON.stringify({total_checks:33,total_pass:28,results:[{level:"B1",fail_reasons:["长度校验"]}]}) } } } };
+    state.lic = state.lic || {};
+    state.lic.prep = { id:1, level:"B2", simplified:false, segs:["a"], ok:true, warn:"", segNote:"", fallback:false, masterText:"", rawWordCount:0 };
+    showVSum();
+    var t = d.textContent.replace(/\\s+/g," ");
+    d.remove();
+    return t;
+  })()`);
+  ok('校验分母用后端回传的 total_checks（33，不写死 44）', sumTxt.indexOf('28/33') >= 0, sumTxt.slice(0, 90));
+  ok('校验区说明「母稿档不参与规格校验」', sumTxt.indexOf('不参与规格校验') >= 0, sumTxt.slice(-130));
+  await ev(`(function(){ state.live={status:"idle"}; state.lic.prep=null; return 1; })()`);
+
+  // ---------- 8) 窄屏不塌 ----------
+  for (const [w, h, tag] of [[1024, 800, '6_panel_1024'], [420, 820, '7_panel_420']]) {
+    await ev(`(function(){ state.lic.prep = null; render(); return 1; })()`);
+    await sleep(220);
+    await view(w, h); await sleep(450);
+    const m = await ev(`JSON.stringify({sw: document.documentElement.scrollWidth, iw: window.innerWidth})`);
+    ok(`${w}px 无横向溢出`, JSON.parse(m).sw === JSON.parse(m).iw, m);
+    await shot(w, h, tag);
+  }
+
+  const pass = R.filter(r => r.ok).length;
+  console.log('\n=== 结果 ===');
+  R.forEach(r => console.log(`  ${r.ok ? '✓' : '✗'} ${r.label}${r.detail ? '   [' + r.detail + ']' : ''}`));
+  console.log(`\n${pass}/${R.length} 项通过`);
+  const realErrs = errs.filter(e => !/Failed to load resource|net::ERR|favicon|config\.local/i.test(e));
+  console.log('JS 异常 / console.error：' + (realErrs.length ? '\n  ' + realErrs.join('\n  ') : '0 条 ✅'));
+  console.log('截图：' + SHOT + '_*.png');
+  ws.close();
+  process.exit(pass === R.length && realErrs.length === 0 ? 0 : 1);
+}
+main().catch(e => { console.error('探针异常：', e && e.stack || e); process.exit(1); });
