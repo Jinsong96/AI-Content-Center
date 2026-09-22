@@ -2922,7 +2922,8 @@ function alignParas(arts){
   }});
   return split;
 }
-/* 期望段数（2026-09-22）：热点链路恒 12 段；授权母稿链路是动态的（10–16，默认 12）。
+/* 期望段数（2026-09-22）：热点链路恒 12 段；授权母稿链路是动态的 —— 不勾精简时段数
+   由内容决定（可能 6 段也可能 25 段，无上限），护栏只用来对齐「产出段数 = 骨架段数」。
    判据取「本轮运行」的段数（licRunGen 写在 state.live.licN），不是当前路由 ——
    因为生成后用户会切到别的步骤，且两条链路共用同一个 state.live。
    🔴 原先段落对齐护栏写死 12：授权链路一旦导出 11 段，会把「逐段正确对齐」误判成
@@ -3770,15 +3771,22 @@ function bankPanelHTML(){
      · 母稿档位**只靠人工标**（B1/B2），系统不判 —— 所以这里是 select 而非自动识别
      · **不抽事实**，按骨架逐段改写（所以整条链路不经过 FACT 图）
      · **只向下生产，全出**：B2→B1+A2+A1-；B1→A2+A1-；母稿本身也入库
-     · 段数上限 16、默认 12；**全文字数区间 = 段数 × 每段词数区间**（随段数自动算）
-     · 可选精简由人工勾选（大幅删次要信息保主线，精简稿即入库的母稿）
+     · **默认逐字保留原文，只做分段**；勾「需要精简」才压缩。
+     · 段数**没有上限**：不勾精简时由内容决定（推荐 12，偏离只提示不拦）；
+       勾精简时按 12 段规格压（段数≠12 会判失败）。推荐段数 12 用于估算字数区间。
+     · **全文字数区间 = 段数 × 每段词数区间**（随实际段数自动算）
+     · 母稿本体（尤其不精简的原文）**不参与规格校验** —— 长度不由我们控制
     ⚠️ 每篇单独标档位、单独设段数（一次可导入多篇）。 */
 
 /* 每段词数区间 —— 必须与 Dify 两张图里的 PER_PARA / SPEC 前两位同源。
    改这里就要改 tools/build_graphB.py 的 PER_PARA 与 SPECS，否则前端算的区间与实际产出对不上。 */
 const LIC_PER_PARA = { A1:[11,14], A2:[20,22], B1:[28,35], B2:[41,50] };
-const LIC_MAX_SEG = 16;      /* 段数上限（需求第 4 条） */
-const LIC_DEF_SEG = 12;      /* 段数默认 */
+/* 🔴 段数没有上限了（2026-09-22 用户拍板：不勾精简时段数由内容决定，只提示不阻断）。
+   下面的 REF 只用来在**导入阶段**估一个「该档推荐字数区间」，帮你判断要不要勾精简 ——
+   它**不决定**实际段数（实际段数由图 A 按内容分出来，可能多于也可能少于它）。 */
+const LIC_REF_MIN = 6;       /* 参考段数下限 */
+const LIC_REF_MAX = 30;      /* 参考段数上限 */
+const LIC_DEF_SEG = 12;      /* 参考段数默认 = 推荐段数 */
 /* 母稿档位 → 要往下产的低档（顺序即产出顺序，也是「只向下」的体现） */
 const LIC_TARGETS = { B2:["B1","A2","A1"], B1:["A2","A1"] };
 let _licSeq = 0;             /* 条目稳定 id —— 不用下标定位（下标会随删除错位） */
@@ -3796,7 +3804,7 @@ function licWordCount(t){ const s = String(t == null ? "" : t).trim(); return s 
 function licRange(levelKey, segn){
   const per = LIC_PER_PARA[bigOf(levelKey) || ""];
   if(!per) return null;
-  const n = Math.max(1, Math.min(LIC_MAX_SEG, parseInt(segn, 10) || LIC_DEF_SEG));
+  const n = Math.max(LIC_REF_MIN, Math.min(LIC_REF_MAX, parseInt(segn, 10) || LIC_DEF_SEG));
   return { lo: per[0] * n, hi: per[1] * n, per: per, n: n };
 }
 /* 可运行的条件：至少一篇、每篇都有正文与档位（档位不做默认值 = 强制人工明示） */
@@ -3879,7 +3887,7 @@ function licDocxXmlToText(xml){
 /* ---- 列表操作 ---- */
 function licSet(id, key, val){
   const a = licById(id); if(!a) return;
-  if(key === "target"){ a.target = Math.max(1, Math.min(LIC_MAX_SEG, parseInt(val, 10) || LIC_DEF_SEG)); }
+  if(key === "target"){ a.target = Math.max(LIC_REF_MIN, Math.min(LIC_REF_MAX, parseInt(val, 10) || LIC_DEF_SEG)); }
   else if(key === "simplify"){ a.simplify = !!val; }
   else { a[key] = val; }
   licState().prep = null; licState().confirmed = false; licState().gen = null;
@@ -3910,8 +3918,8 @@ function licensedPanelHTML(){
     const tgts = LIC_TARGETS[bigOf(a.level) || ""] || [];
     let calc;
     if(!bigOf(a.level)) calc = '<span style="color:#A32D2D">' + L("先选母稿档位，才能算字数区间","Pick a master level to compute the word range") + '</span>';
-    else if(r) calc = L("全文 <b>" + r.lo + "–" + r.hi + "</b> 词（" + r.n + " 段 × " + r.per[0] + "–" + r.per[1] + " 词/段）",
-                        "Total <b>" + r.lo + "–" + r.hi + "</b> words (" + r.n + " × " + r.per[0] + "–" + r.per[1] + ")") +
+    else if(r) calc = L("该档推荐 <b>" + r.lo + "–" + r.hi + "</b> 词（按 " + r.n + " 段 × " + r.per[0] + "–" + r.per[1] + " 词/段估）",
+                        "Recommended <b>" + r.lo + "–" + r.hi + "</b> words (est. " + r.n + " × " + r.per[0] + "–" + r.per[1] + ")") +
                 (wc ? L("　·　当前正文 <b>" + wc + "</b> 词", "　·　current <b>" + wc + "</b> words") : "");
     const over = (r && wc > r.hi);
     /* 偏短也要提示：正文不足区间下限时，段数该调小而不是靠「加水」凑字
@@ -3931,18 +3939,18 @@ function licensedPanelHTML(){
             <option value="B1"${a.level === "B1" ? " selected" : ""}>B1</option>
           </select>
         </label>
-        <label class="licf"><span>${L("目标段数","Target paragraphs")}</span>
-          <input type="number" min="1" max="${LIC_MAX_SEG}" value="${a.target}" onchange="licSet(${a.id},'target',this.value);render()">
+        <label class="licf" title="${L("只用来估算「该档推荐字数区间」，帮你判断要不要勾精简。实际段数由预处理按内容分段决定，可能多于也可能少于它。","Only used to estimate the recommended word range for this level — it does NOT decide the actual paragraph count, which is derived from the content.")}"><span>${L("参考段数","Reference paragraphs")}</span>
+          <input type="number" min="${LIC_REF_MIN}" max="${LIC_REF_MAX}" value="${a.target}" onchange="licSet(${a.id},'target',this.value);render()">
         </label>
-        <label class="licf licchk" title="${L("勾选后先大幅删掉次要信息、保住主线，精简稿就是入库的母稿","When checked, secondary details are cut first and the main thread is kept — the condensed text becomes the saved master")}">
+        <label class="licf licchk" title="${L("勾选 = 先砍次要信息、保住主线，压到该档 12 段规格内（精简稿即入库的母稿）；不勾 = 逐字保留原文，只做按内容分段。","Checked = cut secondary details and fit the 12-paragraph spec. Unchecked = keep the text verbatim and only segment it.")}">
           <input type="checkbox"${a.simplify ? " checked" : ""} onchange="licSet(${a.id},'simplify',this.checked)"> ${L("需要精简","Condense")}
         </label>
       </div>
       <div class="liccalc${(over && !a.simplify) ? " warn" : ""}">
         ${calc}${tgts.length ? L("　·　将产出 ", "　·　will produce ") + tgts.map(function(k){ return '<b>' + nkDisp(k) + '</b>'; }).join(" + ") : ""}
-        ${(over && !a.simplify) ? '<br><span style="color:#D04418">' + L("正文已超区间上限 —— 建议勾选「需要精简」，否则要靠删减才能落到区间内。","Text exceeds the range — consider ticking “Condense”.") + "</span>" : ""}
-        ${(over && a.simplify) ? '<br><span style="color:var(--sub)">' + L("正文超出区间，已勾选精简 —— 预处理会先砍次要信息保主线。","Over the range and set to condense — secondary details will be cut first.") + "</span>" : ""}
-        ${under ? '<br><span style="color:var(--sub)">' + L("正文偏短（低于区间下限）—— 建议把目标段数调小，别靠加水凑字。","Text is short for this range — lower the paragraph count instead of padding.") + "</span>" : ""}
+        ${(over && !a.simplify) ? '<br><span style="color:var(--sub)">' + L("正文超出该档推荐字数。<b>不勾精简</b> = 逐字保留原文并往下生成（低档仍按每段规格写，文章会相应变长）；想让母稿本身也落进规格，就勾选「需要精简」。","Longer than recommended. <b>Without “Condense”</b> the text is kept verbatim and lower levels follow the per-paragraph spec — articles just get longer. Tick “Condense” to bring the master into spec.") + "</span>" : ""}
+        ${(over && a.simplify) ? '<br><span style="color:var(--sub)">' + L("正文超出区间，已勾选精简 —— 预处理会先砍次要信息保主线，压到 12 段规格内。","Over the range and set to condense — secondary details will be cut first to fit 12 paragraphs.") + "</span>" : ""}
+        ${under ? '<br><span style="color:var(--sub)">' + L("正文比该档推荐字数少 —— 分出来的段数会相应少一些，低档文章也会短一些。","Shorter than recommended — expect fewer paragraphs and shorter articles.") + "</span>" : ""}
       </div>
       <details class="licdet"><summary>${L("查看正文（前 600 字）","Preview (first 600 chars)")}</summary><pre>${esc(String(a.text || "").slice(0, 600))}${String(a.text || "").length > 600 ? "\n…" : ""}</pre></details>
     </div>`;
@@ -3958,8 +3966,8 @@ function licensedPanelHTML(){
       <span class="tint" style="background:#FFF9F5;color:#D04418">${L("不抽事实","No fact extraction")}</span>
     </div>
     <p style="color:var(--sub);margin:0 0 14px;font-size:13px;line-height:1.7">
-      ${L("导入 B1 / B2 母稿，按现有分级标准<b>只往低档生产</b>：B2 → B1 + A2 + A1-，B1 → A2 + A1-，母稿本身也会入库。工作流先做预处理（提炼主线要点 → 按需精简 → 分段），<b>分段结果会停下来让你确认</b>，确认后才开始逐段改写。",
-         "Import B1 / B2 master texts and generate <b>downward only</b>: B2 → B1 + A2 + A1-, B1 → A2 + A1-. The master itself is saved too. The workflow first prepares (extract the thread → optional condensing → segment), then <b>pauses for you to confirm the segmentation</b> before rewriting paragraph by paragraph.")}
+      ${L("导入 B1 / B2 母稿，按现有分级标准<b>只往低档生产</b>：B2 → B1 + A2 + A1-，B1 → A2 + A1-，母稿本身也会入库。<b>默认逐字保留原文</b>，只按内容分段；勾了「需要精简」才压缩。工作流做完预处理后会<b>停下来让你确认分段</b>，确认后才开始逐段改写。",
+         "Import B1 / B2 master texts and generate <b>downward only</b>: B2 → B1 + A2 + A1-, B1 → A2 + A1-. The master itself is saved too. Text is <b>kept verbatim by default</b> and only segmented; tick “Condense” to shorten it. The workflow <b>pauses for you to confirm the segmentation</b> before rewriting paragraph by paragraph.")}
     </p>
 
     <div class="licimp">
@@ -4010,8 +4018,9 @@ function licStatusHTML(){
 function licEmbarkBtn(){
   if(!licArts().length) return waitBtn(L("请先导入母稿","Import a master text first"));
   if(!licAllReady()) return waitBtn(L("请先补全母稿档位与正文","Fill in the master level and text for every item"));
-  return `<div class="nextbar" id="licBar"><button class="btn" onclick="licRunPrep()">${L("开始预处理（精简 + 分段）","Prepare (condense + segment)")} →</button>
-    <span class="hint">${L("预处理后会停下来让你确认分段，确认后才开始逐段改写。","You'll confirm the segmentation before rewriting starts.")}</span></div>`;
+  return `<div class="nextbar" id="licBar"><button class="btn" onclick="licRunPrep()">${L("开始预处理（分段）","Prepare (segment)")} →</button>
+    <span class="hint">${L("默认<b>逐字保留原文</b>，只有勾了「需要精简」才会压缩；预处理后会停下来让你确认分段。",
+                         "By default the text is <b>kept verbatim</b> — only ticked “Condense” items get shortened. You'll confirm the segmentation next.")}</span></div>`;
 }
 
 /* ========== 授权链路：跑图 A（预处理）→ 人工确认 → 跑图 B（向下生成） ==========
@@ -4061,14 +4070,17 @@ async function licPrepOne(){
   const a = licCurArt();
   if(!a){ st.busy = ""; render(); return; }
   const n = (st.queue || []).length;
-  st.busy = L("正在预处理第 " + (st.qi + 1) + " / " + n + " 篇（精简 + 分段，约 30 秒）…",
-              "Preparing " + (st.qi + 1) + " / " + n + " (condense + segment, ~30s)…");
+  st.busy = L("正在预处理第 " + (st.qi + 1) + " / " + n + " 篇（" + (a.simplify ? "精简 + 分段" : "保留原文，只做分段") + "，约 20–60 秒）…",
+              "Preparing " + (st.qi + 1) + " / " + n + " (" + (a.simplify ? "condense + segment" : "keep as-is, segment only") + ", ~20–60s)…");
   st.prep = null; st.confirmed = false; st.gen = null; st.errStage = "prep"; st.err = null;
   render();
-  const inputs = { material: String(a.text || "").slice(0, 20000), level: bigOf(a.level) || "B2", style: state.style || "default" };
-  /* need_simplify 是 select，枚举只有 'true' / 'false' —— 空串同样是非法值，
-     不精简时必须**整个省略该键**，让工作流走默认分支（同 GEN 不传 level 的教训）。 */
-  if(a.simplify) inputs.need_simplify = "true";
+  /* need_simplify 是 select，枚举只有 'true' / 'false'。
+     🔴 必须**始终显式传值**（2026-09-22 改）：此前不精简时整个省略该键、靠工作流
+     「空值=原样模式」兜底 —— 而图 A 的提示词里 `{{#nodeStart.need_simplify#}}` 被当作
+     上下文变量插值，缺值属于踩线行为。现在两种模式都有明确值，分支不再有歧义。 */
+  const inputs = { material: String(a.text || "").slice(0, 20000), level: bigOf(a.level) || "B2",
+                   style: state.style || "default",
+                   need_simplify: a.simplify ? "true" : "false" };
   try {
     _runAbort = new AbortController();
     const data = await difyCall("licprep", inputs, AIWF_LICPREP.user, _runAbort.signal);
@@ -4083,10 +4095,15 @@ async function licPrepOne(){
       } else {
         st.prep = { id: a.id, level: bigOf(a.level) || "B2", segs: segs,
                     simplified: !!a.simplify,
-                    simplifiedText: String(o.simplified_text || ""),
+                    masterText: String(o.master_text || ""),
                     rawWordCount: parseInt(o.word_count, 10) || 0,
-                    overLimit: String(o.over_limit || "") === "true",
-                    /* ok=false 表示段数或词数不达标（图 A 会写明原因）——
+                    /* seg_note：段数偏离 12 的**非阻断**提示（如「按内容分成 20 段（推荐 12 段）」）。
+                       不精简时段数由内容决定，所以它只是告知，不是错误。 */
+                    segNote: String(o.seg_note || ""),
+                    /* fallback：勾了精简但模型没按指令交稿 → 图 A 已自动回落为保留原文。
+                       必须显式提示 —— 否则老师会以为拿到的是精简稿（静默失败）。 */
+                    fallback: String(o.fallback || "") === "true",
+                    /* ok=false 只在**勾了精简**时才会出现（段数≠12 或词数越界）——
                        必须显式收下来：过去只读 warn，段数错误被静默放行。 */
                     ok: String(o.ok || "") === "true",
                     warn: String(o.warn || "") };
@@ -4106,12 +4123,19 @@ async function licPrepOne(){
 }
 
 /* ---- 分段编辑（人工确认环节）：全在内存里改，确认时才送进图 B ---- */
+/* 一段词数是否算「不合格」：**只有勾了精简才算**。
+   不勾精简 = 保留原文，每段长度就是原文的自然长度，跟档位规格无关 ——
+   一律标红只会让确认页满屏红、真正的问题反而看不见（2026-09-22 改）。 */
+function licSegBad(k, r){
+  const st = licState();
+  return !!(st.prep && st.prep.simplified && r && (k < r.per[0] || k > r.per[1]));
+}
 function licSetSeg(i, val){
   const st = licState(); if(!st.prep) return;
   st.prep.segs[i] = val;
   /* 只更新第 i 行的词数，不整页重渲染 —— 否则每敲一个字就丢焦点（同段落校对的教训）。 */
   const el = $("#licSegW" + i);
-  if(el){ const k = licWordCount(val), r = licSegRange(); const bad = k < r.per[0] || k > r.per[1];
+  if(el){ const k = licWordCount(val); const bad = licSegBad(k, licSegRange());
     el.textContent = L(k + " 词", k + " words"); el.className = "licsegw" + (bad ? " warn" : ""); }
   const tot = $("#licSegTot"); if(tot) tot.innerHTML = licTotalHTML();
 }
@@ -4132,13 +4156,21 @@ function licSegRange(){
   const r = licRange(st.prep && st.prep.level, st.prep ? st.prep.segs.length : LIC_DEF_SEG);
   return r || { lo: 0, hi: 0, per: [0, 0], n: 0 };
 }
+/* 全文词数那一行。
+   · 勾了精简 ⇒ 有明确目标区间，越界就是没做到位，标红。
+   · 没勾精简 ⇒ 母稿长度本来就不由我们控制（可能远超该档规格），只做**陈述**，
+     并说明下游会怎样 —— 不标红、不判定（2026-09-22 用户拍板：母稿不参与规格校验）。 */
 function licTotalHTML(){
   const st = licState(); if(!st.prep) return "";
-  const r = licSegRange(), tot = licSumWords(st.prep.segs), ok = tot >= r.lo && tot <= r.hi;
-  return L("全文 <b>" + tot + "</b> 词　·　目标 <b>" + r.lo + "–" + r.hi + "</b> 词（" + r.n + " 段 × " + r.per[0] + "–" + r.per[1] + " 词/段）",
-           "Total <b>" + tot + "</b> words　·　target <b>" + r.lo + "–" + r.hi + "</b> (" + r.n + " × " + r.per[0] + "–" + r.per[1] + ")")
-    + (ok ? '　<span style="color:var(--sub)">' + L("落在区间内","within range") + "</span>"
-          : '　<span style="color:#D04418">' + L("超出区间，可改段数或删减正文", "Out of range — adjust paragraphs or trim") + "</span>");
+  const r = licSegRange(), tot = licSumWords(st.prep.segs);
+  const line = L("全文 <b>" + tot + "</b> 词　·　" + r.n + " 段 × " + r.per[0] + "–" + r.per[1] + " 词/段 = <b>" + r.lo + "–" + r.hi + "</b> 词",
+                 "Total <b>" + tot + "</b> words　·　" + r.n + " × " + r.per[0] + "–" + r.per[1] + " = <b>" + r.lo + "–" + r.hi + "</b>");
+  if(!st.prep.simplified)
+    return line + '　<span style="color:var(--sub)">' + L("保留原文，母稿长度不参与规格校验；低档按每段规格写，段数多则文章自然变长",
+      "Text kept as-is — the master length is not checked; lower levels follow the per-paragraph spec, so more paragraphs means longer articles") + "</span>";
+  const ok = tot >= r.lo && tot <= r.hi;
+  return line + (ok ? '　<span style="color:var(--sub)">' + L("落在区间内","within range") + "</span>"
+                    : '　<span style="color:#D04418">' + L("超出区间，可改段数或删减正文", "Out of range — adjust paragraphs or trim") + "</span>");
 }
 
 /* ---- 生成：图 B ---- */
@@ -4147,11 +4179,12 @@ function licRunGen(){
   if(!st.prep || !a){ toast(L("还没有可生成的分段结果","No prepared segmentation yet")); return; }
   const segs = st.prep.segs.map(function(x){ return String(x||"").trim(); }).filter(function(x){ return x; });
   if(!segs.length){ toast(L("分段内容为空，无法生成","Segmentation is empty — cannot generate")); return; }
-  if(segs.length > LIC_MAX_SEG){ toast(L("段数超过上限 " + LIC_MAX_SEG + "，请先合并到 " + LIC_MAX_SEG + " 段以内","Over the " + LIC_MAX_SEG + "-paragraph cap — merge first")); return; }
+  /* 🔴 不再有段数上限（2026-09-22 用户拍板：放开、只提示不阻断）。
+     段数由内容决定；下游按「段数 × 每段规格词数」现算全文目标，段数多就文章长一点，不会算错。 */
   if(st.busy){ toast(L("正在处理中，请稍候…","Still working — please wait…")); return; }
   const tgts = LIC_TARGETS[st.prep.level] || [];
-  st.busy = L("正在逐段改写并生成 " + tgts.map(function(k){ return nkDisp(k); }).join(" + ") + "（约 60–120 秒）…",
-              "Rewriting into " + tgts.map(function(k){ return nkDisp(k); }).join(" + ") + " (~60–120s)…");
+  st.busy = L("正在逐段改写 " + segs.length + " 段并生成 " + tgts.map(function(k){ return nkDisp(k); }).join(" + ") + "（段数越多越久，预计 1–3 分钟）…",
+              "Rewriting " + segs.length + " paragraphs into " + tgts.map(function(k){ return nkDisp(k); }).join(" + ") + " (~1–3 min)…");
   st.errStage = "gen"; st.err = null; render();
   const inputs = {
     segments_json: JSON.stringify(segs),       /* 图 B 的 max_length 就是 20000 */
@@ -4209,32 +4242,57 @@ function licPrevArt(){
 function licConfirmHTML(){
   const st = licState(), a = licCurArt();
   if(!st.prep || !a) return "";
-  const r = licSegRange(), tgts = LIC_TARGETS[st.prep.level] || [];
+  const P = st.prep;
+  const r = licSegRange(), tgts = LIC_TARGETS[P.level] || [];
   const n = (st.queue || []).length, done = (st.doneIds || []).length;
-  const rows = st.prep.segs.map(function(p, i){
-    const k = licWordCount(p), bad = k < r.per[0] || k > r.per[1];
+  const N = P.segs.length;
+  const off = N !== LIC_DEF_SEG;            /* 段数偏离推荐值 12 → 提示（**不拦截**） */
+  const rows = P.segs.map(function(p, i){
+    const k = licWordCount(p), bad = licSegBad(k, r);
     return `<div class="licseg">
       <div class="licsegh"><span class="licno">${("0" + (i + 1)).slice(-2)}</span>
         <span class="licsegw${bad ? " warn" : ""}" id="licSegW${i}">${L(k + " 词", k + " words")}</span>
-        <span class="licsegt">${L("建议 " + r.per[0] + "–" + r.per[1] + " 词","aim " + r.per[0] + "–" + r.per[1] + " words")}</span>
-        <button class="licmini" onclick="licMergeSeg(${i})"${i >= st.prep.segs.length - 1 ? " disabled" : ""}>${L("合并下一段","Merge next")}</button>
+        ${P.simplified ? `<span class="licsegt">${L("建议 " + r.per[0] + "–" + r.per[1] + " 词","aim " + r.per[0] + "–" + r.per[1] + " words")}</span>` : ""}
+        <button class="licmini" onclick="licMergeSeg(${i})"${i >= P.segs.length - 1 ? " disabled" : ""}>${L("合并下一段","Merge next")}</button>
         <button class="licmini danger" onclick="licDelSeg(${i})">${L("删除","Delete")}</button>
       </div>
       <textarea rows="3" spellcheck="false" oninput="licSetSeg(${i},this.value)">${esc(p)}</textarea>
     </div>`;
   }).join("");
+  /* 段数提示（**非阻断**，2026-09-22 用户拍板）：
+     不勾精简时段数由内容决定 —— 12 只是推荐值，偏离只提示、不拦。
+     旁边给一颗明确的「仍然继续生成」，底部原本那颗「确认，生成…」照旧可用。 */
+  const segBar = off ? `<div class="licneed" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px">
+      <span style="flex:1;min-width:280px">${P.simplified
+        ? L("段数 <b>" + N + "</b>，简明起见要求正好 12 段。可以点上方「重新预处理」重跑，或就地合并后再生成。",
+            "<b>" + N + "</b> paragraphs — exactly 12 is required here. Re-prepare, or merge below.")
+        : L("按内容分成 <b>" + N + "</b> 段（推荐 12 段）。段数只是建议值 —— 照实继续也能生成；段数越多，低档文章会越长（每段词数不变）。",
+            "Segmented into <b>" + N + "</b> paragraphs (12 recommended). It's a guideline — continue as-is; more paragraphs make longer articles.")}</span>
+      <button class="btn sec" style="padding:4px 14px;font-size:12px" onclick="licRunGen()">${L("仍然继续生成","Continue anyway")}</button>
+    </div>` : "";
   return `<div id="licConfirm" style="background:#fff;border:1px solid var(--border2);border-radius:12px;padding:18px 20px">
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px">
-      <b style="font-size:15px">${L("确认分段与精简稿","Confirm segmentation & condensed text")}</b>
+      <b style="font-size:15px">${P.simplified ? L("确认分段与精简稿","Confirm segmentation & condensed text") : L("确认分段（保留原文）","Confirm segmentation (text kept as-is)")}</b>
       <span class="tint" style="background:#FFF9F5;color:#D04418">${L("第 " + ((st.qi || 0) + 1) + " / " + n + " 篇","#" + ((st.qi || 0) + 1) + " / " + n)}</span>
-      <span class="tint" style="background:#FFF0EB;color:#D04418">${esc(nkDisp(st.prep.level))} ${L("母稿","master")}</span>
-      ${st.prep.simplified ? '<span class="tint" style="background:#FFF9F5;color:#D04418">' + L("已精简","Condensed") + "</span>" : ""}
+      <span class="tint" style="background:#FFF0EB;color:#D04418">${esc(nkDisp(P.level))} ${L("母稿","master")}</span>
+      ${P.simplified ? '<span class="tint" style="background:#FFF9F5;color:#D04418">' + L("已精简","Condensed") + "</span>"
+                     : '<span class="tint neutral">' + L("保留原文","Text kept as-is") + "</span>"}
+      <span class="tint neutral">${L(N + " 段", N + " paragraphs")}</span>
       ${done ? '<span class="tint neutral">' + L("已完成 " + done + " 篇","done " + done) + "</span>" : ""}
     </div>
     <p style="color:var(--sub);margin:0 0 12px;font-size:13px;line-height:1.7">
-      ${L("这是逐段改写的<b>骨架</b>，确认后才会开始生成低档文章。每段词数不理想可以就地改、合并或删除；段数上限 " + LIC_MAX_SEG + "。",
-         "This is the <b>skeleton</b> used for rewriting. Edit, merge or delete paragraphs if the word counts look off — the cap is " + LIC_MAX_SEG + " paragraphs.")}
+      ${P.simplified
+        ? L("这是逐段改写的<b>骨架</b>，确认后才会开始生成低档文章。每段词数不理想可以就地改、合并或删除。",
+            "This is the <b>skeleton</b> used for rewriting. Edit, merge or delete paragraphs if the word counts look off.")
+        : L("这是逐段改写的<b>骨架</b>。正文<b>逐字保留原样</b>，你只调整分段；确认后才会开始生成低档文章。",
+            "This is the <b>skeleton</b> used for rewriting. The text is <b>kept verbatim</b> — you only adjust the segmentation.")}
     </p>
+    ${P.fallback ? '<div class="licneed bad" style="margin-bottom:10px">'
+        + "<b>" + L("精简没跑出来　","Condensing did not run　") + "</b>"
+        + L("模型这次没交出精简稿，系统已自动<b>保留原文</b>（不会产出空正文）。可以点「重新预处理」再试一次。",
+            "The model returned no condensed text this time, so the original was kept (never an empty body). Try “Re-prepare” again.")
+        + "</div>" : ""}
+    ${segBar}
     <div style="font-size:12.5px;color:var(--sub);margin-bottom:12px;line-height:1.9" id="licSegTot">${licTotalHTML()}</div>
     ${st.prep.warn ? '<div class="licneed' + (st.prep.ok ? "" : " bad") + '">'
         + (st.prep.ok ? "" : "<b>" + L("预处理结果未达标　","Result out of spec　") + "</b>")
@@ -4248,7 +4306,7 @@ function licConfirmHTML(){
       <button class="btn sec" onclick="licPrepOne()">${L("重新预处理","Re-prepare")}</button>
       ${(st.qi || 0) > 0 ? '<button class="btn sec" onclick="licPrevArt()">← ' + L("上一篇","Previous") + "</button>" : ""}
       ${((st.qi || 0) < n - 1) ? '<button class="btn sec" onclick="licNextArt()">' + L("下一篇（跳过这篇）","Next (skip this one)") + " →</button>" : ""}
-      <span class="hint">${L("生成后到「文章生产」查看 4 档校对与逐段审核；母稿本身也会一并入库。","Results appear under “Article Production”; the master itself is saved to the library too.")}</span>
+      <span class="hint">${L("生成后到「文章生产」查看各档校对与逐段审核；母稿本身也会一并入库。","Results appear under “Article Production”; the master itself is saved to the library too.")}</span>
     </div>
   </div>`;
 }
@@ -5607,6 +5665,13 @@ function showVSum(){
       }
       txt += `<br><span class="vvocab">${vhtml}</span>`;
     }
+    /* 授权链路：校验里**少一档**要说明清楚 —— 否则看起来像漏了。
+       母稿档（B1/B2）本身不参与规格校验：保留原文时它的长度不由我们控制（2026-09-22 用户拍板）。 */
+    const licLv = state.lic && state.lic.prep && state.lic.prep.level;
+    if(licLv) txt += '<br><span style="color:var(--sub)">'
+      + L("母稿档 " + nkDisp(licLv) + " 不参与规格校验（长度不由我们控制），上面的分数只统计向下产出的低档。",
+          "The master level " + nkDisp(licLv) + " is not spec-checked (its length is out of our control) — the score above covers the generated lower levels only.")
+      + '</span>';
   }
   s.innerHTML=`<div class="big">${big}</div><div class="txt">${txt}</div>`;
   s.style.animation="pop .5s both";

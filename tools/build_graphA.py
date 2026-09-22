@@ -72,10 +72,20 @@ def edge(eid, src, tgt, stype, ttype):
     }
 
 
-# ── ① nodeSimplify：可选精简 ─────────────────────────────────────────
+# ── ① nodeSimplify：可选精简（清单） ──────────────────────────────────
+# 🔴 2026-09-22：加【第一步·分支】。此前无论勾不勾精简都强行提炼清单 ——
+#   不勾精简时那份清单完全没人用，白跑一次长输出（每次 10–25 秒、白烧 token）。
+#   现在 false 时只回一个空清单，几乎不耗时，也不做任何"精简"动作。
 SIMPLIFY_SYS = '''你是英语分级阅读内容编辑。下面是一篇**已获授权**的母稿（BBC Learning English / 出版社书系等）。
 
-【任务】把这篇母稿切成**信息单元**，提炼成一份清单。清单决定「重写时保留哪些信息」。
+【第一步 · 先看是否需要精简】
+看下面的【是否需要精简】：
+- 值为 `true` ⇒ 执行【提炼要点清单】。
+- 其他（`false` / 空）⇒ **不要提炼、不要分析、不要总结**，直接输出：{"outline": []}
+  （本次不使用清单；下一步会**逐字保留原文**，所以你在这里做的任何删减都是错的。）
+
+【提炼要点清单】（**仅当值为 `true` 时执行**）
+把这篇母稿切成**信息单元**，提炼成一份清单。清单决定「重写时保留哪些信息」。
 
 【要求】
 1. 🔴 **固定 12 条**（这是硬指标，不多不少）。原文每一段都含 1 个以上信息单元，
@@ -91,6 +101,7 @@ SIMPLIFY_SYS = '''你是英语分级阅读内容编辑。下面是一篇**已获
 6. 清单总量约为原文的 **35–45%**，这是正常的 —— 它承载的是重写时要保留的全部信息。
 
 【母稿档位】{{#nodeStart.level#}}
+【是否需要精简】{{#nodeStart.need_simplify#}}
 
 【母稿原文】
 {{#nodeStart.material#}}
@@ -148,8 +159,13 @@ SIMPLIFY2_SYS = '''上一步已经提炼出要点清单。现在产出**入库�
    - ④ 全文不足下限 ⇒ 先检查是不是**句数写少了**（B2 补满 4 句 / B1 补满 2 句），再考虑把次要信息加回来。
    - ⑤ 全文超上限 ⇒ 再删一两条次要信息（不要靠缩句）。
 
-【原样模式】
-**逐字原样输出**下面的原文。不得改写、不得增删、不得调整顺序、不得纠正用词。
+【原样模式】（**未勾选精简时的唯一动作**）
+🔴 **不要输出正文，也不要用原文改写**。只输出下面这一行，一个字符都不要多、不要加引号或句号：
+
+__KEEP_ORIGINAL__
+
+（为什么：不精简 = 逐字保留原文，正文由下游节点**直接取原文**，不经过模型 ——
+ 实测让模型"原样输出"时它仍会改写措辞，「一台复制机」这种措辞约束并不可靠。）
 
 【母稿档位】{{#nodeStart.level#}}
 【是否需要重写】{{#nodeStart.need_simplify#}}
@@ -163,6 +179,27 @@ SIMPLIFY2_SYS = '''上一步已经提炼出要点清单。现在产出**入库�
 【输出要求】
 只输出正文本身。不要任何解释、不要 markdown、不要标题。'''
 
+# ── ①-c nodeFinal：定稿正文（**硬机制**，不靠模型自觉） ────────────────
+# 🔴 2026-09-22 真跑抓到的 bug：不精简时让模型「逐字原样输出」，它仍然改写了措辞 ——
+#   实测 "has moved from a hobby" → "has grown from a small hobby into"（443 词 vs 原文 454 词）。
+#   ⇒ 正文在 false 模式下**不经过模型**，直接取 nodeStart.material。
+#   模型在这条分支只需吐一个占位符，既保证逐字一致，又把耗时/成本压到最低。
+FINAL_CODE = r'''function main({ need_simplify, material, rewritten }) {
+  const simp = String(need_simplify || '').trim().toLowerCase() === 'true';
+  const src = String(material || '');
+  const raw = String(rewritten || '').trim();
+  /* 占位符残留（模型没按指令走）/ 输出为空 / 精简稿为空 ⇒ 一律回落原文，绝不产出空正文 */
+  const isStub = !raw || raw.indexOf('__KEEP_ORIGINAL__') >= 0;
+  const final = (!simp || isStub) ? src : raw;
+  return {
+    final_text: final,
+    used_original: (simp && !isStub) ? 'false' : 'true',
+    need_simplify: simp ? 'true' : 'false',
+    /* fallback=true 表示「勾了精简却没拿到稿子、回落到原文」—— 需要人在确认页知情 */
+    fallback: (simp && isStub) ? 'true' : 'false',
+  };
+}'''
+
 COUNT_CODE = r'''function main({ text }) {
   const wc = (t) => (String(t || '').match(/[A-Za-z][A-Za-z''-]*/g) || []).length;
   const t = String(text || '');
@@ -170,36 +207,47 @@ COUNT_CODE = r'''function main({ text }) {
 }'''
 
 # ── ② nodeSegment：按内容大意自然分段 ────────────────────────────────
-SEGMENT_SYS = '''你是英语分级阅读内容编辑。把下面这篇母稿**按内容大意自然分段**，产出的段落骨架将供后续多个难度档共用。
+# 🔴 2026-09-22 重写。旧版有三条规则互相打架，原文一长就必然失控：
+#   ① 「段数上限 16」② 「B1 每段 28–35 / B2 每段 41–50 词」③ 「段数 = 总词数 ÷ 每段词数」
+#   —— 1400 词的不精简母稿按 ② 反推要 28–34 段，直接顶破 ①；模型只能乱给（实测给过 6 段）。
+#   新规则：**段数由内容决定** —— 不勾精简时「能合则合、尽量靠近 12，合不动就多，不设上限」；
+#   勾了精简时「必须正好 12 段」。词数规格不再用来反推段数（那是下游各档的事）。
+SEGMENT_SYS = '''你是英语分级阅读内容编辑。把下面这段文字**按内容大意分段**，产出的段落骨架将供后续多个难度档共用。
 
-【分段规则】
-0. 🔴 **先看正文的既有切分**：若正文已经是一行一段、段间有空行（重写模式必然如此），
-   **直接采用这个切分**，不要重新合并或拆分 —— 除非某段明显超过上限（那就再切一刀）。
-   此时**段数 = 要点条数**，这是设计使然，不是"段数不对"。
-1. **按内容大意切**：一个段落 = 一个完整的信息单元（一个"大意"）。不要硬凑段数，也不要为了美观拆出碎片段。
-2. **段数上限 16 段**，且**通常不会用到这么多**。段数由内容自然决定。
-3. **每段词数要纳入规格考虑**（这是硬约束，决定后续各档能否达标）：
-   - 母稿 B1：每段约 **28–35 词**
-   - 母稿 B2：每段约 **41–50 词**
-   ⇒ **段数 = 总词数 ÷ 每段词数**。先估一下正文大约多少词，反推段数大约多少段，再按这个数量去切。
-4. **切完必须自查**：逐段数词数。
-   - 某段低于下限 ⇒ 与相邻段**合并**
-   - 某段高于上限 ⇒ 在此处**再切一刀**
-   若反复出现"某段超上限"，而段数已经接近 16 段上限 ⇒ 说明**正文本身还太长**，
-   回到精简那一步的思路：**再删掉一些举例与次要观点**，而不是把段数硬顶到上限。
-5. **只做切分，不做改写**：不得增删信息、不得调整顺序、不得改写用词。
-6. 不要保留原文的小标题、编号、markdown 标记。
+🔴 **先判断模式**（看下面的【是否需要精简】）：
+- 值为 `true` ⇒ 只执行【模式 B】
+- 其他（`false` / 空）⇒ 只执行【模式 A】
+
+【模式 A · 保留原文】
+正文**逐字保留**：你**只做切分**，不得改写、增删、调整任何一个词。
+1. **一个段落 = 一个信息单元（一个"大意"）**。不要把一段里的小句拆出来单独成段。
+2. **能合则合**：讲同一件事、同一话题的相邻内容，合并成一段。
+3. **目标 12 段**（这是产品规格），但 **以内容为准，绝不硬凑**：
+   - 信息单元**不足 12 个** ⇒ **照实给**（给 8 段就给 8 段）。硬拆凑数会让后续改写**逐段错位**，
+     这是最严重的错误，比段数不对更严重。
+   - 信息单元**多于 12 个** ⇒ 先把同一话题的相邻单元合并，尽量靠近 12 段；
+     **合并会破坏意思的，宁可多于 12 段**。段数**不设上限**，由内容决定。
+4. **不要输出碎段**：低于 20 词的段落，除非它本身就是独立大意，否则并入相邻段。
+5. 不要保留原文的小标题、编号、markdown 标记（`#`、`*`、`-` 等）。
+
+【模式 B · 精简稿】
+上一步已按 12 段写好，**必须正好 12 段**：
+1. **直接采用它的既有切分**（一行一段、段间空行），不要重新合并或拆分 —— 这不算"段数不对"。
+2. 唯一例外：某段**明显超过**该档上限（B1 超 45 词 / B2 超 65 词）⇒ 在此处切一刀，
+   同时把相邻的短段合并回去，**切完段数仍必须是 12**。
+3. 只做切分，不得改写用词。
 
 【母稿档位】{{#nodeStart.level#}}
+【是否需要精简】{{#nodeStart.need_simplify#}}
 
-【母稿正文】
-{{#nodeSimplify2.text#}}
+【正文】
+{{#nodeFinal.final_text#}}
 
 【输出格式】只输出 JSON，不要 markdown 代码块，不要任何解释：
 {"segments": ["第一段原文", "第二段原文", "第三段原文"]}'''
 
 # ── ③ nodeClean：解析分段结果 ───────────────────────────────────────
-CLEAN_CODE = r'''function main({ level, need_simplify, simplified, raw }) {
+CLEAN_CODE = r'''function main({ level, need_simplify, master, raw, fallback }) {
   const strip = (s) => String(s == null ? '' : s).replace(/```json/gi, '').replace(/```/g, '').trim();
 
   /* 从模型输出里抠出 JSON（模型常带前后缀或 markdown 包裹） */
@@ -223,30 +271,41 @@ CLEAN_CODE = r'''function main({ level, need_simplify, simplified, raw }) {
   const total = per.reduce((a, b) => a + b, 0);
   const lv = String(level || '').trim();
   const spec = { B1: [323, 437, 28, 35], B2: [468, 632, 41, 50] }[lv] || null;
+  const simp = String(need_simplify || '').trim().toLowerCase() === 'true';
 
-  /* 🔴 段数是**硬要求**（2026-09-22 修）：下游档位都要按同一骨架逐段对齐，
-     段数不对 ⇒ 骨架不可用。此前 ok 只判 `>= 3`、warn 只看词数 ⇒
-     模型给出 6 段的错误结果会被**静默放行**（真跑第 4 次：6 段 329 词、warn 空）。
-     现在段数与词数**分别判定**，任一不合格都 ok=false 并写明原因。 */
+  /* 🔴 段数的判定口径（2026-09-22 用户拍板）：
+     · **勾了精简** ⇒ 12 段是硬指标（精简稿本来就是按 12 段写的），不对就 ok=false。
+     · **没勾精简** ⇒ 段数由内容决定（能合则合、尽量靠近 12、合不动就多，**不设上限**）。
+       此时段数 ≠ 12 只报 `seg_note` 给前端提示，**不判失败、不阻断生成**。
+     同时词数越界也只对「精简稿」才判 —— 保留原文的母稿长度本来就不由我们控制。 */
   const SEGN = 12;
-  const segBad = segs.length !== SEGN;
-  const wcBad = !!spec && (total < spec[0] || total > spec[1]);
-  const tooMany = segs.length > 16;          /* 需求硬上限，独立于 SEGN 报出 */
+  const segBad = simp && segs.length !== SEGN;
+  const wcBad = simp && !!spec && (total < spec[0] || total > spec[1]);
   const warns = [];
   if (segBad) warns.push('段数 ' + segs.length + ' 不等于要求的 ' + SEGN + ' 段');
   if (!spec) warns.push('未知档位');
-  else if (total < spec[0]) warns.push('总词数 ' + total + ' 低于 ' + lv + ' 下限 ' + spec[0]);
-  else if (total > spec[1]) warns.push('总词数 ' + total + ' 超过 ' + lv + ' 上限 ' + spec[1]);
+  if (wcBad && spec) warns.push(total < spec[0]
+    ? ('总词数 ' + total + ' 低于 ' + lv + ' 下限 ' + spec[0])
+    : ('总词数 ' + total + ' 超过 ' + lv + ' 上限 ' + spec[1]));
+  const fb = String(fallback || '').trim().toLowerCase() === 'true';
+  if (fb) warns.push('勾了精简但没拿到精简稿（模型未按指令输出），已自动回落为保留原文');
+
+  /* 段数提示（非阻断）：偏离 12 就说一句，让老师心里有数 */
+  const note = (segs.length === SEGN) ? ''
+    : ('按内容分成 ' + segs.length + ' 段（推荐 12 段）');
 
   return {
     segments_json: JSON.stringify(segs),
     seg_count: String(segs.length),
     para_words: JSON.stringify(per),
     word_count: String(total),
-    simplified_text: String(simplified || ''),
+    master_text: String(master || ''),
     level: lv,
-    need_simplify: String(need_simplify || 'false'),
-    over_limit: tooMany ? 'true' : 'false',
+    need_simplify: simp ? 'true' : 'false',
+    seg_note: note,
+    fallback: fb ? 'true' : 'false',
+    /* 精简模式下「段数或词数不达标」都算失败（精简的目的就是落进规格）；
+       不精简模式 wcBad 恒为 false、segBad 恒为 false ⇒ 只提示不判失败。 */
     ok: (!segBad && !wcBad && !!spec) ? 'true' : 'false',
     warn: warns.join('；'),
   };
@@ -273,8 +332,8 @@ def build():
         }),
         shell('nodeSimplify', 'llm', 340, 280, {
             'type': 'llm',
-            'title': '① 母稿精简（可选）',
-            'desc': 'need_simplify=true 时大幅删次要信息、保主线，压到该档字数；false 时逐字原样输出',
+            'title': '① 提炼要点清单（仅精简时）',
+            'desc': 'need_simplify=true 时提炼 12 条要点清单；false 时**不做任何动作**（直接回空清单）',
             'selected': False,
             'model': MODEL_PRO,
             'prompt_template': [{'role': 'system', 'text': SIMPLIFY_SYS}],
@@ -285,8 +344,8 @@ def build():
         }),
         shell('nodeSimplify2', 'llm', 620, 280, {
             'type': 'llm',
-            'title': '①-c 二次精简（收尾）',
-            'desc': '带"当前还超多少"的反馈再砍一轮；已达标则逐字原样输出',
+            'title': '①-b 产出母稿正文',
+            'desc': 'need_simplify=true → 按清单压缩成 12 段；false → **逐字原样输出原文**',
             'selected': False,
             'model': MODEL_PRO,
             'prompt_template': [{'role': 'system', 'text': SIMPLIFY2_SYS}],
@@ -295,7 +354,22 @@ def build():
             'memory': None,
             'answer': '',
         }),
-        shell('nodeSegment', 'llm', 900, 280, {
+        shell('nodeFinal', 'code', 900, 470, {
+            'type': 'code',
+            'title': '①-c 定稿正文',
+            'desc': '不精简 → 直接取原文（逐字，不经过模型）；精简 → 取重写稿。占位符/空输出一律回落原文',
+            'selected': False,
+            'code_language': 'javascript',
+            'code': FINAL_CODE,
+            'variables': [
+                {'variable': 'need_simplify', 'value_selector': ['nodeStart', 'need_simplify']},
+                {'variable': 'material', 'value_selector': ['nodeStart', 'material']},
+                {'variable': 'rewritten', 'value_selector': ['nodeSimplify2', 'text']},
+            ],
+            'outputs': {k: {'children': None, 'type': 'string'}
+                        for k in ('final_text', 'used_original', 'need_simplify', 'fallback')},
+        }),
+        shell('nodeSegment', 'llm', 1190, 280, {
             'type': 'llm',
             'title': '② 按大意分段',
             'desc': '按内容自然切分（段数上限 16），并把每段词数纳入该档规格',
@@ -307,7 +381,7 @@ def build():
             'memory': None,
             'answer': '',
         }),
-        shell('nodeClean', 'code', 1460, 280, {
+        shell('nodeClean', 'code', 1470, 280, {
             'type': 'code',
             'title': '③ 解析分段',
             'desc': '解析 segments、统计段数与每段词数、标注越界告警',
@@ -317,12 +391,13 @@ def build():
             'variables': [
                 {'variable': 'level', 'value_selector': ['nodeStart', 'level']},
                 {'variable': 'need_simplify', 'value_selector': ['nodeStart', 'need_simplify']},
-                {'variable': 'simplified', 'value_selector': ['nodeSimplify2', 'text']},
+                {'variable': 'master', 'value_selector': ['nodeFinal', 'final_text']},
                 {'variable': 'raw', 'value_selector': ['nodeSegment', 'text']},
+                {'variable': 'fallback', 'value_selector': ['nodeFinal', 'fallback']},
             ],
             'outputs': {k: {'children': None, 'type': 'string'} for k in
                         ('segments_json', 'seg_count', 'para_words', 'word_count',
-                         'simplified_text', 'level', 'need_simplify', 'over_limit', 'ok', 'warn')},
+                         'master_text', 'level', 'need_simplify', 'seg_note', 'fallback', 'ok', 'warn')},
         }),
         shell('nodeEnd', 'end', 1740, 280, {
             'type': 'end',
@@ -332,7 +407,7 @@ def build():
             'outputs': [
                 {'variable': k, 'value_selector': ['nodeClean', k]}
                 for k in ('segments_json', 'seg_count', 'para_words', 'word_count',
-                          'simplified_text', 'level', 'need_simplify', 'over_limit', 'ok', 'warn')
+                          'master_text', 'level', 'need_simplify', 'seg_note', 'fallback', 'ok', 'warn')
             ],
         }),
     ]
@@ -340,7 +415,8 @@ def build():
     edges = [
         edge('e-start-simplify', 'nodeStart', 'nodeSimplify', 'start', 'llm'),
         edge('e-simplify-simplify2', 'nodeSimplify', 'nodeSimplify2', 'llm', 'llm'),
-        edge('e-simplify2-segment', 'nodeSimplify2', 'nodeSegment', 'llm', 'llm'),
+        edge('e-simplify2-final', 'nodeSimplify2', 'nodeFinal', 'llm', 'code'),
+        edge('e-final-segment', 'nodeFinal', 'nodeSegment', 'code', 'llm'),
         edge('e-segment-clean', 'nodeSegment', 'nodeClean', 'llm', 'code'),
         edge('e-clean-end', 'nodeClean', 'nodeEnd', 'code', 'end'),
     ]

@@ -559,9 +559,16 @@ def validate_code():
                 "  Object.keys(PER).forEach((k) => { SPEC[k] = [Math.round(SEGN * PER[k][0]), Math.round(SEGN * PER[k][1]), PER[k][2], PER[k][3], PER[k][4], PER[k][5]]; });")
     v = v.replace(old_spec, new_spec)
 
-    # c) ALL 改为按母稿档位收窄
+    # c) ALL 改为按母稿档位收窄，并**剔掉母稿档本身**
+    #    🔴 2026-09-22 用户拍板：母稿只标注「授权母稿来源」入库，**不参与规格校验** ——
+    #    它的长度不由我们控制（保留原文时可能远超该档区间），拿它去算分数只会制造噪音。
+    #    nodeAgg 的 levels_json 第一项恒为母稿档（[level].concat(targets)），校验只跑后面的低档。
+    #    实测：19 段长母稿跑完 44 项里 B2+ 那 11 项全在拿母稿计分，用户明确要求去掉。
     v = v.replace("const ALL = ['A1','A2','B1','B2'];",
-                  "const ALL = (function(){ try { var a = JSON.parse(levels_json||'[]'); return Array.isArray(a) && a.length ? a : ['A1','A2','B1','B2']; } catch(e){ return ['A1','A2','B1','B2']; } })();")
+                  "const ALL = (function(){ try { var a = JSON.parse(levels_json||'[]');"
+                  " if(!Array.isArray(a) || !a.length) return ['A1','A2','B1','B2'];"
+                  " var t = a.slice(1);   /* 第 0 项 = 母稿档，不参与校验 */"
+                  " return t.length ? t : ['A1','A2','B1','B2']; } catch(e){ return ['A1','A2','B1','B2']; } })();")
 
     # d) 段落对齐块：12 → N
     v = v.replace('if (pars !== 12) { bad.push(\'段数 \' + (isNaN(pars) ? \'?\' : pars) + \'（应为 12）\'); }',
