@@ -268,6 +268,34 @@ document.cookie.split(';').map(s=>s.trim().split('=')[0]).join(', ')
 | 有 `__Host-csrf_token` / access_token | CSRF 短时失效 | **刷新页面即恢复**，别重登 |
 | **只剩第三方 cookie**（cookieyes / _ga / AMP_*） | **登录态彻底没了** | **只能人工重新登录**，任何刷新都无效 |
 
+#### 🔴 第三种 401（2026-09-22 新增）：**GET 也必须带 `X-CSRF-Token`**
+
+Dify 改了策略 —— **读接口（GET）现在同样校验 CSRF 头**。老脚本只在写请求上带头，
+于是「页面明明登录着、应用列表也刷得出来」，`workflows/draft` 却回：
+
+```
+401 {"code":"unauthorized","message":"CSRF token is missing or invalid.","status":401}
+```
+
+**判据（一条命令分清它是哪种 401）**：在 Dify 页签里 eval 同一接口两次，一次带头一次不带：
+
+```js
+// 不带 ⇒ 401 CSRF token is missing or invalid. ；带上 ⇒ 200
+(async()=>{const t=decodeURIComponent((document.cookie.match(/__Host-csrf_token=([^;]+)/)||[])[1]||'');
+ const a=await fetch('/console/api/account/profile',{credentials:'include'});
+ const b=await fetch('/console/api/account/profile',{credentials:'include',headers:{'X-CSRF-Token':t}});
+ return a.status+' / '+b.status;})()
+```
+
+**⚠️ 注意与上一条区分**：这种 401 的 message 是 `CSRF token is missing or invalid.`，
+而「token 真的失效」是 `Invalid Authorization token.` —— **看 message，别看状态码。**
+
+已修脚本：`dify_push_graph.mjs`（读 draft + 回读校验两处 GET）、`dump_draft.mjs`、
+`dump_full_draft.mjs`。**以后新写任何 console API 调用，GET 也要带头。**
+
+顺带把失败提示改成打印 `http=<码> body=<前 300 字>` —— 原来只说「会话可能已失效」，
+把「缺 CSRF 头」误诊成「登录过期」，白折腾一轮。
+
 **🔴 根因（2026-09-22 定位并修复）：profile 放在了 `/tmp`。**
 `launch_dify_chrome.py` 原来用 `--user-data-dir=/tmp/chrome-dify-<port>`，
 而 macOS 会在重启/清理时删 /tmp ⇒ **cookie 连同登录态一起消失**，
@@ -1218,8 +1246,8 @@ if (factNums.length && missNums.length === factNums.length) → fail('事实卡�
 
 | 项 | 值 |
 |---|---|
-| 图 A（预处理） | `d4e0905b-b8da-47f1-9d10-a1ca87bdc401` · 构建脚本 `tools/build_graphA.py`（7 节点） |
-| 图 B（向下生成） | `d26cabd2-8837-4833-ab88-6f7aed015d4f` · 构建脚本 `tools/build_graphB.py`（15 节点 / 25 边） |
+| 图 A（预处理） | `d4e0905b-b8da-47f1-9d10-a1ca87bdc401` · 构建脚本 `tools/build_graphA.py`（7 节点）· 已发布 hash **`74f6a8b2`** |
+| 图 B（向下生成） | `d26cabd2-8837-4833-ab88-6f7aed015d4f` · 构建脚本 `tools/build_graphB.py`（15 节点 / 25 边）· 已发布 hash **`2d2bae7e`** |
 | 前端入口 | 第四张卡 `licensed`；`licensedPanelHTML` / `licConfirmHTML` / `licPrepOne` / `licRunGen` |
 | 桥接层 | `wf` 分发 `licprep` / `licgen`；key 名 `DIFY_WF_LICPREP` / `DIFY_WF_LICGEN` |
 
@@ -1314,12 +1342,22 @@ B1 硬区间 323–437 ÷ 每段 28–35 ⇒ 最少要 10 段才够字数（8 �
 `total_checks` 44 → 33（10 段骨架时 22）。理由：母稿长度不由我们控制，拿它计分只是噪音。
 图 B 的 `nodeAgg` 按 `[level].concat(targets)` 排列 levels_json，**第 0 项恒为母稿档**。
 
-### 实测基线（真实 API，2026-09-22 收盘）
+### 实测基线（真实跑，2026-09-22 收盘）
 
-| 素材 / 档位 | 图 A | 图 B |
+素材固定用同一篇 **319 词 B1 母稿**（8 个自然段，`What's in a Name` 主题）。
+**图 A 已发布 hash `74f6a8b2` · 图 B 已发布 hash `2d2bae7e`。**
+
+| 场景 | 结果 | 判定 |
 |---|---|---|
-| 319 词 B1（照搬 8 段） | **10 段** 28/34/37/24/28/31/33/35/32/37 · 全落 23–40 · 逐字一致 ✅ · 7.9s · auto_fixed=5 | 10 段 · 三档 1:1 对齐 · 31.2s · 16/22 |
-| 同一篇按 B2+ | 7 段 49/42/42/38/54/49/45 · 全落 36–55 · 逐字一致 ✅ | — |
+| **图 A · 保留原文** | **10 段** · 319 词 · 逐字一致 ✅ · **零越界** · auto_fixed=5 · **10.5s** | ✅ `ok=true` |
+| **图 A · 精简** | **13 段** · **267 词** · 与原文不同 ✅ · 13.7s | ❌ `ok=false`（267 < 323，欠 56 词） |
+| **图 B**（吃保留原文的 10 段骨架） | 三档 **10/10/10** · `align_map` 1:1 ✅ · `map_warn` 空 ✅ · **33.6s** · 校验 **16/22** | 结构全对 |
+| 图 B 各档 | B1 319 / A2 197 / A1 187 词 | A2 略低（靶心 240）、A1 偏高（靶心 150） |
+
+🔴 **精简模式仍然欠字数** —— 段数已经达标（13 段落在 10–15，旧版只有 6 段），
+但每段只有 15–26 词（B1 每段规格 28–35）⇒ 全文 267 词够不着 323。
+**这说明「条数」这一侧改对了，「每段写多长」那一侧还欠火候。**
+已知唯一可靠的补法是**加「不达标自动重跑该档」**（与 GEN 六轮结论同源：纯调提示词已到极限）。
 
 **本地回归**（不用线上、不用 Chrome）：
 
@@ -1333,6 +1371,10 @@ node tools/probe_graphA_band.mjs --text=<素材>   # 冒烟真实素材（按空
 字数全错、断言静默失效）。用 `w(a) + ' Alpha. Then ' + w(b) + ' Beta.'` 这种形式。
 
 **前端回归**：`node tools/probe_lic_flow.mjs --port=9242`（51 项）。
+
+**跑真图（不发布也能跑）**：`node tools/dify_run_draft.mjs --app=<id> --inputs=<in.json> --port=9243 --raw=/tmp/x.json`
+- 图 A 入参：`{material, level:"B1|B2", need_simplify:"true|false"}`（`select` 类型**不能传空串**，要整个省略）
+- 图 B 入参：`{segments_json, level}`（`segments_json` 直接取自图 A `nodeClean.outputs.segments_json`）
 
 段数兜底的 5 个必测子场景（`probe_graphA_band.mjs` 精简块）：12 段保持不动 / 18 段合并 /
 6 段补切 / **词数不匀时不重排** / 字数偏低判 `fail`。
@@ -1370,6 +1412,30 @@ node tools/probe_graphA_band.mjs --text=<素材>   # 冒烟真实素材（按空
 改动清单：`build_graphB.py` 里 `SEM_SYS` 常量 + `sem = shell(...)` 节点 + `order` 列表 +
 `E()` 连边 + `nodeEnd.outputs` —— **四处缺一就会静默丢节点**（同 `nodeGistCheck` 的坑）。
 
-⚠️ **未解决**：段数越多，各档「每段词数」偏差被放大（图 B 老问题，与 GEN 六轮结论同源）。
-**精简模式仍打不进 B1 323–437**（319 词母稿 → 6 段 211 词）—— 已按新口径改成
-「字数优先 + 10–15 段兜底 + 少于 10 条必欠字数」的硬提示，**效果待图 A 上线后实测**。
+#### 🔴 首次上线实测：**判据偏严，误报率高**（2026-09-22，必须校准）
+
+真实跑一遍（B1 母稿 319 词 → 图 B 10 段骨架），`nodeSemCheck` 输出：
+
+```json
+{"levels":[{"level":"A2","bad":[1,2,3,8,9],"notes":["第1段讲北美两名制，母稿第1段是名字由来的引入", ...]},
+           {"level":"A1","bad":[],"notes":[]}],"bad_total":5,"summary":"A2 有 5 段错位，A1 逐段对齐。"}
+```
+
+**节点确实在工作**（母稿档 B1 被正确跳过 ✅、`sem_json` 干净传递到 `nodeEnd` ✅）。
+但把 A2 那 5 段拉出来逐段对照后：**基本是误报**。
+
+真实情况是**相邻段之间的内容平移**，不是"讲成另一件事"：
+- 母稿第 1 段的**引入句**（Have you ever thought…）被删掉，A2 第 1 段直接讲两名制；
+- 母稿第 2 段尾的「Long ago, people had only one name」被挪到 A2 第 3 段的**开头**；
+- 母稿第 8 段尾的 `Blacks / Browns` 被挪到 A2 第 9 段。
+
+⇒ **不是"换了主题"，是低档把 N 段压缩成 M 句时边界前后漂了。**
+
+**结论与待办（需 Bryan 拍板口径）**：现在的判据「第 i 段 vs 母稿第 i 段」太机械。
+建议改成 **「事件序列整体一致」** —— 允许内容在 **±1 段内平移**，
+只报 ① 整段主题换成另一件事 ② 凭空新增 ③ 整体漏掉某件事。
+**在改之前，前端那句「可对相关档位重新生成」会误导教研去重跑本来没问题的一档。**
+
+⚠️ **精简模式字数仍未达标**（2026-09-22 实测：13 段 / **267 词**，B1 下限 323）。
+段数这一侧已修好（旧版 6 段 → 现 13 段），**欠的是"每段写多长"**（实测每段 15–26 词，
+规格 28–35）。补法只有**加「不达标自动重跑该档」**（同 GEN 六轮结论）。
