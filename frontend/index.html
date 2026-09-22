@@ -3754,7 +3754,7 @@ const ROUTES = [
   {id:"public", ico:"", color:"#E65425", name:"英文公版书", nameEn:"Public Domain Books",
    desc:"内置 Standard Ebooks / Project Gutenberg 等公有领域英文书作为测试素材（章节正文离线内置）。版权已过期或不受限，无需授权与事实抽取，直接进入选题与生成。", descEn:"Public-domain English works (Standard Ebooks / Project Gutenberg) built in as test material, with chapter text embedded offline. No licensing or fact extraction needed — straight to generation.",
    items:["Standard Ebooks","Project Gutenberg","经典文学","版权过期作品"], itemsEn:["Standard Ebooks","Project Gutenberg","Classic literature","Expired copyright"]},
-  {id:"licensed", ico:"", color:"#E65425", name:"授权母稿向下改写", nameEn:"Licensed Master · Down-level Only",
+  {id:"licensed", ico:"", color:"#E65425", name:"CEFR文章分级", nameEn:"CEFR Article Grading",
    desc:"导入已解决版权的 B1 / B2 母稿（BBC、超级阅读力等出版社书系），按现有分级标准<b>只往下生产</b>：B2 → B1 + A2 + A1-，B1 → A2 + A1-。母稿本身也入库。不抽事实，按骨架逐段改写。",
    descEn:"Import licensed B1 / B2 master texts (BBC, publisher series) and generate <b>downward only</b>: B2 → B1 + A2 + A1-, B1 → A2 + A1-. The master itself is saved too. No fact extraction — paragraph-by-paragraph rewrite.",
    items:["BBC","超级阅读力","一次多篇","按需精简"], itemsEn:["BBC","Publisher series","Batch import","Optional condensing"]},
@@ -4448,13 +4448,6 @@ function intakeBackBar(){
 }
 function resetRoute(){ state.route = null; stage.scrollTop = 0; render(); }
 
-/* 入口卡底部那句话（每条链路的实际代价不同，别用同一句打发） */
-function routeFoot(r){
-  if(r.id === "trend") return L("需要事实抽取 → 走完整 12 步","Fact extraction → full 12 steps");
-  if(r.id === "licensed") return L("不抽事实 · 只往下生产 → 预处理后先确认分段","No fact extraction · downward only → confirm segmentation first");
-  return L("跳过事实抽取","Skips sources & fact extraction");
-}
-
 function s0(){
   /* 第一步：尚未选择入口 → 只展示三大入口选择卡片 */
   if(!state.route){
@@ -4463,9 +4456,6 @@ function s0(){
       ${ROUTES.map((r,i)=>`<div class="srccard" style="animation-delay:${.06*i}s;padding:22px 20px" onclick="pickRoute('${r.id}')">
         <div style="font-size:30px;margin-bottom:8px">${r.ico}</div>
         <h4 style="font-size:16px">${L(r.name,r.nameEn)}</h4>
-        <p style="min-height:76px">${L(r.desc,r.descEn)}</p>
-        <div class="srccard-items">${L("包含：","Includes: ")}${r.items.map((it,ii)=>L(it, r.itemsEn[ii])).join(" · ")}</div>
-        <div class="foot" style="color:${r.color}">${routeFoot(r)}</div>
       </div>`).join("")}
     </div>
     ${waitBtn(L("请先选择素材","Pick an intake route"))}` + wfStrip();
