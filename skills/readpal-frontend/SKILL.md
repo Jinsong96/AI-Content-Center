@@ -474,12 +474,20 @@ node tools/ui_audit.mjs --url=http://127.0.0.1:8899/index.html --role=produce \
    只作 `licRange()` 防脏值用。段数跑出该范围时「N 段 × 每段词数 = 区间」会变成假话。
    `licTotalHTML()` 已改成按 `st.prep.segs.length` 现算（`lo/hi` 也一并现算）。
 
-### 「母稿导入 → 文章生产」通审：仍未处理的 3 处（2026-09-22 记，等 Bryan 拍板）
+### 「母稿导入 → 文章生产」通审：历史问题清单（2026-09-22 记）
+
+**已修（2026-09-22 下午，Bryan 拍板 A/A）**：
+- ~~生成成功后没有「进入文章生产」出口~~ ⇒ `licRunGen` 成功路径现在**自动 `go(6)`** 跳「08 内容生成」结果页，
+  跳转前把 `state.lvl` 指到本批真有内容的最高档（B1 母稿向下只产 A2/A1-，否则 s6 空白）。
+- ~~预处理「点两次」~~ ⇒ 根因是 **busy 状态泄漏**（`st.busy` 字符串提示在某条路径漏清 ⇒ `if(st.busy)` 永真挡第一次）。
+  已加看门狗：`licBusyBlocked(stage)` + `licSetBusy/licClearBusy` 带 `busyT0` 时间戳，
+  超 `LIC_BUSY_WD_MS`(120s) 未清自动放行；未超时仍挡（防连点）。prep / gen / 读文件三处全换。
+
+**仍未处理（等 Bryan 拍板）**：
 
 | # | 问题 | 说明 |
 |---|---|---|
-| 1 | **生成成功后主按钮文案不变，再点会重跑图 B** | `licConfirmHTML` 只读 `st.prep`，不看是否已生成 ⇒ 重复扣一次额度。`st.gen` 更是**死字段**（仅 4255 写入，全文件从不读取） |
-| 2 | **生成成功后没有「进入文章生产」出口** | 只有一行 hint 文字 + 会消失的 toast；`state.live.status='done'` 已经写好了，界面上没有按钮用它 |
+| 1 | **生成成功后主按钮文案不变，再点会重跑图 B** | `licConfirmHTML` 只读 `st.prep`，不看是否已生成 ⇒ 重复扣一次额度。`st.gen` 更是**死字段**（仅写入，全文件从不读取） |
 | 3 | **图 A 出结果后回不到导入面板** | 只渲染 `licConfirmHTML()`；`pickRoute('licensed')` **不清** `st.prep` ⇒ 只能刷新页面，而 `state.lic` 不落盘、全丢。建议加一颗「返回母稿列表」（清 `prep`、保留 `arts`） |
 
 ### 来自图 A 的四个信号（都要读，别只看 `warn`）
