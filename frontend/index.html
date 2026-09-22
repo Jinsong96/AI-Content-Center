@@ -3874,7 +3874,7 @@ function licPush(title, text){
 function licAddFiles(inp){
   const fs = Array.prototype.slice.call((inp && inp.files) || []);
   if(!fs.length) return;
-  const st = licState(); st.busy = L("正在读取 " + fs.length + " 个文件…","Reading " + fs.length + " file(s)…");
+  const st = licState(); licSetBusy(st, L("正在读取 " + fs.length + " 个文件…","Reading " + fs.length + " file(s)…"));
   render();
   Promise.all(fs.map(function(f){
     return licReadFile(f).then(function(r){ return { ok: true, r: r }; },
@@ -3883,7 +3883,7 @@ function licAddFiles(inp){
     const ok = rs.filter(function(x){ return x.ok; });
     const bad = rs.filter(function(x){ return !x.ok; });
     ok.forEach(function(x){ licPush(x.r.title, x.r.text); });
-    st.busy = "";
+    licClearBusy(st);
     if(inp) inp.value = "";
     render();
     if(bad.length) toast(L("有 " + bad.length + " 个文件没读进来：" + bad.map(function(b){ return b.name; }).join("、"),
@@ -4091,11 +4091,31 @@ function licRunPrep(){
   const bad = licIssues();
   if(bad.length){ toast(L("还不能开始：", "Cannot start: ") + bad.join("；")); return; }
   const st = licState();
-  if(st.busy){ toast(L("正在处理中，请稍候…","Still working — please wait…")); return; }
+  if(licBusyBlocked("prep")) return;
   st.queue = licArts().map(function(a){ return a.id; });
   st.qi = 0; st.doneIds = []; st.err = null; st.genDir = null;
   licPrepOne();
 }
+/* busy 闸 + 看门狗（2026-09-22 修「预处理要点两次」）：
+   st.busy 是字符串提示，正常在 licPrepOne/licRunGen 收尾清回 ""。但只要某条路径漏清
+   （读文件中断 / 异常 / 旧 bug），busy 就一直非空 ⇒ if(st.busy) 永真 ⇒ 第一次点被挡、
+   要再点一次才进 —— 这就是「点两次」的根因。
+   给 busy 记时间戳，超过 LIC_BUSY_WD_MS 还没清就视为「卡死的状态泄漏」，自动清掉放行。
+   stage: "prep" | "gen"，仅用于提示文案。 */
+const LIC_BUSY_WD_MS = 120000;   /* 预处理/生成最长 20–90s，120s 必有异常 */
+function licBusyBlocked(stage){
+  const st = licState();
+  if(!st.busy) return false;
+  const t0 = st.busyT0 || 0;
+  if(t0 && (Date.now() - t0) > LIC_BUSY_WD_MS){
+    st.busy = ""; st.busyT0 = 0;   /* 看门狗：清掉泄漏的 busy，让这次点击能进 */
+    return false;
+  }
+  toast(L("正在处理中，请稍候…","Still working — please wait…"));
+  return true;
+}
+function licSetBusy(st, msg){ st.busy = msg; st.busyT0 = Date.now(); }
+function licClearBusy(st){ st.busy = ""; st.busyT0 = 0; }
 function licCurArt(){
   const st = licState();
   const id = (st.queue || [])[st.qi];
@@ -4116,10 +4136,10 @@ function licCallFail(data){
 async function licPrepOne(){
   const st = licState();
   const a = licCurArt();
-  if(!a){ st.busy = ""; render(); return; }
+  if(!a){ licClearBusy(st); render(); return; }
   const n = (st.queue || []).length;
-  st.busy = L("正在预处理第 " + (st.qi + 1) + " / " + n + " 篇（" + (a.simplify ? "精简 + 分段" : "保留原文，只做分段") + "，约 20–60 秒）…",
-              "Preparing " + (st.qi + 1) + " / " + n + " (" + (a.simplify ? "condense + segment" : "keep as-is, segment only") + ", ~20–60s)…");
+  licSetBusy(st, L("正在预处理第 " + (st.qi + 1) + " / " + n + " 篇（" + (a.simplify ? "精简 + 分段" : "保留原文，只做分段") + "，约 20–60 秒）…",
+              "Preparing " + (st.qi + 1) + " / " + n + " (" + (a.simplify ? "condense + segment" : "keep as-is, segment only") + ", ~20–60s)…"));
   st.prep = null; st.confirmed = false; st.gen = null; st.errStage = "prep"; st.err = null;
   render();
   /* need_simplify 是 select，枚举只有 'true' / 'false'。
@@ -4170,7 +4190,7 @@ async function licPrepOne(){
       ? L("已取消本次预处理","Preparation cancelled")
       : L("网络错误：","Network error: ") + (e && e.message);
   }
-  st.busy = "";
+  licClearBusy(st);
   render();
   if(st.prep) toast(L("预处理完成，请确认分段后开始生成","Prepared — confirm the segmentation to start generating"));
 }
@@ -4271,10 +4291,10 @@ function licRunGen(){
   if(!segs.length){ toast(L("分段内容为空，无法生成","Segmentation is empty — cannot generate")); return; }
   /* 🔴 不再有段数上限（2026-09-22 用户拍板：放开、只提示不阻断）。
      段数由内容决定；下游按「段数 × 每段规格词数」现算全文目标，段数多就文章长一点，不会算错。 */
-  if(st.busy){ toast(L("正在处理中，请稍候…","Still working — please wait…")); return; }
+  if(licBusyBlocked("gen")) return;
   const tgts = LIC_TARGETS[st.prep.level] || [];
-  st.busy = L("正在逐段改写 " + segs.length + " 段并生成 " + tgts.map(function(k){ return nkDisp(k); }).join(" + ") + "（段数越多越久，预计 1–3 分钟）…",
-              "Rewriting " + segs.length + " paragraphs into " + tgts.map(function(k){ return nkDisp(k); }).join(" + ") + " (~1–3 min)…");
+  licSetBusy(st, L("正在逐段改写 " + segs.length + " 段并生成 " + tgts.map(function(k){ return nkDisp(k); }).join(" + ") + "（段数越多越久，预计 1–3 分钟）…",
+              "Rewriting " + segs.length + " paragraphs into " + tgts.map(function(k){ return nkDisp(k); }).join(" + ") + " (~1–3 min)…"));
   st.errStage = "gen"; st.err = null; render();
   const inputs = {
     segments_json: JSON.stringify(segs),       /* 图 B 的 max_length 就是 20000 */
@@ -4301,18 +4321,28 @@ function licRunGen(){
         state.extracted = true; state.validated = true; state.reviewed = false;
         if(st.doneIds.indexOf(a.id) < 0) st.doneIds.push(a.id);
         applyLive();
-        st.busy = "";
-        render();
-        toast(L("已生成 " + tgts.map(function(k){ return nkDisp(k); }).join(" + ") + "，可前往「文章生产」查看校对与审核","Generated — open “Article Production” to proofread and review"));
+        licClearBusy(st);
+        /* 跳转前把 state.lvl 指到「本批真有内容」的最高档（B1 母稿向下只产 A2/A1-，
+           而 applyLive 只在有推荐档时才动 state.lvl，可能仍停在母稿档 ⇒ s6 空白）。
+           LEVELS12 按高→低排，取第一个 GEN 里有段落的档。 */
+        const firstGen = (typeof LEVELS12 !== "undefined" ? LEVELS12 : []).map(function(l){ return l.key; })
+          .reverse()   /* LEVELS12 是 A1→B2 升序，反转后取第一个 = 最高档 */
+          .filter(function(k){ return GEN[k] && GEN[k].paras && GEN[k].paras.length; })[0];
+        if(firstGen){ state.lvl = firstGen; state.lvlManual = false; }
+        toast(L("已生成 " + tgts.map(function(k){ return nkDisp(k); }).join(" + ") + "，正在进入文章生产…","Generated — opening Article Production…"));
+        /* 2026-09-22 Bryan 拍板（Q1=A / Q2=A）：生成成功后**自动跳**到「08 内容生成」结果页，
+           与其它素材「跑完就看到结果」一致 —— 不再只弹一句 toast 让用户自己找入口。
+           state.live.run 已灌好、GEN 已由 applyLive 填好，go(6) 直接能渲染。 */
+        go(6);
         return;
       }
-      st.errStage = "gen"; st.err = licCallFail(data); st.busy = ""; render();
+      st.errStage = "gen"; st.err = licCallFail(data); licClearBusy(st); render();
     } catch(e){
       _runAbort = null;
       st.errStage = "gen"; st.err = (e && (e.name === "AbortError" || /abort/i.test(String(e.message))))
         ? L("已取消本次生成","Generation cancelled")
         : L("网络错误：","Network error: ") + (e && e.message);
-      st.busy = ""; render();
+      licClearBusy(st); render();
     }
   })();
 }
