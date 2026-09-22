@@ -3965,7 +3965,6 @@ function licensedPanelHTML(){
     const no = ("0" + (i + 1)).slice(-2);
     const wc = licWordCount(a.text);
     const r = licRange(a.level, LIC_DEF_SEG);
-    const tgts = LIC_TARGETS[bigOf(a.level) || ""] || [];
     /* 🔴 2026-09-22 改口径（用户拍板）：导入母稿时**每段词数是分段的唯一依据**，
        全文字数不参与决策。所以这里不再摆「推荐字数区间」，改成**预估段数**：
        正文词数 ÷ 每段中点 —— 只用来一眼看出这篇够不够长、会不会太长。
@@ -4000,7 +3999,7 @@ function licensedPanelHTML(){
         </label>
       </div>
       <div class="liccalc${tooLong ? " warn" : ""}">
-        ${calc}${tgts.length ? L("　·　将产出 ", "　·　will produce ") + tgts.map(function(k){ return '<b>' + nkDisp(k) + '</b>'; }).join(" + ") : ""}
+        ${calc}
       </div>
       <details class="licdet"><summary>${L("查看正文（前 600 字）","Preview (first 600 chars)")}</summary><pre>${esc(String(a.text || "").slice(0, 600))}${String(a.text || "").length > 600 ? "\n…" : ""}</pre></details>
     </div>`;
@@ -4050,7 +4049,7 @@ function licStatusHTML(){
 function licEmbarkBtn(){
   if(!licArts().length) return waitBtn(L("请先导入母稿","Import a master text first"));
   if(!licAllReady()) return waitBtn(L("请先补全母稿档位与正文","Fill in the master level and text for every item"));
-  return `<div class="nextbar" id="licBar"><button class="btn" onclick="licRunPrep()">${L("开始预处理（分段）","Prepare (segment)")} →</button></div>`;
+  return `<div class="nextbar" id="licBar"><button class="btn" onclick="licRunPrep()">${L("开始分段","Segment")} →</button></div>`;
 }
 
 /* ========== 授权链路：跑图 A（预处理）→ 人工确认 → 跑图 B（向下生成） ==========
