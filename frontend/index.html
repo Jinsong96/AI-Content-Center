@@ -5116,13 +5116,13 @@ function pickRealHot(h){
 
 /* 右下「素材预览」面板：挑素材阶段只看不跑。 */
 function hotPeekHTML(){
+  /* 只在「挑选阶段」显示：热点页 + 尚未开跑 + 已选中。
+     确认进入下一步后（running / done / 离开热点页）一律不渲染 ——
+     Bryan 2026-09-22：那句「AI 正在排查 / 生成中…」与「素材预览」不该一直挂着。 */
   if(state.route !== "trend") return "";
-  const running = state.live && state.live.status === "running";
+  if(cur !== 1) return "";                                  /* 离开热点页即消失 */
+  if(state.live && state.live.status !== "idle") return ""; /* 开跑 / 跑完即消失 */
   const h = curHot();
-  if(running){
-    return `<div class="hotpeek"><div class="hp-running"><span class="pulse"></span>
-      ${L("AI 正在排查 / 生成中，完成后才能重选素材。","AI is running — you can re-pick a material once it finishes.")}</div></div>`;
-  }
   if(!h) return "";
   const topic = h.topic || h.title || "";
   const cn = (h.cn && h.cn !== topic) ? h.cn : "";
