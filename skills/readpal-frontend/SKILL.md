@@ -459,6 +459,28 @@ node tools/ui_audit.mjs --url=http://127.0.0.1:8899/index.html --role=produce \
 6. **精简模式的口径**（Bryan 2026-09-22 拍板，**取代「正好 12 段」**）：
    硬指标 = **全文字数落进该档硬区间**（B1 323–437 / B2 468–632）；段数按大意自然分，
    **10–15 段只是兜底判定区间**。`LIC_DEF_SEG` 只用于 `licRange()` 的**展示估算**，别拿它当契约。
+7. 🔴 **`licSet()` 改完状态必须重绘**（2026-09-22 修的阻塞 bug，别再退回去）：
+   它是本面板**唯一**不调 `render()` 的入口，于是「粘完正文 + 选完档位」后三处全部停在旧样子 ——
+   ① 就绪红条 `.licneed` 仍写「第 01 篇还没选母稿档位」；② 行内仍写「先选母稿档位，才能预估段数」；
+   ③ 底部 `licEmbarkBtn()` 返回的还是 **`waitBtn()`（不是 button，点不动）⇒ 进不了下一步**。
+   现行实现：`if(key === "title") return;` 之后 `render()`，并用 `stage.scrollTop` 存还滚动位置。
+   **标题输入框是唯一例外** —— 它逐字触发 `oninput`，重绘会丢光标；标题也不参与就绪判定。
+
+   ⚠️ **回归用例里不许在 `licSet` 后面补 `render()`** —— 手动重绘会把这类 bug 整个盖住，
+   这正是旧 51 项用例漏掉它的原因。改档位/勾精简一律走真实事件
+   （`s.dispatchEvent(new Event("change",{bubbles:true}))`），见 `probe_lic_flow.mjs` 第 **1b** 组。
+
+8. ⚠️ **展示类数字不许用 `licSegRange().n`** —— 那个 n 被 `LIC_REF_MIN/MAX`（6–30）夹过，
+   只作 `licRange()` 防脏值用。段数跑出该范围时「N 段 × 每段词数 = 区间」会变成假话。
+   `licTotalHTML()` 已改成按 `st.prep.segs.length` 现算（`lo/hi` 也一并现算）。
+
+### 「母稿导入 → 文章生产」通审：仍未处理的 3 处（2026-09-22 记，等 Bryan 拍板）
+
+| # | 问题 | 说明 |
+|---|---|---|
+| 1 | **生成成功后主按钮文案不变，再点会重跑图 B** | `licConfirmHTML` 只读 `st.prep`，不看是否已生成 ⇒ 重复扣一次额度。`st.gen` 更是**死字段**（仅 4255 写入，全文件从不读取） |
+| 2 | **生成成功后没有「进入文章生产」出口** | 只有一行 hint 文字 + 会消失的 toast；`state.live.status='done'` 已经写好了，界面上没有按钮用它 |
+| 3 | **图 A 出结果后回不到导入面板** | 只渲染 `licConfirmHTML()`；`pickRoute('licensed')` **不清** `st.prep` ⇒ 只能刷新页面，而 `state.lic` 不落盘、全丢。建议加一颗「返回母稿列表」（清 `prep`、保留 `arts`） |
 
 ### 来自图 A 的四个信号（都要读，别只看 `warn`）
 
@@ -508,7 +530,7 @@ node tools/ui_audit.mjs --url=http://127.0.0.1:8899/index.html --role=produce \
 
 ```bash
 cd frontend && python3 -m http.server 8899 &
-node tools/probe_lic_flow.mjs --url=http://127.0.0.1:8899/index.html --port=9242   # 51 项断言
+node tools/probe_lic_flow.mjs --url=http://127.0.0.1:8899/index.html --port=9242   # 57 项断言（第 1b 组走真实 DOM 事件，见硬约定 7）
 ```
 
 ## 前端骨架速查（2026-09-10 现状）

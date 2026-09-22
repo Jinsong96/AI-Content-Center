@@ -3903,6 +3903,16 @@ function licSet(id, key, val){
   if(key === "simplify"){ a.simplify = !!val; }
   else { a[key] = val; }
   licState().prep = null; licState().confirmed = false; licState().gen = null;
+  /* 🔴 2026-09-22 修（Bryan 实测：粘完正文 + 选完档位，仍提示「第 01 篇还没选母稿档位」，
+     底部一个可点的按钮都没有，进不了下一步）：
+     这里以前**只改状态、不重绘** ⇒ 三处全部停留在改动之前的样子 ——
+       ① 就绪红条 `.licneed`；② 行内「先选母稿档位，才能预估段数」；
+       ③ 底部 `licEmbarkBtn()`：此时它渲染的是 `waitBtn()`（不是 button，点不动）。
+     标题输入框是唯一例外：它逐字触发 oninput，重绘会丢光标；且标题不参与「能不能开始」判定。 */
+  if(key === "title") return;
+  const sc = stage ? stage.scrollTop : 0;
+  render();
+  if(stage) stage.scrollTop = sc;   /* 重绘会重建 #stage，把滚动位置还回去 */
 }
 function licDel(id){
   const st = licState();
@@ -4208,6 +4218,10 @@ function licSegRange(){
 function licTotalHTML(){
   const st = licState(); if(!st.prep) return "";
   const r = licSegRange(), tot = licSumWords(st.prep.segs);
+  /* ⚠️ 展示要用**实际段数**，不能用 licSegRange() 的 r.n —— 那个 n 被 LIC_REF_MIN/MAX
+     （6–30）夹过（只防脏值），段数跑出这个范围时界面上的「N 段 × 每段词数 = 区间」
+     会是一句假话。区间就按实际段数现算。 */
+  const N = st.prep.segs.length, lo = r.per[0] * N, hi = r.per[1] * N;
   /* 🔴 保留原文时**不给「全文字数区间」**（2026-09-22 用户拍板）：
      「导入母稿的时候，字数反而没有每段段落的词数重要，其实字数不构成分段的影响」。
      所以只陈述两个事实（全文多少词、切成几段）+ 每段的合格带，不再摆一个看着像目标的乘积。 */
@@ -4218,9 +4232,9 @@ function licTotalHTML(){
       + '　<span style="color:var(--sub)">' + L("全文字数不参与分段判断；低档按每段规格写，段数多则文章自然变长",
         "Total length doesn't drive segmentation; lower levels follow the per-paragraph spec, so more paragraphs means longer articles") + "</span>";
   }
-  const line = L("全文 <b>" + tot + "</b> 词　·　" + r.n + " 段 × " + r.per[0] + "–" + r.per[1] + " 词/段 = <b>" + r.lo + "–" + r.hi + "</b> 词",
-                 "Total <b>" + tot + "</b> words　·　" + r.n + " × " + r.per[0] + "–" + r.per[1] + " = <b>" + r.lo + "–" + r.hi + "</b>");
-  const ok = tot >= r.lo && tot <= r.hi;
+  const line = L("全文 <b>" + tot + "</b> 词　·　" + N + " 段 × " + r.per[0] + "–" + r.per[1] + " 词/段 = <b>" + lo + "–" + hi + "</b> 词",
+                 "Total <b>" + tot + "</b> words　·　" + N + " × " + r.per[0] + "–" + r.per[1] + " = <b>" + lo + "–" + hi + "</b>");
+  const ok = tot >= lo && tot <= hi;
   return line + (ok ? '　<span style="color:var(--sub)">' + L("落在区间内","within range") + "</span>"
                     : '　<span style="color:#D04418">' + L("超出区间，可改段数或删减正文", "Out of range — adjust paragraphs or trim") + "</span>");
 }

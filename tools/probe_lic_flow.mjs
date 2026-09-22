@@ -4,6 +4,10 @@
 // 合格带 = 该档每段规格 ±5 词（B1 23–40 / B2+ 36–55）；段数 10–15 内不提示；
 // 「参考段数」输入框已撤，改成只读「预计段数」。
 //
+// 🔴 第 1b 组跑的是**真实 DOM 事件**（dispatchEvent change，全程不手动 render）——
+//    「改档位后界面不刷新 → 进不了下一步」那个阻塞 bug 就是因为旧用例每次都在
+//    licSet 之后补一句 render()，把问题盖住了。新增断言时别再加那个 render()。
+//
 // 用法：
 //   cd frontend && python3 -m http.server 8899      # 另开一个终端
 //   node tools/probe_lic_flow.mjs --url=http://127.0.0.1:8899/index.html --port=9242
@@ -141,6 +145,110 @@ async function main() {
   await sleep(220);
   await shot(1440, 900, '1_panel');
 
+  // ---------- 1b) 真实 DOM 事件：改档位 / 勾精简必须**立刻**刷新就绪态与底部按钮 ----------
+  // Bryan 2026-09-22 实测踩到的阻塞 bug：`licSet` 只改状态不重绘 ⇒ 粘完正文、选完档位，
+  // 红条仍写「第 01 篇还没选母稿档位」，行内仍写「先选母稿档位，才能预估段数」，
+  // 底部渲染的还是 `waitBtn`（**压根不是 button**）⇒ 进不了下一步。
+  // 🔴 本组**不许调用 render()** —— 手动重绘会把 bug 盖掉，这正是旧回归漏掉它的原因。
+  await ev(`(function(){ licState().arts = []; licPush("Gate test", ${JSON.stringify(ART)}); render(); return 1; })()`);
+  await sleep(260);
+  const gate0 = await ev(`(function(){
+    return { need: (document.querySelector("#licPanel .licneed")||{}).textContent || "",
+             btn: !!document.querySelector(".nextbar button"),
+             foot: (document.querySelector(".nextbar")||{}).textContent || "" };
+  })()`);
+  ok('未选档位：红条点名「第 01 篇还没选母稿档位」且底部没有可点的 button（waitBtn）',
+     gate0.need.indexOf('第 01 篇还没选母稿档位') >= 0 && gate0.btn === false &&
+     gate0.foot.indexOf('请先补全') >= 0, JSON.stringify(gate0).slice(0, 140));
+
+  const sel = await ev(`(function(){
+    var s = document.querySelector("#licPanel select"); if(!s) return "no-select";
+    s.value = "B1"; s.dispatchEvent(new Event("change", { bubbles: true })); return "dispatched";
+  })()`);
+  await sleep(320);
+  const gate1 = await ev(`(function(){
+    var b = document.querySelector(".nextbar button");
+    return { level: (licArts()[0]||{}).level,
+             need: (document.querySelector("#licPanel .licneed")||{}).textContent || "",
+             okbar: (document.querySelector("#licPanel .licok")||{}).textContent || "",
+             calc: (document.querySelectorAll("#licPanel .liccalc")[0]||{}).textContent || "",
+             btn: b ? b.textContent.trim() : "",
+             onclick: b ? (b.getAttribute("onclick")||"") : "",
+             issues: licIssues().length };
+  })()`);
+  ok('选完档位（真实 change 事件）：状态写入 B1', sel === 'dispatched' && gate1.level === 'B1',
+     sel + ' level=' + gate1.level);
+  ok('选完档位：红条立刻消失、换成「已就绪，可以开始预处理」',
+     gate1.need === '' && gate1.okbar.indexOf('已就绪') >= 0, JSON.stringify([gate1.need, gate1.okbar]));
+  ok('选完档位：行内「先选母稿档位，才能预估段数」立刻换成预估结果',
+     gate1.calc.indexOf('先选母稿档位') < 0 && gate1.calc.indexOf('预计切成') >= 0, gate1.calc.slice(0, 90));
+  ok('选完档位：底部换成真正可点的启动按钮（licRunPrep）且就绪判定为空',
+     gate1.btn.indexOf('开始预处理') >= 0 && gate1.onclick.indexOf('licRunPrep') >= 0 && gate1.issues === 0,
+     JSON.stringify([gate1.btn, gate1.onclick, gate1.issues]));
+
+  await ev(`(function(){ var c = document.querySelector("#licPanel input[type=checkbox]");
+    c.checked = true; c.dispatchEvent(new Event("change", { bubbles: true })); return 1; })()`);
+  await sleep(320);
+  ok('勾「需要精简」同样立刻落到状态（走同一个 licSet 通道，勾选框也重绘了）',
+     (await ev(`(licArts()[0]||{}).simplify === true && (document.querySelector("#licPanel input[type=checkbox]")||{}).checked === true`)) === true);
+
+  // ---------- 1c) 真实 DOM 事件：粘贴 → 加入列表 → 移除，就绪态必须跟着走 ----------
+  // 与 1b 同源问题：任何「改了状态却不重绘」的入口都会让红条 / 底部按钮停在旧样子。
+  // 这里走的是 Bryan 实际操作的前半段（往输入框粘正文、点「加入列表」）。
+  await ev(`(function(){ licState().arts = []; licPush("Keep me", ${JSON.stringify(ART)});
+    licSet(licArts()[0].id, "level", "B2"); render(); return 1; })()`);
+  await sleep(260);
+
+  const pasteDispatch = await ev(`(function(){
+    var t = document.getElementById("licPaste"); if(!t) return "no-textarea";
+    t.value = ${JSON.stringify(ART)};
+    t.dispatchEvent(new Event("input", { bubbles: true }));
+    return licState().paste ? "synced" : "not-synced";
+  })()`);
+  ok('粘贴正文：输入框内容立刻写进 state.paste（不重绘，避免丢焦点）',
+     pasteDispatch === 'synced', pasteDispatch);
+
+  const addClick = await ev(`(function(){
+    var bs = document.querySelectorAll("#licPanel .licimp-c button");
+    for(var i=0;i<bs.length;i++){ if(bs[i].textContent.indexOf("加入列表")>=0){ bs[i].click(); return "clicked"; } }
+    return "no-button";
+  })()`);
+  await sleep(400);
+  const afterAdd = await ev(`(function(){
+    return { n: licArts().length,
+             ta: (document.getElementById("licPaste")||{}).value || "",
+             need: (document.querySelector("#licPanel .licneed")||{}).textContent || "",
+             btn: !!document.querySelector(".nextbar button"),
+             foot: (document.querySelector(".nextbar")||document.body).textContent || "" };
+  })()`);
+  ok('点「加入列表」：列表 +1、输入框清空、红条点名第 02 篇缺档位、底部回落到不可点',
+     addClick === 'clicked' && afterAdd.n === 2 && afterAdd.ta === '' &&
+     afterAdd.need.indexOf('第 02 篇还没选母稿档位') >= 0 &&
+     afterAdd.btn === false && afterAdd.foot.indexOf('请先补全') >= 0,
+     JSON.stringify(afterAdd).slice(0, 160));
+
+  const delClick = await ev(`(function(){
+    var ds = document.querySelectorAll("#licPanel .licrow .licdel");
+    if(ds.length < 2) return "rows=" + ds.length;
+    ds[1].click(); return "clicked";
+  })()`);
+  await sleep(400);
+  const afterDel = await ev(`(function(){
+    return { n: licArts().length,
+             need: (document.querySelector("#licPanel .licneed")||{}).textContent || "",
+             okbar: (document.querySelector("#licPanel .licok")||{}).textContent || "",
+             btn: (document.querySelector(".nextbar button")||{}).textContent || "" };
+  })()`);
+  ok('点「移除」：列表 −1、红条消失、就绪条回归、底部换成可点的「开始预处理」',
+     delClick === 'clicked' && afterDel.n === 1 && afterDel.need === '' &&
+     afterDel.okbar.indexOf('已就绪') >= 0 && afterDel.btn.indexOf('开始预处理') >= 0,
+     JSON.stringify(afterDel).slice(0, 160));
+
+  /* 还原成后面各组期望的状态：一篇 ART、档位 B2、不精简 */
+  await ev(`(function(){ licState().arts = []; licPush("VR in the Classroom", ${JSON.stringify(ART)});
+    licSet(licArts()[0].id, "level", "B2"); render(); return 1; })()`);
+  await sleep(280);
+
   // ---------- 2) 确认页 · 保留原文 + 10 段（10–15 内 → 无黄条） ----------
   const prepSet = (simplified, segs, extra, level) => ev(`(function(){
     var A = licArts();
@@ -211,7 +319,20 @@ async function main() {
   ok('精简模式：目标显示严格规格「41–50 词」（不带 ±5）', tgts2.indexOf('41–50') >= 0, tgts2);
   ok('精简模式：51 词越严格规格 → 12 段全红',
      (await ev(`document.querySelectorAll("#licConfirm .licsegw.warn").length`)) === 12);
+  /* 全文行必须按**实际段数**现算（2026-09-22 修）：以前用 licSegRange().n，
+     那个值被 LIC_REF_MIN/MAX（6–30）夹过 ⇒ 段数跑出该范围时这行会写错段数。 */
+  const totSimp = await ev(`document.getElementById("licSegTot").textContent.replace(/\\s+/g," ")`);
+  ok('精简模式：全文行写「12 段 × 41–50 词/段 = 492–600 词」（按实际段数现算）',
+     totSimp.indexOf('12 段 × 41–50') >= 0 && totSimp.indexOf('492–600') >= 0, totSimp.slice(0, 110));
   await shot(1440, 900, '4_confirm_simp12');
+
+  /* ---------- 4b) 展示辅助函数不许说假话：段数 > LIC_REF_MAX(30) 时不能被夹成 30 ---------- */
+  await prepSet(true, Array.from({ length: 40 }, () => ART), {}, 'B2');
+  await sleep(340);
+  const tot40 = await ev(`document.getElementById("licSegTot").textContent.replace(/\\s+/g," ")`);
+  ok('精简模式：40 段不被 LIC_REF_MAX 夹歪（写 40 段、区间按 40 现算 1640–2000）',
+     tot40.indexOf('40 段') >= 0 && tot40.indexOf('1640–2000') >= 0 && tot40.indexOf('30 段') < 0,
+     tot40.slice(0, 110));
 
   // ---------- 5) 确认页 · 精简 + 6 段（未达标 → 红条 + 重跑出口） ----------
   await prepSet(true, Array.from({ length: 6 }, () => ART), { ok: false, warn: '段数 6 段跑出常规区间 10–15 段（全文 228 词）' }, 'B2');
