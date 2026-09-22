@@ -49,8 +49,16 @@ const evaluate = async expr => {
 await send('Runtime.enable');
 
 // 注意：evaluate 返回的是结构化值，不经过 stdout，所以不受输出长度限制
-const raw = await evaluate(`fetch('/console/api/apps/${APP}/workflows/draft',{credentials:'include'}).then(r=>r.json())`);
-if (!raw || !raw.graph) { console.error('✗ 拉取失败：会话可能已失效（重新登录 Dify 后重试）'); process.exit(1); }
+// ⚠️ 2026-09-22：Dify 现在连 GET 也校验 X-CSRF-Token，不带就 401 —— 必须带上
+const raw = await evaluate(`(function(){
+  var t=decodeURIComponent((document.cookie.match(/__Host-csrf_token=([^;]+)/)||[])[1]||'');
+  return fetch('/console/api/apps/${APP}/workflows/draft',{credentials:'include',headers:{'X-CSRF-Token':t}})
+    .then(function(r){return r.text().then(function(x){try{return JSON.parse(x);}catch(e){return {__err:r.status+' '+x.slice(0,200)};}});});
+})()`);
+if (!raw || !raw.graph) {
+  console.error('✗ 拉取失败：' + (raw && raw.__err ? raw.__err : '会话可能已失效（重新登录 Dify 后重试）'));
+  process.exit(1);
+}
 
 fs.writeFileSync(OUT, JSON.stringify(raw, null, 1), 'utf-8');
 console.log(`[full] hash=${String(raw.hash).slice(0, 16)}… nodes=${raw.graph.nodes.length} edges=${raw.graph.edges.length} → ${OUT} (${fs.statSync(OUT).size} B)`);

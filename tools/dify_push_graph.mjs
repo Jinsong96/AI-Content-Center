@@ -54,14 +54,21 @@ const evaluate = async expr => {
 await send('Runtime.enable');
 
 // ── 1) 读当前 draft 的 hash / features / conversation_variables
+// ⚠️ 2026-09-22：Dify 现在**连 GET 也校验 X-CSRF-Token**，不带就 401
+//    （`CSRF token is missing or invalid.`）。三处 fetch 必须都带头。
 const cur = await evaluate(`(function(){
   var t=decodeURIComponent((document.cookie.match(/__Host-csrf_token=([^;]+)/)||[])[1]||'');
-  return fetch('/console/api/apps/${APP}/workflows/draft',{credentials:'include'})
-    .then(function(r){return r.json();})
-    .then(function(d){return JSON.stringify({hash:d.hash||'',ok:!!d.graph});});
+  return fetch('/console/api/apps/${APP}/workflows/draft',{credentials:'include',headers:{'X-CSRF-Token':t}})
+    .then(function(r){return r.text().then(function(x){return JSON.stringify({status:r.status,body:x});});});
 })()`);
-const curObj = JSON.parse(cur);
-if (!curObj.ok) { console.error('✗ 读不到 draft，会话可能已失效'); process.exit(1); }
+const curRaw = JSON.parse(cur);
+let curObj = { hash: '', ok: false };
+try { const d = JSON.parse(curRaw.body); curObj = { hash: d.hash || '', ok: !!d.graph }; } catch (e) { /* 非 JSON（多为错误页） */ }
+if (!curObj.ok) {
+  console.error(`✗ 读不到 draft  http=${curRaw.status}  body=${String(curRaw.body).slice(0, 300)}`);
+  console.error('  http=401 且提示 CSRF ⇒ 页签登录态失效，请在 Chrome 里重新登录 cloud.dify.ai');
+  process.exit(1);
+}
 console.log(`[draft] 当前 hash=${String(curObj.hash).slice(0, 16)}…`);
 
 if (has('dry')) { console.log('[dry] 不提交'); ws.close(); process.exit(0); }
@@ -85,7 +92,7 @@ console.log('[push] ' + String(resp).slice(0, 700));
 // ── 3) 回读校验
 const after = await evaluate(`(function(){
   var t=decodeURIComponent((document.cookie.match(/__Host-csrf_token=([^;]+)/)||[])[1]||'');
-  return fetch('/console/api/apps/${APP}/workflows/draft',{credentials:'include'})
+  return fetch('/console/api/apps/${APP}/workflows/draft',{credentials:'include',headers:{'X-CSRF-Token':t}})
     .then(function(r){return r.json();})
     .then(function(d){return JSON.stringify({hash:d.hash,nodes:(d.graph&&d.graph.nodes||[]).length,edges:(d.graph&&d.graph.edges||[]).length,
       ids:(d.graph&&d.graph.nodes||[]).map(function(n){return n.id;})});});

@@ -29,11 +29,16 @@ const evaluate = async expr => {
 };
 await send('Runtime.enable');
 
-const raw = await evaluate(`fetch('/console/api/apps/${APP}/workflows/draft',{credentials:'include'})
-  .then(function(r){return r.json();})
-  .then(function(d){return JSON.stringify({hash:d.hash, graph:d.graph});})`);
+// ⚠️ 2026-09-22：Dify 现在连 GET 也校验 X-CSRF-Token，不带就 401 —— 必须带上
+const raw = await evaluate(`(function(){
+  var t=decodeURIComponent((document.cookie.match(/__Host-csrf_token=([^;]+)/)||[])[1]||'');
+  return fetch('/console/api/apps/${APP}/workflows/draft',{credentials:'include',headers:{'X-CSRF-Token':t}})
+    .then(function(r){return r.json();})
+    .then(function(d){return JSON.stringify({hash:d.hash, graph:d.graph, err:(d.message||'')});});
+})()`);
 if (!raw) { console.error('✗ 拉取为空（可能 CSRF 失效，刷新页面重试）'); process.exit(1); }
 const o = JSON.parse(raw);
+if (!o.graph) { console.error('✗ 拉取失败：' + (o.err || '会话可能已失效，请重新登录 Dify')); process.exit(1); }
 fs.writeFileSync(OUT, JSON.stringify(o.graph, null, 1), 'utf-8');
 console.log(`[draft] hash=${o.hash}  nodes=${(o.graph?.nodes || []).length}  edges=${(o.graph?.edges || []).length}  -> ${OUT}`);
 process.exit(0);
