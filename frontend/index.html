@@ -5761,9 +5761,8 @@ function s6(){
   const factTrace = factTraceHTML();
   return head("08", L("内容生成","Graded Generation")) +
     artWorkflowBar() +
-  `${styleBarHTML()}
-  ${liveReady() ? `<div class="note" style="margin-bottom:12px"><b>${L("LIVE：","LIVE: ")}</b>${L("以下内容由 AI 工作流真实生成（","Generated for real by the AI workflow (")+state.live.elapsed+L("秒）。素材：","s). Material: ")+esc(state.live.label||"custom")}</div>` : (running ? `<div class="note" style="margin-bottom:12px;display:flex;align-items:center;gap:10px"><div class="spin"></div><span>${L("正在按所选风格重新生成…","Regenerating in selected style…")}</span> <span data-r="mini-time">${state.live.elapsed}s</span></div>` : "")}
-  ${bigBarOnce()}
+  `  ${styleBarHTML()}
+  ${running ? `<div class="note" style="margin-bottom:12px;display:flex;align-items:center;gap:10px"><div class="spin"></div><span>${L("正在按所选风格重新生成…","Regenerating in selected style…")}</span> <span data-r="mini-time">${state.live.elapsed}s</span></div>` : ""}
   <div class="gentabs">${allKeys().filter(k=>GEN[k]).map(k=>`<div class="gentab ${state.lvl===k?"sel":""}" onclick="setlvl('${k}')">${nkDisp(k)}</div>`).join("")}</div>
   <div class="genlayout">
     <div class="genpaper">${coverHTML()}<h3 id="gtitle"></h3><div class="byline" id="gby"></div><div class="body" id="gbody"></div>${liveReady() ? audioBarHTML() : ""}${liveReady() ? quizHTML(state.lvl) : ""}${running ? `<div class="genloading"><div class="spin"></div><div class="gl-txt">${L("正在重新生成…","Regenerating…")}</div><div class="gl-time"><span data-r="mini-time">${state.live.elapsed}s</span></div></div>` : ""}</div>
