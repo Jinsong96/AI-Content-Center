@@ -4005,11 +4005,8 @@ function licensedPanelHTML(){
     </div>`;
   }).join("");
 
-  const issues = licIssues();
   return `<div id="licPanel" style="background:#fff;border:1px solid var(--border2);border-radius:12px;padding:18px 20px">
-    <b style="font-size:15px">${L("授权母稿 · 向下改写","Licensed master · down-level only")}</b>
-
-    <div class="licimp" style="margin-top:14px">
+    <div class="licimp">
       <div class="licimp-c">
         <div class="licimp-t">${L("粘贴正文","Paste text")}</div>
         <textarea id="licPaste" rows="6" spellcheck="false" placeholder="${L("把母稿正文整段粘进来（一篇一条，加一篇就点一次）","Paste one master text here (one article per click)")}" oninput="licState().paste=this.value">${esc(st.paste)}</textarea>
@@ -4030,12 +4027,8 @@ function licensedPanelHTML(){
       ${A.length ? `<div class="licsum">
           <span>${L("已导入 <b>" + A.length + "</b> 篇 · 正文合计 <b>" + total + "</b> 词","Imported <b>" + A.length + "</b> · <b>" + total + "</b> words total")}</span>
           <button class="btn sec" style="padding:4px 12px;font-size:12px" onclick="licClearAll()">${L("全部清空","Clear all")}</button>
-        </div>${rows}` : '<div class="licempty">' + L("还没有母稿，粘贴正文或上传文件","No master text yet — paste or upload") + "</div>"}
+        </div>${rows}` : ""}
     </div>
-
-    ${issues.length
-      ? '<div class="licneed">' + L("还差：", "Still needed: ") + issues.map(function(x){ return "<b>" + esc(x) + "</b>"; }).join("　·　") + "</div>"
-      : ""}
   </div>`;
 }
 /* 授权链路的运行/错误状态条。失败必须给出口（不是只报错）——
