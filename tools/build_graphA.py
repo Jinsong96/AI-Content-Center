@@ -330,15 +330,19 @@ CLEAN_CODE = r'''function main({ level, need_simplify, master, raw, fallback, ti
       const first = arr[0].trim();
       const norm = (x) => x.toLowerCase().replace(/[^a-z0-9]+/g, ' ').replace(/\s+/g, ' ').trim();
       const fn = norm(first), tn = norm(t);
-      /* 首段 == 标题，或首段以标题开头（标题+正文挤在一段） */
-      if (fn && (fn === tn || fn.indexOf(tn) === 0)) {
-        const rest = first.slice(first.toLowerCase().indexOf(t.toLowerCase()) + t.length).trim();
+      /* 🔴 守卫 1：title 经规范化后为空（纯中文/纯标点，如「粘贴的母稿」）时，
+         不能进入「按 title 匹配」—— 否则 tn=""/indexOf("")==0 会误判"首段以标题开头"，
+         再用 indexOf 找不到中文 title 返回 -1，slice(-1+len) 把正文开头几个字母切掉
+         （实测：happy 被切成只剩 y）。 */
+      const idx = first.toLowerCase().indexOf(t.toLowerCase());
+      if (tn && fn && idx >= 0 && (fn === tn || fn.indexOf(tn) === 0)) {
+        const rest = first.slice(idx + t.length).trim();
         if (rest) arr[0] = rest;             /* 标题和正文挤在一段 → 剥掉标题保留正文 */
         else arr.shift();                    /* 首段纯标题 → 整段丢弃 */
         return true;
       }
     }
-    /* 无 title 时用形态启发式 */
+    /* 无 title・title 无效・title 不匹配正文开头 时，用形态启发式 */
     if (arr.length && isTitleLine(arr[0])) { arr.shift(); return true; }
     return false;
   };
