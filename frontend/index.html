@@ -3720,12 +3720,13 @@ function matWorkflowBar(){
 }
 /* ---------- 文章生产 · 顶部工作流步骤条（6 步生产 + 1 步存入文章库） ---------- */
 function artFlowSteps(){
-  /* 自有版权 / 公版书入口无需事实抽取：顶部工作流隐藏该步。
-     热点搜集入口 → 7 步（含事实抽取）；自有/公版入口 → 6 步（跳过事实抽取） */
-  const skipFact = state.route === "owned" || state.route === "public";
+  /* 自有版权 / 公版书 / 授权母稿（CEFR分级）入口都无需「事实分段」；
+     授权母稿（licensed）还跳过「分级标准」—— 它是母稿直接向下改写，不走知识库选规格。
+     热点搜集入口 → 7 步（含事实分段）；owned/public → 6 步；licensed → 5 步 */
+  const skipFact = state.route === "owned" || state.route === "public" || state.route === "licensed";
   const steps = [];
   if(!skipFact) steps.push({ idx:5, t:"事实分段", tEn:"Fact Segmentation" });
-  steps.push({ idx:6, t:"分级标准", tEn:"KB & CEFR" });
+  if(state.route !== "licensed") steps.push({ idx:6, t:"分级标准", tEn:"KB & CEFR" });
   steps.push({ idx:7, t:"内容生成", tEn:"Generation" });
   steps.push({ idx:8, t:"AI 校验", tEn:"AI Validate" });
   steps.push({ idx:9, t:"段落校对", tEn:"Proofread" });
@@ -4279,7 +4280,7 @@ function licGoGen(){
   if(licBusyBlocked("gen")) return;
   /* 标记「授权链路待生成」：s6 页据此显示「生成文章」按钮（而不是热点/素材链路的 runGeneration） */
   st.pendingGen = true;
-  go(6);
+  go(7);   /* idx 7 = s6（08 内容生成页）—— 授权链路跳过「事实分段/分级标准」直接进内容生成 */
 }
 function licRunGen(){
   const st = licState(); const a = licCurArt();
@@ -4335,8 +4336,8 @@ function licRunGen(){
         toast(L("已生成 " + tgts.map(function(k){ return nkDisp(k); }).join(" + ") + "，正在进入文章生产…","Generated — opening Article Production…"));
         /* 2026-09-22 Bryan 拍板（Q1=A / Q2=A）：生成成功后**自动跳**到「08 内容生成」结果页，
            与其它素材「跑完就看到结果」一致 —— 不再只弹一句 toast 让用户自己找入口。
-           state.live.run 已灌好、GEN 已由 applyLive 填好，go(6) 直接能渲染。 */
-        go(6);
+           🔴 idx 7 = s6（08 内容生成）；此前误写 go(6) 会落到「07 知识库与分级标准」页。 */
+        go(7);
         return;
       }
       st.errStage = "gen"; st.err = licCallFail(data); licClearBusy(st); render();
