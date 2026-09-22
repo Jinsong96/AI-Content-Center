@@ -1277,7 +1277,7 @@ const STAGES = [
   {no:"04", phase:1, t:"选题标签",     tEn:"Topic Tagging"},
   {no:"05", phase:1, t:"素材库",       tEn:"Material Library"},
   // ===== PHASE 2: 内容生产（教研老师）=====
-  {no:"06", phase:2, t:"事实抽取",     tEn:"Fact Extraction"},
+  {no:"06", phase:2, t:"事实分段",     tEn:"Fact Segmentation"},
   {no:"07", phase:2, t:"分级标准",     tEn:"KB & CEFR Specs"},
   {no:"08", phase:2, t:"内容生成",     tEn:"Graded Generation"},
   {no:"09", phase:2, t:"AI 校验",      tEn:"AI Validate"},
@@ -1291,7 +1291,7 @@ const STAGES = [
 const SKIP_LICENSED = [];
   const WORKFLOW = [
   {t:"素材选择", tEn:"Intake route"}, {t:"热点搜集", tEn:"Trend scan"}, {t:"敏感内容排除", tEn:"Sensitivity"}, {t:"确定选题标签", tEn:"Tags"},
-  {t:"事实抽取", tEn:"Fact extraction"}, {t:"知识库与分级标准", tEn:"KB & specs"},
+  {t:"事实分段", tEn:"Fact segmentation"}, {t:"知识库与分级标准", tEn:"KB & specs"},
   {t:"内容生成", tEn:"Generate"}, {t:"AI 校验与身份", tEn:"Validate & ID"},
   {t:"段落对齐", tEn:"Align"}, {t:"人工校对", tEn:"Proofread"},
   {t:"逐段审核", tEn:"Segment review"},
@@ -2684,11 +2684,11 @@ async function startLiveRun(material, label, book, override){
   state.live.elapsed = ((Date.now() - state.live.t0) / 1000).toFixed(1);
   renderLiveChip();
   const st2 = $("#liveStat");
-  if(st2){ if(state.live.status === "done" && !liveExcluded()){ st2.innerHTML = " " + L("事实抽取完成，通过：", "Facts extracted — PASS: ") + state.live.elapsed + "s · " + L("可前往 07 内容生成", "see step 07 for generation"); } else if(liveExcluded()){ st2.textContent = " " + L("敏感排查完成，素材被排除，见步骤 03", "Screening done — material excluded, see step 03"); } else { st2.textContent = " " + (state.live.err || ""); } }
+  if(st2){ if(state.live.status === "done" && !liveExcluded()){ st2.innerHTML = " " + L("事实分段完成，通过：", "Facts segmented — PASS: ") + state.live.elapsed + "s · " + L("可前往 07 内容生成", "see step 07 for generation"); } else if(liveExcluded()){ st2.textContent = " " + L("敏感排查完成，素材被排除，见步骤 03", "Screening done — material excluded, see step 03"); } else { st2.textContent = " " + (state.live.err || ""); } }
   if(state.live.status === "done"){
     toast(liveExcluded()
       ? L("敏感排查完成：素材被排除（" + (liveSensLevel()||"") + "），流程终止，请返回 01 更换素材", "Screening done: material excluded — pick another at step 01")
-      : L("事实抽取完成 · " + state.live.elapsed + "s，可前往 07 内容生成", " Facts extracted · " + state.live.elapsed + "s, proceed to generation"));
+      : L("事实分段完成 · " + state.live.elapsed + "s，可前往 07 内容生成", " Facts segmented · " + state.live.elapsed + "s, proceed to generation"));
   }
   applyLive();
   render();
@@ -2781,7 +2781,7 @@ async function runGeneration(){
   if(!fc || !fc.summary || !fc.facts_text){
     toast(liveExcluded()
       ? L("该素材已被敏感排查排除，无法生成内容，请返回 01 更换素材","This material was excluded by the sensitivity screen — go back to step 01 and pick another")
-      : L("请先完成事实抽取（第 05 步）","Run fact extraction first (step 05)"));
+      : L("请先完成事实分段（第 05 步）","Run fact segmentation first (step 05)"));
     return;
   }
   if(state.live.status === "running"){ toast(L("工作流运行中，请稍候…","Workflow running, please wait…")); return; }
@@ -3280,8 +3280,8 @@ const ROLES = [
   {id:"produce", color:"#E65425", name:"教研老师", nameEn:"Curriculum",
    duty:"做文章：抽事实卡、定分级标准、生成 4 档文章、校对正文与题目。",
    dutyEn:"Produces articles: extracts fact cards, sets level specs, generates 4 graded versions, proofreads text and quizzes.",
-   caps:["事实抽取","分级标准","4 档生成","段落校对"],
-   capsEn:["Fact extraction","Level specs","4-level generation","Proofreading"],
+   caps:["事实分段","分级标准","4 档生成","段落校对"],
+   capsEn:["Fact segmentation","Level specs","4-level generation","Proofreading"],
    scope:L1("素材创建 + 文章生产 + 文章库", "Material creation + Article production + Article library"), user:"curriculum_li", pass:((window.WB_CFG && window.WB_CFG.DEMO_PASS)||""), entry:0},
   {id:"review", color:"#E65425", name:"审核老师", nameEn:"Reviewer",
    duty:"把关：逐段审核 4 档文章，通过或驳回并留痕；可用全部 12 步。",
@@ -3724,7 +3724,7 @@ function artFlowSteps(){
      热点搜集入口 → 7 步（含事实抽取）；自有/公版入口 → 6 步（跳过事实抽取） */
   const skipFact = state.route === "owned" || state.route === "public";
   const steps = [];
-  if(!skipFact) steps.push({ idx:5, t:"事实抽取", tEn:"Fact Extraction" });
+  if(!skipFact) steps.push({ idx:5, t:"事实分段", tEn:"Fact Segmentation" });
   steps.push({ idx:6, t:"分级标准", tEn:"KB & CEFR" });
   steps.push({ idx:7, t:"内容生成", tEn:"Generation" });
   steps.push({ idx:8, t:"AI 校验", tEn:"AI Validate" });
@@ -3749,13 +3749,13 @@ function artWorkflowBar(){
 /* ---------- Stage 0: material intake route ---------- */
 const ROUTES = [
   {id:"trend", ico:"", color:"#E65425", name:"热点搜集", nameEn:"Trend Discovery",
-   desc:"Agent-Reach 扫描全网热点新闻与趋势，需要完整走「事实抽取」流程——从外部信息中抽取事实卡后再生成。", descEn:"Agent-Reach scans global trends; full flow with source selection & fact extraction before generation.",
+   desc:"Agent-Reach 扫描全网热点新闻与趋势，需要完整走「事实分段」流程——从外部信息中抽取事实卡后再生成。", descEn:"Agent-Reach scans global trends; full flow with source selection & fact segmentation before generation.",
    items:["热点新闻","社交趋势","搜索热点"], itemsEn:["Breaking news","Social buzz","Search trends"]},
   {id:"owned", ico:"", color:"#E65425", name:"自有 / 合作版权", nameEn:"Licensed / Owned",
-   desc:"《用英文讲好中国故事》、BBC Learning English、大愚出版社图书等已获授权的可信内容，无需事实抽取——直接作为生成素材。", descEn:"Telling China's Story, BBC Learning English, Dayu Press books. Trusted & licensed — used directly, no fact extraction.",
+   desc:"《用英文讲好中国故事》、BBC Learning English、大愚出版社图书等已获授权的可信内容，无需事实分段——直接作为生成素材。", descEn:"Telling China's Story, BBC Learning English, Dayu Press books. Trusted & licensed — used directly, no fact segmentation.",
    items:["《用英文讲好中国故事》","BBC Learning English","大愚出版社图书"], itemsEn:["China's Story series","BBC Learning English","Dayu Press books"]},
   {id:"public", ico:"", color:"#E65425", name:"英文公版书", nameEn:"Public Domain Books",
-   desc:"内置 Standard Ebooks / Project Gutenberg 等公有领域英文书作为测试素材（章节正文离线内置）。版权已过期或不受限，无需授权与事实抽取，直接进入选题与生成。", descEn:"Public-domain English works (Standard Ebooks / Project Gutenberg) built in as test material, with chapter text embedded offline. No licensing or fact extraction needed — straight to generation.",
+   desc:"内置 Standard Ebooks / Project Gutenberg 等公有领域英文书作为测试素材（章节正文离线内置）。版权已过期或不受限，无需授权与事实分段，直接进入选题与生成。", descEn:"Public-domain English works (Standard Ebooks / Project Gutenberg) built in as test material, with chapter text embedded offline. No licensing or fact segmentation needed — straight to generation.",
    items:["Standard Ebooks","Project Gutenberg","经典文学","版权过期作品"], itemsEn:["Standard Ebooks","Project Gutenberg","Classic literature","Expired copyright"]},
   {id:"licensed", ico:"", color:"#E65425", name:"CEFR文章分级", nameEn:"CEFR Article Grading",
    desc:"导入已解决版权的 B1 / B2 母稿（BBC、超级阅读力等出版社书系），按现有分级标准<b>只往下生产</b>：B2 → B1 + A2 + A1-，B1 → A2 + A1-。母稿本身也入库。不抽事实，按骨架逐段改写。",
@@ -3790,7 +3790,7 @@ function bankPanelHTML(){
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px">
       <span style="font-size:20px"></span>
       <b style="font-size:15px">${L("自有素材库 · 《用英文讲好中国故事》","Licensed bank · The \"Telling China\'s Story\" series")}</b>
-      <span class="tint" style="background:#FFF9F5;color:#D04418">${L("已完成授权 · 无需事实抽取","Licensed · no fact extraction")}</span>
+      <span class="tint" style="background:#FFF9F5;color:#D04418">${L("已完成授权 · 无需事实分段","Licensed · no fact segmentation")}</span>
     </div>
         <div id="bankGroups"></div>
   </div>`;
@@ -5169,7 +5169,7 @@ function hotPeekHTML(){
     <div class="hp-bar">
       <button class="btn" onclick="confirmHotRun()"> ${L("开始敏感排查","Start sensitivity screen")} →</button>
     </div>
-    <div class="hp-note" style="margin-top:8px">${L("点上方按钮才开始跑流程（先敏感排查，再事实抽取）；此前换选不消耗任何调用。",
+    <div class="hp-note" style="margin-top:8px">${L("点上方按钮才开始跑流程（先敏感排查，再事实分段）；此前换选不消耗任何调用。",
       "The workflow only starts after you hit the button above (sensitivity screen → fact extraction); switching picks before that costs nothing.")}</div>
   </div>`;
 }
@@ -5399,7 +5399,7 @@ function materialCardHTML(){
       <span class="tint ${h ? "ok" : "pri"}">${h ? L("真实热点","Real trend") : L("已选素材","Selected")}</span>
     </div>
     ${h ? `<div class="mcstatus">${fulltextBadge(h)}</div>` : ""}
-    ${noText ? `<div class="note warn-note" style="margin:0 0 10px"> ${L("该热点未能抓取到原文，事实抽取可能不完整或不准确，建议手动粘贴素材原文后再运行工作流。","No full text was retrieved for this trend — fact extraction may be incomplete. Paste the source text manually before running the workflow.")}</div>` : ""}
+    ${noText ? `<div class="note warn-note" style="margin:0 0 10px"> ${L("该热点未能抓取到原文，事实分段可能不完整或不准确，建议手动粘贴素材原文后再运行工作流。","No full text was retrieved for this trend — fact segmentation may be incomplete. Paste the source text manually before running the workflow.")}</div>` : ""}
     <div class="mcbody">${esc(text)}</div>
     ${url ? `<div class="mclink"> ${L("原文链接","Source link")}：<a href="${esc(url)}" target="_blank" rel="noopener">${esc(url)}</a></div>` : ""}
   </div>`;
@@ -5598,11 +5598,11 @@ function s4(){
        与真实原因（没选素材）不符，用户会以为系统坏了。 */
     const noMat = !text || !text.trim();
     factBody = noMat
-      ? `<div class="blockgate">${L("尚未选择素材：请先到「01 素材选择」挑一条原文完整的素材，再回来运行事实抽取。","No material selected yet — pick a material in step 01 first, then run fact extraction.")}</div>`
-        + `<div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap;align-items:center"><button class="btn" disabled>${L("运行事实抽取","Run fact extraction")}</button><button class="btn sec" onclick="go(0)">${L("去 01 选择素材","Go to step 01")} →</button></div>`
-      : `<button class="btn" onclick="extract()">${L("运行事实抽取","Run fact extraction")}</button>`;
+      ? `<div class="blockgate">${L("尚未选择素材：请先到「01 素材选择」挑一条原文完整的素材，再回来运行事实分段。","No material selected yet — pick a material in step 01 first, then run fact segmentation.")}</div>`
+        + `<div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap;align-items:center"><button class="btn" disabled>${L("运行事实分段","Run fact segmentation")}</button><button class="btn sec" onclick="go(0)">${L("去 01 选择素材","Go to step 01")} →</button></div>`
+      : `<button class="btn" onclick="extract()">${L("运行事实分段","Run fact segmentation")}</button>`;
   }
-  return head("06", L("事实抽取","Fact Extraction")) +
+  return head("06", L("事实分段","Fact Segmentation")) +
     artWorkflowBar() +
   `<div class="workbench">
     <div>
