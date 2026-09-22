@@ -4131,8 +4131,9 @@ async function licPrepOne(){
                    style: state.style || "default",
                    need_simplify: a.simplify ? "true" : "false",
                    /* 标题单独传（图 A 用它 + 首段标题剔除代码兜底，避免「母稿第①段混入标题」
-                      导致的段数错位）。a.title 是导入时标的标题（文件名/手填），未填则空。 */
-                   title: String(a.title || "").slice(0, 500) };
+                      导致的段数错位）。🔴 占位标题「粘贴的母稿」不传给图 A ——
+                      它经规范化后是空串，会触发图 A 的 indexOf 误判把正文开头字母切掉（曾是漏字符根因）。 */
+                   title: (a.title && a.title !== "粘贴的母稿" && a.title !== "Pasted master") ? String(a.title).slice(0, 500) : "" };
   try {
     _runAbort = new AbortController();
     const data = await difyCall("licprep", inputs, AIWF_LICPREP.user, _runAbort.signal);
