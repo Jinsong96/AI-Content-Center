@@ -2959,6 +2959,8 @@ class Handler(BaseHTTPRequestHandler):
             "DIFY_WF_MAIN": self._env_key("DIFY_WF_MAIN"),
             "DIFY_WF_GEN": self._env_key("DIFY_WF_GEN"),
             "DIFY_WF_FACT": self._env_key("DIFY_WF_FACT"),
+            "DIFY_WF_LICPREP": self._env_key("DIFY_WF_LICPREP"),
+            "DIFY_WF_LICGEN": self._env_key("DIFY_WF_LICGEN"),
         }
         _pairs = ",".join("%s:%s" % (k, json.dumps(v).replace("<", "\\u003c"))
                           for k, v in _envs.items())
@@ -3032,18 +3034,22 @@ class Handler(BaseHTTPRequestHandler):
                 # 写入失败必须明确回错误码与原因，前端才能标出「后端未同步」
                 return self._send({"ok": False, "error": err or "invalid article (missing id)"}, 400)
             return self._send({"ok": True, "id": stored_id, "library_count": total})
-        # ---- 代理：Dify 工作流（body.wf 决定使用哪个 app key：fact|gen|main）----
+        # ---- 代理：Dify 工作流（body.wf 决定使用哪个 app key）----
         if path == "/api/dify/workflows/run":
             wf = (body.get("wf") or "").strip().lower()
-            keymap = {"fact": "DIFY_WF_FACT", "gen": "DIFY_WF_GEN", "main": "DIFY_WF_MAIN"}
+            # licprep / licgen = 授权母稿向下改写的两条独立工作流（预处理 / 向下生成）
+            keymap = {"fact": "DIFY_WF_FACT", "gen": "DIFY_WF_GEN", "main": "DIFY_WF_MAIN",
+                      "licprep": "DIFY_WF_LICPREP", "licgen": "DIFY_WF_LICGEN"}
             kn = keymap.get(wf)
             if not kn:
-                return self._send({"ok": False, "error": "unknown wf (expect fact|gen|main)"}, 400)
+                return self._send({"ok": False, "error": "unknown wf (expect fact|gen|main|licprep|licgen)"}, 400)
+            # 授权链路两条都比 fact/gen 长：图 B 要连做 3 档改写 + 压缩 + 出题，给足 300s
             return self._proxy_post(
                 "https://api.dify.ai/v1/workflows/run", self._env_key(kn),
                 {"inputs": body.get("inputs") or {},
                  "response_mode": body.get("response_mode") or "blocking",
-                 "user": body.get("user") or "frontend-demo"}, timeout=180)
+                 "user": body.get("user") or "frontend-demo"},
+                timeout=300 if wf in ("licprep", "licgen") else 180)
         # ---- 代理：SiliconFlow（LLM / 文生图），请求体原样透传 ----
         if path.startswith("/api/sf/"):
             ep = path[len("/api/sf/"):].strip("/")
@@ -3068,7 +3074,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._send({"ok": True, **taxonomy_payload()})
         if path == "/api/proxy-health":
             # 部署自检：只回「是否已配置」，绝不回密钥值
-            ks = ["SF_API_KEY", "DIFY_WF_MAIN", "DIFY_WF_GEN", "DIFY_WF_FACT"]
+            ks = ["SF_API_KEY", "DIFY_WF_MAIN", "DIFY_WF_GEN", "DIFY_WF_FACT",
+                  "DIFY_WF_LICPREP", "DIFY_WF_LICGEN"]
             return self._send({"ok": True,
                                "configured": dict((k, bool(self._env_key(k))) for k in ks),
                                "hint": "true=已配置；false=缺环境变量，对应功能会失败"})

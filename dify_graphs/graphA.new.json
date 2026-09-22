@@ -1,0 +1,502 @@
+{
+  "graph": {
+    "nodes": [
+      {
+        "id": "nodeStart",
+        "type": "start",
+        "position": {
+          "x": 60,
+          "y": 280
+        },
+        "positionAbsolute": {
+          "x": 60,
+          "y": 280
+        },
+        "width": 244,
+        "height": 110,
+        "zIndex": 0,
+        "data": {
+          "type": "start",
+          "title": "开始",
+          "desc": "接收授权母稿原文、人工标注的档位、是否精简、写作风格",
+          "selected": false,
+          "variables": [
+            {
+              "label": "母稿原文",
+              "variable": "material",
+              "type": "paragraph",
+              "required": true,
+              "max_length": 20000,
+              "options": []
+            },
+            {
+              "label": "母稿档位（人工标注）",
+              "variable": "level",
+              "type": "select",
+              "required": true,
+              "max_length": 48,
+              "options": [
+                "B1",
+                "B2"
+              ]
+            },
+            {
+              "label": "是否需要精简（超出该档字数时才为 true）",
+              "variable": "need_simplify",
+              "type": "select",
+              "required": false,
+              "max_length": 48,
+              "options": [
+                "true",
+                "false"
+              ]
+            },
+            {
+              "label": "写作风格",
+              "variable": "style",
+              "type": "select",
+              "required": false,
+              "max_length": 48,
+              "options": [
+                "hemingway",
+                "austen",
+                "ohenry",
+                "twain",
+                "dickens",
+                "orwell",
+                "shakespeare",
+                "default"
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "id": "nodeSimplify",
+        "type": "llm",
+        "position": {
+          "x": 340,
+          "y": 280
+        },
+        "positionAbsolute": {
+          "x": 340,
+          "y": 280
+        },
+        "width": 244,
+        "height": 110,
+        "zIndex": 0,
+        "data": {
+          "type": "llm",
+          "title": "① 母稿精简（可选）",
+          "desc": "need_simplify=true 时大幅删次要信息、保主线，压到该档字数；false 时逐字原样输出",
+          "selected": false,
+          "model": {
+            "provider": "langgenius/deepseek/deepseek",
+            "name": "deepseek-v4-pro",
+            "mode": "chat",
+            "completion_params": {
+              "temperature": 0.3,
+              "max_tokens": 8000,
+              "thinking": false
+            }
+          },
+          "prompt_template": [
+            {
+              "role": "system",
+              "text": "你是英语分级阅读内容编辑。下面是一篇**已获授权**的母稿（BBC Learning English / 出版社书系等）。\n\n【任务】把这篇母稿切成**信息单元**，提炼成一份清单。清单决定「重写时保留哪些信息」。\n\n【要求】\n1. 🔴 **固定 12 条**（这是硬指标，不多不少）。原文每一段都含 1 个以上信息单元，\n   请把相邻的合并成 12 个单元 —— **一条 = 一个可以独立成段的信息单元**，\n   按原文顺序排列（起因 → 发展 → 转折或分歧 → 结论）。\n   ⚠️ 实测教训：写「8–12 条」这类宽区间时，模型会**取到远低于下限**（曾只给 6–7 条），\n   导致重写时没有内容可填、全文严重欠字数。所以请**凑满 12 条**。\n2. 每条**一句话说清**，**15–30 个英文单词**（不要写得太短，也不要超过 30）。\n3. **关键数字必须带进对应条目**（原样保留，一个都不能改、不能丢）。\n4. 只写母稿里确实讲到的内容，**不得推断、不得补充、不得美化**。\n5. **只丢这三类**：纯过渡句、重复表述、与主题无关的枝节。\n   ⚠️ **举例、个案、专家发言、数据来源都要保留**（它们正是展开成段落的血肉）。\n6. 清单总量约为原文的 **35–45%**，这是正常的 —— 它承载的是重写时要保留的全部信息。\n\n【母稿档位】{{#nodeStart.level#}}\n\n【母稿原文】\n{{#nodeStart.material#}}\n\n【输出格式】只输出 JSON，不要 markdown 代码块，不要任何解释：\n{\"outline\": [\"第一条要点\", \"第二条要点\"]}"
+            }
+          ],
+          "context": {
+            "enabled": false,
+            "variable_selector": []
+          },
+          "vision": {
+            "enabled": false,
+            "configs": {
+              "detail": "low"
+            }
+          },
+          "memory": null,
+          "answer": ""
+        }
+      },
+      {
+        "id": "nodeSimplify2",
+        "type": "llm",
+        "position": {
+          "x": 620,
+          "y": 280
+        },
+        "positionAbsolute": {
+          "x": 620,
+          "y": 280
+        },
+        "width": 244,
+        "height": 110,
+        "zIndex": 0,
+        "data": {
+          "type": "llm",
+          "title": "①-c 二次精简（收尾）",
+          "desc": "带\"当前还超多少\"的反馈再砍一轮；已达标则逐字原样输出",
+          "selected": false,
+          "model": {
+            "provider": "langgenius/deepseek/deepseek",
+            "name": "deepseek-v4-pro",
+            "mode": "chat",
+            "completion_params": {
+              "temperature": 0.3,
+              "max_tokens": 8000,
+              "thinking": false
+            }
+          },
+          "prompt_template": [
+            {
+              "role": "system",
+              "text": "上一步已经提炼出要点清单。现在产出**入库用的母稿正文**。关键：**要不要重写，取决于 need_simplify**。\n\n【分支判断】看下面的「是否需要重写」：\n- 值为 `true` ⇒ 执行【重写模式】\n- 其他（`false` / 空）⇒ 执行【原样模式】\n\n【重写模式】\n把【母稿原文】**压缩**成一篇更短、更简单的连贯正文。\n\n🔴 **段数固定 12 段**。这是硬指标，不多不少 —— 每一段对应原文相邻的若干个信息单元。\n🔴 **本次母稿档位 = {{#nodeStart.level#}}** —— 请**只照这一档**来写，不要照另一档。\n\n| 档位 | 段数 | **每段句数** | 每句词数 | 每段词数 | 全文词数（硬区间） |\n|---|---|---|---|---|---|\n| **B2** | 12 | **4 句** | 10–13 | 40–52 | **480–624**（硬区间 468–632） |\n| **B1** | 12 | **2 句** | 14–17 | 28–34 | **336–408**（硬区间 323–437） |\n\n⚠️ **不要写超长句去凑字数** —— 请用**句数**控制段落长度。\n⚠️ **B1 档只写 2 句就停**：实测照 3–4 句写会把 B1 撑到 560 词、**直接超上限 437**。\n   反之 B2 档必须写满 4 句，只写 3 句会掉到 439 词、**低于下限 468**。\n\n【怎么做压缩】这是**做减法**，不是换词：\n1. 按【要点清单】决定**保留哪些信息**；清单之外的信息（举例、个案、次要论证、重复表述）**一律删掉**。\n2. **不得补充原文没有的内容**，不得推断，不得美化。关键数字原样保留。\n3. 遇到\"信息放不下\"时：**继续删次要信息**，而不是把段写长、也不是加段。\n4. 段与段之间用**空行**分隔（一行一段）。不要小标题、不要编号。\n5. **写完必须自查（逐项做，别跳过）**：\n   - ① 数段数 = **12** 段？\n   - ② 逐段数句数：B2 必须 **4 句**；B1 必须 **2 句**。（最容易漏的就是这一项）\n   - ③ 估全文词数：B2 目标 480–624；B1 目标 336–408。\n   - ④ 全文不足下限 ⇒ 先检查是不是**句数写少了**（B2 补满 4 句 / B1 补满 2 句），再考虑把次要信息加回来。\n   - ⑤ 全文超上限 ⇒ 再删一两条次要信息（不要靠缩句）。\n\n【原样模式】\n**逐字原样输出**下面的原文。不得改写、不得增删、不得调整顺序、不得纠正用词。\n\n【母稿档位】{{#nodeStart.level#}}\n【是否需要重写】{{#nodeStart.need_simplify#}}\n\n【要点清单】\n{{#nodeSimplify.text#}}\n\n【母稿原文】（重写模式下它是**压缩的素材**；原样模式下要逐字输出它）\n{{#nodeStart.material#}}\n\n【输出要求】\n只输出正文本身。不要任何解释、不要 markdown、不要标题。"
+            }
+          ],
+          "context": {
+            "enabled": false,
+            "variable_selector": []
+          },
+          "vision": {
+            "enabled": false,
+            "configs": {
+              "detail": "low"
+            }
+          },
+          "memory": null,
+          "answer": ""
+        }
+      },
+      {
+        "id": "nodeSegment",
+        "type": "llm",
+        "position": {
+          "x": 900,
+          "y": 280
+        },
+        "positionAbsolute": {
+          "x": 900,
+          "y": 280
+        },
+        "width": 244,
+        "height": 110,
+        "zIndex": 0,
+        "data": {
+          "type": "llm",
+          "title": "② 按大意分段",
+          "desc": "按内容自然切分（段数上限 16），并把每段词数纳入该档规格",
+          "selected": false,
+          "model": {
+            "provider": "langgenius/deepseek/deepseek",
+            "name": "deepseek-v4-pro",
+            "mode": "chat",
+            "completion_params": {
+              "temperature": 0.3,
+              "max_tokens": 8000,
+              "thinking": false
+            }
+          },
+          "prompt_template": [
+            {
+              "role": "system",
+              "text": "你是英语分级阅读内容编辑。把下面这篇母稿**按内容大意自然分段**，产出的段落骨架将供后续多个难度档共用。\n\n【分段规则】\n0. 🔴 **先看正文的既有切分**：若正文已经是一行一段、段间有空行（重写模式必然如此），\n   **直接采用这个切分**，不要重新合并或拆分 —— 除非某段明显超过上限（那就再切一刀）。\n   此时**段数 = 要点条数**，这是设计使然，不是\"段数不对\"。\n1. **按内容大意切**：一个段落 = 一个完整的信息单元（一个\"大意\"）。不要硬凑段数，也不要为了美观拆出碎片段。\n2. **段数上限 16 段**，且**通常不会用到这么多**。段数由内容自然决定。\n3. **每段词数要纳入规格考虑**（这是硬约束，决定后续各档能否达标）：\n   - 母稿 B1：每段约 **28–35 词**\n   - 母稿 B2：每段约 **41–50 词**\n   ⇒ **段数 = 总词数 ÷ 每段词数**。先估一下正文大约多少词，反推段数大约多少段，再按这个数量去切。\n4. **切完必须自查**：逐段数词数。\n   - 某段低于下限 ⇒ 与相邻段**合并**\n   - 某段高于上限 ⇒ 在此处**再切一刀**\n   若反复出现\"某段超上限\"，而段数已经接近 16 段上限 ⇒ 说明**正文本身还太长**，\n   回到精简那一步的思路：**再删掉一些举例与次要观点**，而不是把段数硬顶到上限。\n5. **只做切分，不做改写**：不得增删信息、不得调整顺序、不得改写用词。\n6. 不要保留原文的小标题、编号、markdown 标记。\n\n【母稿档位】{{#nodeStart.level#}}\n\n【母稿正文】\n{{#nodeSimplify2.text#}}\n\n【输出格式】只输出 JSON，不要 markdown 代码块，不要任何解释：\n{\"segments\": [\"第一段原文\", \"第二段原文\", \"第三段原文\"]}"
+            }
+          ],
+          "context": {
+            "enabled": false,
+            "variable_selector": []
+          },
+          "vision": {
+            "enabled": false,
+            "configs": {
+              "detail": "low"
+            }
+          },
+          "memory": null,
+          "answer": ""
+        }
+      },
+      {
+        "id": "nodeClean",
+        "type": "code",
+        "position": {
+          "x": 1460,
+          "y": 280
+        },
+        "positionAbsolute": {
+          "x": 1460,
+          "y": 280
+        },
+        "width": 244,
+        "height": 110,
+        "zIndex": 0,
+        "data": {
+          "type": "code",
+          "title": "③ 解析分段",
+          "desc": "解析 segments、统计段数与每段词数、标注越界告警",
+          "selected": false,
+          "code_language": "javascript",
+          "code": "function main({ level, need_simplify, simplified, raw }) {\n  const strip = (s) => String(s == null ? '' : s).replace(/```json/gi, '').replace(/```/g, '').trim();\n\n  /* 从模型输出里抠出 JSON（模型常带前后缀或 markdown 包裹） */\n  let segs = [];\n  const txt = strip(raw);\n  const i = txt.indexOf('{'), j = txt.lastIndexOf('}');\n  if (i >= 0 && j > i) {\n    try {\n      const o = JSON.parse(txt.slice(i, j + 1));\n      const arr = Array.isArray(o.segments) ? o.segments : (Array.isArray(o) ? o : []);\n      segs = arr.map((x) => String(x || '').trim()).filter((x) => x.length > 0);\n    } catch (e) { segs = []; }\n  }\n  /* 兜底：模型没给 JSON 时按空行切 */\n  if (!segs.length) {\n    segs = txt.split(/\\n\\s*\\n/).map((s) => s.trim()).filter((s) => s.length > 0);\n  }\n\n  const wc = (t) => (String(t || '').match(/[A-Za-z][A-Za-z''-]*/g) || []).length;\n  const per = segs.map((s) => wc(s));\n  const total = per.reduce((a, b) => a + b, 0);\n  const lv = String(level || '').trim();\n  const spec = { B1: [323, 437, 28, 35], B2: [468, 632, 41, 50] }[lv] || null;\n\n  /* 🔴 段数是**硬要求**（2026-09-22 修）：下游档位都要按同一骨架逐段对齐，\n     段数不对 ⇒ 骨架不可用。此前 ok 只判 `>= 3`、warn 只看词数 ⇒\n     模型给出 6 段的错误结果会被**静默放行**（真跑第 4 次：6 段 329 词、warn 空）。\n     现在段数与词数**分别判定**，任一不合格都 ok=false 并写明原因。 */\n  const SEGN = 12;\n  const segBad = segs.length !== SEGN;\n  const wcBad = !!spec && (total < spec[0] || total > spec[1]);\n  const tooMany = segs.length > 16;          /* 需求硬上限，独立于 SEGN 报出 */\n  const warns = [];\n  if (segBad) warns.push('段数 ' + segs.length + ' 不等于要求的 ' + SEGN + ' 段');\n  if (!spec) warns.push('未知档位');\n  else if (total < spec[0]) warns.push('总词数 ' + total + ' 低于 ' + lv + ' 下限 ' + spec[0]);\n  else if (total > spec[1]) warns.push('总词数 ' + total + ' 超过 ' + lv + ' 上限 ' + spec[1]);\n\n  return {\n    segments_json: JSON.stringify(segs),\n    seg_count: String(segs.length),\n    para_words: JSON.stringify(per),\n    word_count: String(total),\n    simplified_text: String(simplified || ''),\n    level: lv,\n    need_simplify: String(need_simplify || 'false'),\n    over_limit: tooMany ? 'true' : 'false',\n    ok: (!segBad && !wcBad && !!spec) ? 'true' : 'false',\n    warn: warns.join('；'),\n  };\n}",
+          "variables": [
+            {
+              "variable": "level",
+              "value_selector": [
+                "nodeStart",
+                "level"
+              ]
+            },
+            {
+              "variable": "need_simplify",
+              "value_selector": [
+                "nodeStart",
+                "need_simplify"
+              ]
+            },
+            {
+              "variable": "simplified",
+              "value_selector": [
+                "nodeSimplify2",
+                "text"
+              ]
+            },
+            {
+              "variable": "raw",
+              "value_selector": [
+                "nodeSegment",
+                "text"
+              ]
+            }
+          ],
+          "outputs": {
+            "segments_json": {
+              "children": null,
+              "type": "string"
+            },
+            "seg_count": {
+              "children": null,
+              "type": "string"
+            },
+            "para_words": {
+              "children": null,
+              "type": "string"
+            },
+            "word_count": {
+              "children": null,
+              "type": "string"
+            },
+            "simplified_text": {
+              "children": null,
+              "type": "string"
+            },
+            "level": {
+              "children": null,
+              "type": "string"
+            },
+            "need_simplify": {
+              "children": null,
+              "type": "string"
+            },
+            "over_limit": {
+              "children": null,
+              "type": "string"
+            },
+            "ok": {
+              "children": null,
+              "type": "string"
+            },
+            "warn": {
+              "children": null,
+              "type": "string"
+            }
+          }
+        }
+      },
+      {
+        "id": "nodeEnd",
+        "type": "end",
+        "position": {
+          "x": 1740,
+          "y": 280
+        },
+        "positionAbsolute": {
+          "x": 1740,
+          "y": 280
+        },
+        "width": 244,
+        "height": 110,
+        "zIndex": 0,
+        "data": {
+          "type": "end",
+          "title": "结束",
+          "desc": "输出母稿段落骨架（供图 B 使用）",
+          "selected": false,
+          "outputs": [
+            {
+              "variable": "segments_json",
+              "value_selector": [
+                "nodeClean",
+                "segments_json"
+              ]
+            },
+            {
+              "variable": "seg_count",
+              "value_selector": [
+                "nodeClean",
+                "seg_count"
+              ]
+            },
+            {
+              "variable": "para_words",
+              "value_selector": [
+                "nodeClean",
+                "para_words"
+              ]
+            },
+            {
+              "variable": "word_count",
+              "value_selector": [
+                "nodeClean",
+                "word_count"
+              ]
+            },
+            {
+              "variable": "simplified_text",
+              "value_selector": [
+                "nodeClean",
+                "simplified_text"
+              ]
+            },
+            {
+              "variable": "level",
+              "value_selector": [
+                "nodeClean",
+                "level"
+              ]
+            },
+            {
+              "variable": "need_simplify",
+              "value_selector": [
+                "nodeClean",
+                "need_simplify"
+              ]
+            },
+            {
+              "variable": "over_limit",
+              "value_selector": [
+                "nodeClean",
+                "over_limit"
+              ]
+            },
+            {
+              "variable": "ok",
+              "value_selector": [
+                "nodeClean",
+                "ok"
+              ]
+            },
+            {
+              "variable": "warn",
+              "value_selector": [
+                "nodeClean",
+                "warn"
+              ]
+            }
+          ]
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "e-start-simplify",
+        "source": "nodeStart",
+        "target": "nodeSimplify",
+        "type": "custom",
+        "sourceHandle": "source",
+        "targetHandle": "target",
+        "zIndex": 11,
+        "data": {
+          "isInIteration": false,
+          "sourceHandle": "source",
+          "targetHandle": "target",
+          "sourceType": "start",
+          "targetType": "llm",
+          "isInLoop": false
+        }
+      },
+      {
+        "id": "e-simplify-simplify2",
+        "source": "nodeSimplify",
+        "target": "nodeSimplify2",
+        "type": "custom",
+        "sourceHandle": "source",
+        "targetHandle": "target",
+        "zIndex": 11,
+        "data": {
+          "isInIteration": false,
+          "sourceHandle": "source",
+          "targetHandle": "target",
+          "sourceType": "llm",
+          "targetType": "llm",
+          "isInLoop": false
+        }
+      },
+      {
+        "id": "e-simplify2-segment",
+        "source": "nodeSimplify2",
+        "target": "nodeSegment",
+        "type": "custom",
+        "sourceHandle": "source",
+        "targetHandle": "target",
+        "zIndex": 11,
+        "data": {
+          "isInIteration": false,
+          "sourceHandle": "source",
+          "targetHandle": "target",
+          "sourceType": "llm",
+          "targetType": "llm",
+          "isInLoop": false
+        }
+      },
+      {
+        "id": "e-segment-clean",
+        "source": "nodeSegment",
+        "target": "nodeClean",
+        "type": "custom",
+        "sourceHandle": "source",
+        "targetHandle": "target",
+        "zIndex": 11,
+        "data": {
+          "isInIteration": false,
+          "sourceHandle": "source",
+          "targetHandle": "target",
+          "sourceType": "llm",
+          "targetType": "code",
+          "isInLoop": false
+        }
+      },
+      {
+        "id": "e-clean-end",
+        "source": "nodeClean",
+        "target": "nodeEnd",
+        "type": "custom",
+        "sourceHandle": "source",
+        "targetHandle": "target",
+        "zIndex": 11,
+        "data": {
+          "isInIteration": false,
+          "sourceHandle": "source",
+          "targetHandle": "target",
+          "sourceType": "code",
+          "targetType": "end",
+          "isInLoop": false
+        }
+      }
+    ],
+    "viewport": {}
+  },
+  "features": {},
+  "conversation_variables": [],
+  "environment_variables": []
+}

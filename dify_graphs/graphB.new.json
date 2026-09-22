@@ -1,0 +1,1515 @@
+{
+  "graph": {
+    "nodes": [
+      {
+        "id": "nodeStart",
+        "type": "start",
+        "position": {
+          "x": 60,
+          "y": 300
+        },
+        "positionAbsolute": {
+          "x": 60,
+          "y": 300
+        },
+        "width": 244,
+        "height": 110,
+        "zIndex": 0,
+        "data": {
+          "type": "start",
+          "title": "开始",
+          "selected": false,
+          "desc": "接收母稿段落骨架（来自图 A）、母稿档位、写作风格",
+          "variables": [
+            {
+              "label": "母稿段落骨架（JSON 数组，来自图 A 的 segments_json）",
+              "variable": "segments_json",
+              "type": "paragraph",
+              "required": true,
+              "max_length": 20000,
+              "options": []
+            },
+            {
+              "label": "母稿档位（人工标注）",
+              "variable": "level",
+              "type": "select",
+              "required": true,
+              "max_length": 48,
+              "options": [
+                "B1",
+                "B2"
+              ]
+            },
+            {
+              "label": "授权来源（BBC Learning English / 超级阅读力 / 大愚出版社 / 其它）",
+              "variable": "source",
+              "type": "text-input",
+              "required": false,
+              "max_length": 120,
+              "options": []
+            },
+            {
+              "label": "统一标题",
+              "variable": "title_in",
+              "type": "text-input",
+              "required": false,
+              "max_length": 200,
+              "options": []
+            },
+            {
+              "label": "写作风格",
+              "variable": "style",
+              "type": "select",
+              "required": false,
+              "max_length": 48,
+              "options": [
+                "hemingway",
+                "austen",
+                "ohenry",
+                "twain",
+                "dickens",
+                "orwell",
+                "shakespeare",
+                "default"
+              ]
+            },
+            {
+              "label": "上一稿超纲词（按档 JSON）",
+              "variable": "avoid_words",
+              "type": "paragraph",
+              "required": false,
+              "max_length": 4000,
+              "options": []
+            }
+          ]
+        }
+      },
+      {
+        "id": "nodeClean",
+        "type": "code",
+        "position": {
+          "x": 340,
+          "y": 300
+        },
+        "positionAbsolute": {
+          "x": 340,
+          "y": 300
+        },
+        "width": 244,
+        "height": 110,
+        "zIndex": 0,
+        "data": {
+          "type": "code",
+          "title": "① 解析骨架",
+          "selected": false,
+          "desc": "解析母稿段落、派生编号骨架 seg_lines、算出目标档列表",
+          "code_language": "javascript",
+          "code": "function main({ segments_json, level, style, avoid_words, source }) {\n  const JS = (t, d) => { try { const v = JSON.parse(t || ''); return (v && typeof v === 'object') ? v : d; } catch (e) { return d; } };\n  const segs = (JS(segments_json, []) || []).map((s) => String(s || '').trim()).filter(Boolean);\n  const N = segs.length;\n  const lv = String(level || '').trim().toUpperCase();\n  const lvBig = lv === 'B2' ? 'B2' : 'B1';\n\n  /* 要产的低档：母稿 B2 → B1/A2/A1-；母稿 B1 → A2/A1-（只能往下，不能往上） */\n  const TARGETS = { B2: ['B1', 'A2', 'A1'], B1: ['A2', 'A1'] };\n  const targets = TARGETS[lvBig] || [];\n\n  /* 编号段落骨架：第 i 段 → 第 i 段，严格 1:1（与 GEN 的 gist_lines 同构，便于沿用同一套提示词） */\n  const lines = [];\n  segs.forEach((s, i) => { lines.push('【段 ' + (i + 1) + '】' + s); });\n  const seg_lines = lines.join('\\n\\n');\n\n  /* 主题摘要：取首段前若干词，供标题/校验引用（图 B 不再单独跑摘要节点） */\n  const summary = segs.length ? segs[0].split(/\\s+/).slice(0, 24).join(' ') : '';\n\n  const avoid = JS(avoid_words, {});\n  const pick = (k) => JSON.stringify(avoid[k] || avoid[k.toUpperCase()] || []);\n\n  /* 🔴 每段词数规格与 GEN **完全一致、不改**（Bryan 2026-09-21 定案）。\n     但图 B 的段数由母稿决定（不是固定 12 段）⇒ 全文区间必须**按 N 现算**，\n     否则 N=11 时模型仍按 12 段的总量写，各档会集体超标（实测 A1- 23 词/段、B1 51 词/段）。 */\n  const PER = { A1: [11, 14], A2: [20, 22], B1: [28, 35], B2: [41, 50] };\n  const spec = {};\n  Object.keys(PER).forEach((k) => {\n    const lo = PER[k][0] * N, hi = PER[k][1] * N, tg = Math.round((lo + hi) / 2);\n    spec[k] = { per: PER[k][0] + '–' + PER[k][1], lo: lo, hi: hi, tgt: tg };\n  });\n  const sp = (k, f) => String(spec[k][f]);\n\n  return {\n    seg_lines: seg_lines,\n    seg_count: String(N),\n    summary: summary,\n    level: lvBig,\n    level_big: lvBig,\n    style: String(style || 'default'),\n    source: String(source || '').trim(),\n    targets_json: JSON.stringify(targets),\n    target_count: String(targets.length),\n    avoid_a1: pick('A1'), avoid_a2: pick('A2'), avoid_b1: pick('B1'), avoid_b2: pick('B2'),\n    /* 各档「全文字数」按段数现算（供生成节点插值）*/\n    spec_json: JSON.stringify(spec),\n    a1_lo: sp('A1', 'lo'), a1_hi: sp('A1', 'hi'), a1_tgt: sp('A1', 'tgt'), a1_per: spec.A1.per,\n    a2_lo: sp('A2', 'lo'), a2_hi: sp('A2', 'hi'), a2_tgt: sp('A2', 'tgt'), a2_per: spec.A2.per,\n    b1_lo: sp('B1', 'lo'), b1_hi: sp('B1', 'hi'), b1_tgt: sp('B1', 'tgt'), b1_per: spec.B1.per,\n    b2_lo: sp('B2', 'lo'), b2_hi: sp('B2', 'hi'), b2_tgt: sp('B2', 'tgt'), b2_per: spec.B2.per,\n    /* 母稿正文（各段拼接）—— 它就是入库的高档稿件 */\n    mat_text: segs.join('\\n\\n'),\n    ok: (N >= 3 && targets.length > 0) ? 'true' : 'false',\n  };\n}",
+          "variables": [
+            {
+              "variable": "segments_json",
+              "value_selector": [
+                "nodeStart",
+                "segments_json"
+              ]
+            },
+            {
+              "variable": "level",
+              "value_selector": [
+                "nodeStart",
+                "level"
+              ]
+            },
+            {
+              "variable": "style",
+              "value_selector": [
+                "nodeStart",
+                "style"
+              ]
+            },
+            {
+              "variable": "avoid_words",
+              "value_selector": [
+                "nodeStart",
+                "avoid_words"
+              ]
+            },
+            {
+              "variable": "source",
+              "value_selector": [
+                "nodeStart",
+                "source"
+              ]
+            }
+          ],
+          "outputs": {
+            "seg_lines": {
+              "children": null,
+              "type": "string"
+            },
+            "seg_count": {
+              "children": null,
+              "type": "string"
+            },
+            "summary": {
+              "children": null,
+              "type": "string"
+            },
+            "level": {
+              "children": null,
+              "type": "string"
+            },
+            "level_big": {
+              "children": null,
+              "type": "string"
+            },
+            "style": {
+              "children": null,
+              "type": "string"
+            },
+            "source": {
+              "children": null,
+              "type": "string"
+            },
+            "targets_json": {
+              "children": null,
+              "type": "string"
+            },
+            "target_count": {
+              "children": null,
+              "type": "string"
+            },
+            "avoid_a1": {
+              "children": null,
+              "type": "string"
+            },
+            "avoid_a2": {
+              "children": null,
+              "type": "string"
+            },
+            "avoid_b1": {
+              "children": null,
+              "type": "string"
+            },
+            "avoid_b2": {
+              "children": null,
+              "type": "string"
+            },
+            "spec_json": {
+              "children": null,
+              "type": "string"
+            },
+            "a1_lo": {
+              "children": null,
+              "type": "string"
+            },
+            "a1_hi": {
+              "children": null,
+              "type": "string"
+            },
+            "a1_tgt": {
+              "children": null,
+              "type": "string"
+            },
+            "a1_per": {
+              "children": null,
+              "type": "string"
+            },
+            "a2_lo": {
+              "children": null,
+              "type": "string"
+            },
+            "a2_hi": {
+              "children": null,
+              "type": "string"
+            },
+            "a2_tgt": {
+              "children": null,
+              "type": "string"
+            },
+            "a2_per": {
+              "children": null,
+              "type": "string"
+            },
+            "b1_lo": {
+              "children": null,
+              "type": "string"
+            },
+            "b1_hi": {
+              "children": null,
+              "type": "string"
+            },
+            "b1_tgt": {
+              "children": null,
+              "type": "string"
+            },
+            "b1_per": {
+              "children": null,
+              "type": "string"
+            },
+            "b2_lo": {
+              "children": null,
+              "type": "string"
+            },
+            "b2_hi": {
+              "children": null,
+              "type": "string"
+            },
+            "b2_tgt": {
+              "children": null,
+              "type": "string"
+            },
+            "b2_per": {
+              "children": null,
+              "type": "string"
+            },
+            "mat_text": {
+              "children": null,
+              "type": "string"
+            },
+            "ok": {
+              "children": null,
+              "type": "string"
+            }
+          }
+        }
+      },
+      {
+        "id": "nodeStyle",
+        "type": "code",
+        "width": 150,
+        "height": 22,
+        "zIndex": 0,
+        "position": {
+          "x": 340,
+          "y": 560
+        },
+        "positionAbsolute": {
+          "x": 340,
+          "y": 560
+        },
+        "data": {
+          "title": "⑧ 写作风格映射",
+          "desc": "把 style 键映射为英文写作风格指令（按 CEFR 难度自适应）",
+          "code_language": "javascript",
+          "code": "function main({ style }) {\n  const STYLES = {\n    default: \"Neutral, clear, natural expository prose — the platform's standard graded-reading style, without imitating a specific author.\",\n    hemingway: \"Ernest Hemingway: short declarative sentences, few adjectives, concrete nouns and action verbs, understated emotion (iceberg theory).\",\n    austen: \"Jane Austen: elegant, witty prose with keen social observation and ironic precision; polished, ironic and precise.\",\n    ohenry: \"O. Henry: warm humor, vivid characters and a surprising ironic twist at the end.\",\n    twain: \"Mark Twain: colloquial, humorous and lightly satirical; down-to-earth language, witty observations and folksy charm.\",\n    dickens: \"Charles Dickens: rich narrative with vivid characters, social observation and a touch of warmth and humor.\",\n    orwell: \"George Orwell: clear, plain, incisive prose; direct and morally serious, with concrete imagery.\",\n    shakespeare: \"William Shakespeare: elevated, rhetorical and lyrical; rich in imagery, metaphor and rhythm.\"\n  };\n  const key = String(style || '').toLowerCase();\n  const base = STYLES[key] || STYLES.default;\n  const instruction = base + \" Keep all facts, names, numbers and the required structure (title, paragraphs, glossary) unchanged — only the writing style differs. Adapt sentence length and vocabulary to the target CEFR level.\";\n  return { style_key: (key in STYLES) ? key : 'default', style_instruction: instruction };\n}",
+          "selected": false,
+          "type": "code",
+          "outputs": {
+            "style_instruction": {
+              "children": null,
+              "type": "string"
+            },
+            "style_key": {
+              "children": null,
+              "type": "string"
+            }
+          },
+          "variables": [
+            {
+              "variable": "style",
+              "value_selector": [
+                "nodeStart",
+                "style"
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "data": {
+          "answer": "",
+          "context": {
+            "enabled": false,
+            "variable_selector": []
+          },
+          "desc": "用 flash 统一生成一个全档共用标题，避免四组各写各的",
+          "model": {
+            "completion_params": {
+              "max_tokens": 300,
+              "temperature": 0.6,
+              "thinking": false
+            },
+            "mode": "chat",
+            "name": "deepseek-v4-flash",
+            "provider": "langgenius/deepseek/deepseek"
+          },
+          "prompt_template": [
+            {
+              "role": "system",
+              "text": "你是英语分级阅读编辑。根据主题摘要与切入角度，为这一系列分级文章拟一个英文标题。\n\n要求：\n1. 4–9 个英文单词。\n2. 只用常见词——同一个标题要同时供 A1（60 词入门）与 B2（700 词进阶）使用，必须让 A1 的学习者也能看懂。\n3. 可用一个冒号做成「主标题: 副标题」。\n4. 具体、有信息量，不要写成 \"The Importance of ...\" 这类空泛句式。\n5. 不要引号、不要句末句号、不要 Markdown 标题符号、不要换行。\n\n只输出标题本身，不要输出任何其他文字。"
+            },
+            {
+              "role": "user",
+              "text": "主题：{{#nodeClean.summary#}}\n切入角度：{{#nodeClean.summary#}}\n\n请给出英文标题。"
+            }
+          ],
+          "selected": false,
+          "title": "④-0 统一标题",
+          "type": "llm"
+        },
+        "height": 22,
+        "id": "nodeTitle",
+        "position": {
+          "x": 340,
+          "y": 740
+        },
+        "type": "llm",
+        "width": 150,
+        "zIndex": 0,
+        "positionAbsolute": {
+          "x": 340,
+          "y": 740
+        }
+      },
+      {
+        "data": {
+          "answer": "",
+          "context": {
+            "enabled": false,
+            "variable_selector": []
+          },
+          "desc": "生成 B1 档文章（固定 12 段，段落对应素材大意）",
+          "model": {
+            "completion_params": {
+              "max_tokens": 4500,
+              "temperature": 0.45,
+              "thinking": false
+            },
+            "mode": "chat",
+            "name": "deepseek-v4-pro",
+            "provider": "langgenius/deepseek/deepseek"
+          },
+          "prompt_template": [
+            {
+              "role": "system",
+              "text": "你是英语分级阅读教学专家，专精 CEFR 分级改写。任务：把已获授权的英文母稿（难度 {{#nodeClean.level#}}）**降档改写**成 B1 严格达标的文章。\n\n🔴 **降档的本质是「大幅做减法」，不是「换词」。** 这是本链路最容易做错的地方：\n   - 母稿每一段是**完整原文**（往往 40–60 词、3–4 句），而目标档每段只有 28–35 词 —— **信息量必须砍掉一半以上**。\n   - 每一段**只保留最核心的一个意思**；该段的举例、数字罗列、次要论证、铺陈与过渡句**一律删掉**。只换更简单的词、却不删内容，**一定超字数**。\n   - 因此产出**不是母稿段的逐句翻译**，而是母稿段的**概要**：读者拿到的是这个意思，而不是原段的所有细节。\n   - 语言难度同时要降到位（更简单的词、更短的句子、更少的从句）。\n\n\n【本档硬性规格】（逐项达标，任一项显著偏离即视为不合格）\n- B1：正文 **目标 {{#nodeClean.b1_tgt#}} 词**（硬区间 {{#nodeClean.b1_lo#}}–{{#nodeClean.b1_hi#}}；低于下限或超过上限都判不合格）\n    平均句长 14–17 词；蓝思 750–1050L\n    写作标尺：全篇段数 = 母稿骨架段数（共 {{#nodeClean.seg_count#}} 段，4 档完全一致）；每段约 28–35 词（**全篇约 24 句** × 每句约 15–16 词 ≈ {{#nodeClean.b1_tgt#}} 词；**不要为了撑篇幅写 3 句**）\n    【篇幅】每段 **2 句为主**；全文 {{#nodeClean.b1_lo#}}–{{#nodeClean.b1_hi#}} 词、{{#nodeClean.seg_count#}} 段（每段词数 = 全文词数 ÷ 段数，见写作标尺）。\n【句子层】平均句长 14–17 词；最长句 ≤22 词、最短句 ≥6 词；句长标准差 ≥3；每句 ≤2 个限定动词；从句 ≤1 层；每句 2 个命题；被动句 ≤12%；名词化 ≤4 个/百词。\n【词汇层】只用 EVP A1–B1（约 2800 词族）；超纲词率 ≤3.6%；每段新词 ≤2；topic words 4–5 个（豁免超纲，首次出现须有可推断语境）；平均音节 ≤1.6；8 字母以上词 ≤7%；短语动词 ≤4 个/篇；习语 ≤1 个且上下文可推；实词重复允许。\n【本轮禁用词】上一稿下列词超出本档上限，本次**必须换成更简单的表达**（国家名/机构名/人名等专有名词、以及无法替换的固定搭配可保留）：{{#nodeClean.avoid_b1#}}\n【语篇层】主要逻辑关系显性表达；主要因果明写；代词可跨段；每段首句重述主语名词；信息可小幅调序；每段自足；背景知识为常识级。\n【语言地道性（与分级参数同等硬性，不得为了「简单」而牺牲自然）】\n读者是英语学习者，产出必须是**母语者会说的话**，不是「把难词换成简单词」的字面直译。硬性要求：\n① **优先用动词**：写 \"People sleep badly\"，不写 \"People have bad sleep quality\"。\n② **搭配必须地道，禁止生造**：反面例子（本档已实测出现过，禁止再犯）——**\"sleep at bad times\"**（应为 \"do not sleep well\"）、\"have bad sleep\"。拿不准时，宁可换一个你确定地道的简单说法。\n③ **禁止用定义句凑段**：连续两段都用 \"X means Y. It means ...\" 这种释义句式即不合格。要解释一个词，用一句自然的例子代替：\"Good habits, like eating well and sleeping well, help a lot.\"\n④ **句式要有变化**：不要连续三句都是「主语 + 动词 + 宾语」的同一模板；相邻两句不要用同一个词开头。\n⑤ **删冗余**：同一个名词短语不要在一段里原样出现两次。前句说过的，后句用代词（it / they / this）、概括词或直接省略。反面例子：**\"People with good family help do not live long if ...\" 紧跟在 \"good family help is not enough\" 之后 —— 应写成 \"They may not live long if ...\"**。\n⑥ **不确定的事要写成不确定**：研究结论、可能性、推测必须用 may / might / can（\"People **may** not live long if they eat badly\"）。把 \"may not live long\" 写成 \"do not live long\" 是**语义错误**（把可能当成确定），不是简化。\n⑦ **套话限量**：\"In the end,\" / \"Small changes can help a lot.\" / \"This is very important.\" 这类收尾套话，一篇里各自最多出现一次。\n⑧ **本条不改变篇幅、句数、段数**：「删冗余、不写释义句」**不等于可以少写**。\n- **写完必须逐段自检**：段落词数、每段句数、全篇段落数都要落在【本档硬性规格】的写作标尺区间内。\n- **低档句数**：**A2 每段就是 2 句**—— 不得合成 1 句长句，也不得只写 1 句（句数不足会同时造成篇幅偏短与句长超标，两项都判不合格）；**A1- 每段 1–2 句** —— **不要求每段都写 2 句**，信息量少的段写 1 句即可；句子也可以短一些（6–9 词），但每句不得少于 4 词。B1 / B2+ 按本档写作标尺给出的句数写足。\n- 需要展开时，用**具体例子、具体动作、具体后果**来写（\"A person who stays up late may feel tired even with a loving family.\"），不要退回 \"X means Y\" 的释义句。\n【语法 Construction（形式+功能，preferred/allowed/discouraged/forbidden 四档）】\n通用判定：① 按实际功能判级，不按词形判级（如 A2 可用 would like 表礼貌愿望，不等于放行假设意义 would）；② 高等级继承低等级的 preferred 与 allowed；③ 固定搭配与开放句式分开判定；④ 每句最多 1 个非 preferred construction（低档不得同句叠加关系从句+条件从句+被动等多重结构）；⑤ 直接引语/标题/文化专名不自动豁免语法；⑥ 违规要能指出具体句与 construction 类型。\n【语法 Construction】（在 A2 基础上叠加）\nPreferred：过去进行（背景/被打断）；第一条件句；第二条件句；may/might/could（可能性·不确定推测，保留原文确定性强弱）；could（过去能力/礼貌建议/可能，按功能分别标注）；would（第二条件/礼貌/过去习惯，无情态完成）；although+从句（从属连词，不列连接副词）；however/as a result/in fact/for example（跨句转折·结果·修正·举例，检查标点）；V-ing 作主语/宾语；It is+形容词+不定式/that 从句（一般评价）。\nForbidden（禁用）：第三/混合条件句；might/could/should/would have+过去分词（情态完成）；wish/if only 表反事实过去；正式虚拟（If I were you 除外）；否定词前置等倒装；独立分词结构；多层缩减关系从句；一个名词带多个长后置修饰；连续三个以上名词/名词化堆叠；为追求「高级感」而加的无必要复杂结构。\nAllowed 摘要：过去完成（全文≤2 处、仅消除两个过去事件先后歧义时）；常见时态被动（一般现在/过去/将来，突出结果或执行者未知）；现在完成被动（每卡最多一处）；who/that/which/whose 关系从句（每句最多一个、嵌套≤1）；非限定性关系从句（每卡最多一处）；say/tell/ask 间接引语（允许常见时态回移，保持原文模态立场）；-ing/-ed 后置修饰（≤5 词、不带从句）；单个常见名词化；If I were you。\nDiscouraged（尽量改写）：进行时被动；一句两个以上从句（拆句保显式逻辑）；长非限定关系从句（独立成句）；多个抽象名词连续（改动词句）；模糊跨句指代（this 单用→改 this change/decision 等）；whose 指无生命事物（拆句）。\n【内容保真】核心事实 100% 保留；支撑细节 65–75%；例证保留主要；数字保留原值可四舍五入；观点保留含转折。\n\n【中国文化专名（文化条线内容尤其要吃这条）】\n- 核心文化词（如 Spring Festival、dumpling、Terracotta Army）各级都保留原形，不做替换——它们是学习目标而非障碍。\n- 首次出现时就地解释，解释另起一句（不要用同位语塞回原句，同位语会拉长句子、抵消降级）。\n- 解释句本身必须符合该级别的全部参数。\n- A1- / A2 全文专名总数 ≤3 个。\n\n【topic words（高亮目标词）】\n- 每篇 3–5 个目标词，单独成表（word — 中文释义），不计入超纲词率。\n- 目标词首次出现的段落，必须包含足以推断词义的上下文（豁免的代价是必须给足可推断语境）。\n\n【必须自查的五条硬指标（篇幅与语言难度同等重要）】\n① **正文字数**：以「目标 {{#nodeClean.b1_tgt#}} 词」为靶心，**必须落在硬区间 {{#nodeClean.b1_lo#}}–{{#nodeClean.b1_hi#}}**——低于下限或超过上限都不合格。先按「写作标尺」把每一段铺满，再数总词数；不够就补，超了才删。宁可靠近目标值，也不要低于下限。\n   **每段词数优先于每段句数**：先保证每段落在写作标尺的「每段约 28–35 词」内，再决定该段写几句；两者不能同时满足时**以词数为准** —— 宁可让某段句数低于标尺，也不要把全篇撑出上限。\n② **每段句数**：按写作标尺给出的「约 M 句」写足。\n③ **平均句长 = 正文总词数 ÷ 句子数**，必须落在 14–17 词区间内。写完自己数一遍总词数、句子数与段数，与规格核对。\n④ **词汇难度**：只用本档词表内的词（见上「词汇层」），**不得用明显偏难、生僻的词来凑字数或显高级**。宁可换简单词，也不要超纲。\n⑤ **语法复杂度**：严格遵守上「语法 Construction」四档（preferred/allowed/discouraged/forbidden），**不得用高等级句式来凑长度**。\n\n【段数规则】\n- 全篇 {{#nodeClean.seg_count#}} 段（4 档段数必须完全一致），**第 i 段严格对应第 i 条大意**：切换难度档位时第 i 段的内容大意保持不变，只是语言难度不同。段数定下后，全文词数仍必须落在硬区间。\n- **每段词数硬上限**：每段必须落在写作标尺的「每段约 X 词」区间内。**某段对应的素材信息特别多时（如多个专家观点挤在同一条大意里），要精简压缩到区间内，绝不能因为信息多就把段落写超长**；信息少的段则合理展开。段落之间词数要大致均匀，不允许某一段是其他段的 2 倍以上。\n- **一条大意 = 一段，严格 1:1**：既不得把一条大意拆成两段，也不得把两条大意并成一段。某条大意信息量超过本段词数上限时，**只保留主干、砍掉分支** —— 宁可少写一个细节，也**不许拆段**。\n- **最后一段（第 {{#nodeClean.seg_count#}} 段）必须存在**：拆段会让段数变成 13 段，末尾那条就会被整段丢掉，整篇从拆段处起与其它档位**逐段错位**，读者切档时会看到内容跳位。\n\n【素材不足时怎么办（关键，直接决定达标率）】\n- 若素材不足以支撑本档下限词数，**优先保证下限**：允许做**不引入新数字、新人名、新机构、新事件的合理背景扩写**。\n- **扩写绝不允许抬高难度**：不得靠更长的句子、更难的词、更复杂的句式来凑字数——扩写必须用本档的简单词、短句完成，**难度优先于篇幅**。\n- **绝对不得编造**具体的百分比、年份、机构名、人名、地名。\n- **不允许以「怕编造」为理由把文章写短**：写不到下限同样判不合格。\n\n【素材过多时怎么办】\n- 素材很长时，本档只取与认知半径匹配的要点，其余细节宁可不写，也必须守住本档上限。\n\n【段落总纲】\n- 这是供英语学习者阅读的完整文章，不是摘要。围绕素材充分展开：补充背景、成因、过程、细节、影响。\n- 段落顺序严格遵循素材顺序：第 1 段引入（是什么/在哪/何时），中间段展开，末段收尾（意义/现状/影响）。\n- 每一段只讲对应的大意条，不要跨段混讲——这样读者切换难度档位时，第 i 段的内容大意保持不变，只是语言难度不同。\n- 生词表 = topic words：4–5 个高亮目标词，格式 \"word — 中文释义\"，不计入超纲词率。\n- **不要输出标题**，不要在 JSON 里出现 title 字段。\n\n【引用标注（必须输出，两个键都要给）】\n上方「母稿段落骨架」按 1 开始编号（段号）。\n- **`gist_map`**：标明每一段依据了母稿的哪几段。内层数组长度必须等于段数 {{#nodeClean.seg_count#}}，**第 i 段必须输出 `[i]`** —— 出现合并（如 `[[1,2],…]`）、跳号或少一项即判不合格。\n- **`fact_map`**：标明每一段用到了哪几张事实卡（细节编号，1-based 升序）。该段没用到任何细节时给空数组 `[]`，**不得编造编号**。\n\n【输出格式：严格 JSON，只输出一个 JSON 对象，不要 markdown 代码块、不要解释、不要多余文字】\n{\"B1\":[\"段1\",...,\"段N\"],\"words\":{\"B1\":[\"word — 中文释义\"]},\"gist_map\":{\"B1\":[[1],[2],...]},\"fact_map\":{\"B1\":[[1,2],...]}}\n\n【JSON 键名规则】键名用 B1（即 B1）。标题（必须原样使用，不要另拟）：{{#nodeTitle.text#}}\n主题：{{#nodeClean.summary#}}\n母稿段落骨架（**共 {{#nodeClean.seg_count#}} 段；第 i 段只写第 i 段**）——下面是母稿**原文**，是**待压缩的原料**，不是要你逐句改写：\n{{#nodeClean.seg_lines#}}\n\n切入角度：{{#nodeClean.summary#}}\n\n写作风格：{{#nodeStyle.style_instruction#}}\n\n请生成 B1 档的文章（共 {{#nodeClean.seg_count#}} 段，第 i 段严格对应母稿第 i 段），输出严格 JSON。\n\n【篇幅 · 逐段硬约束（本链路：段数由母稿决定，**不是固定 12 段**）】\n- 母稿骨架共 {{#nodeClean.seg_count#}} 段 ⇒ 产出**也必须是这 {{#nodeClean.seg_count#}} 段**，第 i 段只写母稿第 i 段的内容。\n- **每一段都必须落在 28–35 词**（这是逐段硬约束，不是平均要求）。\n- 全文目标 = **{{#nodeClean.b1_tgt#}} 词**（= {{#nodeClean.seg_count#}} 段 × 每段 28–35 词 ⇒ 硬区间 {{#nodeClean.b1_lo#}}–{{#nodeClean.b1_hi#}} 词）。\n- 逐段写完后**一段一段数词数**：某段超过上限 ⇒ 删掉该段的次要信息（举例、个案、解释性从句、铺陈）或把两句并成一句；**不许把两段合成一段，也不许补写母稿里没有的内容。**\n- 段数、每段词数、全文词数**三者必须同时成立** —— 只满足一个不算合格。\n\n\n【每段句数预算 —— **照这个写，篇幅就会自动命中**】\n- 本档**每一段恰好写 2 句**，每句 **14–17 词** ⇒ 每段 28–35 词。\n- 全篇 = {{#nodeClean.seg_count#}} 段 × 2 句 = **约 {{#nodeClean.seg_count#}}×2 句**，正好落在 {{#nodeClean.b1_lo#}}–{{#nodeClean.b1_hi#}} 词。\n- 🔴 **不许写 3 句**：3 句会把篇幅顶到 1.5 倍，一定超上限；**也不许写 1 句**：会低于下限。句数错了，篇幅必错。\n- 句数预算与篇幅是同一件事的两种说法 —— 满足句数预算就等于满足篇幅。\n- ⚠️ 本预算**覆盖上文任何「每段 1–2 句 / 2–3 句」的表述**：本链路一律每段 2 句。\n- ⚠️ 本预算里的**每句词数优先于**上文「平均句长 X–Y 词」的表述 —— 本预算的区间本就落在那个区间**之内**，所以两者不冲突，只是更紧、更可执行。\n- ⚠️ **段数一个都不能多**：只能写 {{#nodeClean.seg_count#}} 段。多写一段会被聚合层砍掉末段，整篇从那里起与其它档错位。\n"
+            }
+          ],
+          "selected": false,
+          "title": "④-B1 生成（B1）",
+          "type": "llm"
+        },
+        "height": 22,
+        "id": "nodeGenB1",
+        "position": {
+          "x": 620,
+          "y": 120
+        },
+        "type": "llm",
+        "width": 150,
+        "zIndex": 0,
+        "positionAbsolute": {
+          "x": 620,
+          "y": 120
+        }
+      },
+      {
+        "data": {
+          "answer": "",
+          "context": {
+            "enabled": false,
+            "variable_selector": []
+          },
+          "desc": "生成 A2 档文章（固定 12 段，段落对应素材大意）",
+          "model": {
+            "completion_params": {
+              "max_tokens": 3000,
+              "temperature": 0.45,
+              "thinking": false
+            },
+            "mode": "chat",
+            "name": "deepseek-v4-pro",
+            "provider": "langgenius/deepseek/deepseek"
+          },
+          "prompt_template": [
+            {
+              "role": "system",
+              "text": "你是英语分级阅读教学专家，专精 CEFR 分级改写。任务：把已获授权的英文母稿（难度 {{#nodeClean.level#}}）**降档改写**成 A2 严格达标的文章。\n\n🔴 **降档的本质是「大幅做减法」，不是「换词」。** 这是本链路最容易做错的地方：\n   - 母稿每一段是**完整原文**（往往 40–60 词、3–4 句），而目标档每段只有 20–22 词 —— **信息量必须砍掉一半以上**。\n   - 每一段**只保留最核心的一个意思**；该段的举例、数字罗列、次要论证、铺陈与过渡句**一律删掉**。只换更简单的词、却不删内容，**一定超字数**。\n   - 因此产出**不是母稿段的逐句翻译**，而是母稿段的**概要**：读者拿到的是这个意思，而不是原段的所有细节。\n   - 语言难度同时要降到位（更简单的词、更短的句子、更少的从句）。\n\n\n【本档硬性规格】（逐项达标，任一项显著偏离即视为不合格）\n- A2：正文 **目标 {{#nodeClean.a2_tgt#}} 词**（硬区间 {{#nodeClean.a2_lo#}}–{{#nodeClean.a2_hi#}}；低于下限或超过上限都判不合格）\n    平均句长 10–13 词；蓝思 400–750L\n    写作标尺：全篇段数 = 母稿骨架段数（共 {{#nodeClean.seg_count#}} 段，4 档完全一致）；每段约 20–22 词（约 2 句，平均句长约 10–11 词）\n    【篇幅】每段 2–3 句；全文 {{#nodeClean.a2_lo#}}–{{#nodeClean.a2_hi#}} 词、{{#nodeClean.seg_count#}} 段（每段词数 = 全文词数 ÷ 段数，见写作标尺）。\n【句子层】平均句长 10–13 词；最长句 ≤16 词、最短句 ≥5 词；句长标准差 ≥2；每句 ≤2 个限定动词；从句 ≤1 层；每句 1–2 个命题；被动句 ≤5%；名词化 ≤2 个/百词。\n【词汇层】只用 EVP A1–A2（约 1300 词族）；超纲词率 ≤10%；每段新词 ≤2；topic words 3–4 个（豁免超纲，首次出现须有可推断语境）；平均音节 ≤1.5；8 字母以上词 ≤4%；短语动词 ≤2 个/篇；**鼓励日常固定搭配与常用语块**（如 live longer、sleep well、eat well、get enough rest）——这些正是母语者最自然的说法；只禁生僻习语与文学性隐喻；实词允许自然复现，但**同一段内、以及相邻段落的首句，不得原样重复同一个名词短语**（第二遍改用代词、the + 概括词，或直接省略）。\n【本轮禁用词】上一稿下列词超出本档上限，本次**必须换成更简单的表达**（国家名/机构名/人名等专有名词、以及无法替换的固定搭配可保留）：{{#nodeClean.avoid_a2#}}\n【语篇层】每段 ≥1 个显性连接词；因果必须明写；代词指代不跨段；每段首句名词主语开头；信息线性；每段自足；背景知识极低、需即时解释。\n【语言地道性（与分级参数同等硬性，不得为了「简单」而牺牲自然）】\n读者是英语学习者，产出必须是**母语者会说的话**，不是「把难词换成简单词」的字面直译。硬性要求：\n① **优先用动词**：写 \"People sleep badly\"，不写 \"People have bad sleep quality\"。\n② **搭配必须地道，禁止生造**：反面例子（本档已实测出现过，禁止再犯）——**\"sleep at bad times\"**（应为 \"do not sleep well\"）、\"have bad sleep\"。拿不准时，宁可换一个你确定地道的简单说法。\n③ **禁止用定义句凑段**：连续两段都用 \"X means Y. It means ...\" 这种释义句式即不合格。要解释一个词，用一句自然的例子代替：\"Good habits, like eating well and sleeping well, help a lot.\"\n④ **句式要有变化**：不要连续三句都是「主语 + 动词 + 宾语」的同一模板；相邻两句不要用同一个词开头。\n⑤ **删冗余**：同一个名词短语不要在一段里原样出现两次。前句说过的，后句用代词（it / they / this）、概括词或直接省略。反面例子：**\"People with good family help do not live long if ...\" 紧跟在 \"good family help is not enough\" 之后 —— 应写成 \"They may not live long if ...\"**。\n⑥ **不确定的事要写成不确定**：研究结论、可能性、推测必须用 may / might / can（\"People **may** not live long if they eat badly\"）。把 \"may not live long\" 写成 \"do not live long\" 是**语义错误**（把可能当成确定），不是简化。\n⑦ **套话限量**：\"In the end,\" / \"Small changes can help a lot.\" / \"This is very important.\" 这类收尾套话，一篇里各自最多出现一次。\n⑧ **本条不改变篇幅、句数、段数**：「删冗余、不写释义句」**不等于可以少写**。\n- **写完必须逐段自检**：段落词数、每段句数、全篇段落数都要落在【本档硬性规格】的写作标尺区间内。\n- **低档句数**：**A2 每段就是 2 句**—— 不得合成 1 句长句，也不得只写 1 句（句数不足会同时造成篇幅偏短与句长超标，两项都判不合格）；**A1- 每段 1–2 句** —— **不要求每段都写 2 句**，信息量少的段写 1 句即可；句子也可以短一些（6–9 词），但每句不得少于 4 词。B1 / B2+ 按本档写作标尺给出的句数写足。\n- 需要展开时，用**具体例子、具体动作、具体后果**来写（\"A person who stays up late may feel tired even with a loving family.\"），不要退回 \"X means Y\" 的释义句。\n【语法 Construction（形式+功能，preferred/allowed/discouraged/forbidden 四档）】\n通用判定：① 按实际功能判级，不按词形判级（如 A2 可用 would like 表礼貌愿望，不等于放行假设意义 would）；② 高等级继承低等级的 preferred 与 allowed；③ 固定搭配与开放句式分开判定；④ 每句最多 1 个非 preferred construction（低档不得同句叠加关系从句+条件从句+被动等多重结构）；⑤ 直接引语/标题/文化专名不自动豁免语法；⑥ 违规要能指出具体句与 construction 类型。\n【语法 Construction】（在 A1- 基础上叠加）\nPreferred：现在进行（当前动作/临时状态）；will+原形（简单预测·承诺·即时决定）；be going to+原形（计划/有依据预测）；比较级/最高级（对象写清）；must/have to（义务·必要，非推测）；should+原形（直接建议）；would like+名词/不定式（礼貌愿望，不放行假设 would）；when/after/before+简单从句（每句最多一个）；if+现在时,will/can（只第一条件句）；to-不定式（简单目的）；may/might+动词原形（可能性——研究结论的不确定必须用它）。\nForbidden（禁用）：过去完成；第二/三/混合条件句；假设/反事实意义的 would/could（即第二/三条件句那种「如果…就会…」）；正式虚拟语气；时态回移的间接引语；非限定性关系从句；关系从句嵌套；分词状语与缩减关系从句；it 形式主语；进行/完成/情态完成被动；倒装/强调/复杂名词化。（⚠️ 口径澄清：上面禁的是「假设 / 反事实」，**不是「可能性」**。may / might / can 表「可能」**必须保留使用**——研究结论不确定时写成 may/might。把 \"People may not live long\" 写成 \"People do not live long\" 是**语义错误**（把可能当成确定），不是简化。）\nAllowed 摘要：现在完成（经验/结果）；ever/never/just/already/yet+完成（不与过去时间连用）；who/that 主语关系从句（从句中作主语、≤6 词、每句最多一个）；静态被动 is/are/was/were+过去分词（is made of/is called/was born，不带复杂 by）；say/think/know+(that)从句（不涉时态回移、不把观点写成事实）；常见动词+不定式/动名词；简单因果/结果/转折/时间连接（每句最多两个）。\nDiscouraged（尽量改写）：for/since 长跨度完成；带执行者的动态被动（改主动）；宾语关系从句（拆句或重复名词）；条件从句+关系从句同句（拆句）；跨段代词指代（新段首句用话题词点明主语，但**不得原样照抄上一段的名词短语**——换用概括词或代词）。\n【内容保真】核心事实 100% 保留；支撑细节 30–40%；例证 ≤2；数字 ≤4 可约数化；观点保留。\n\n【中国文化专名（文化条线内容尤其要吃这条）】\n- 核心文化词（如 Spring Festival、dumpling、Terracotta Army）各级都保留原形，不做替换——它们是学习目标而非障碍。\n- 首次出现时就地解释，解释另起一句（不要用同位语塞回原句，同位语会拉长句子、抵消降级）。\n- 解释句本身必须符合该级别的全部参数。\n- A1- / A2 全文专名总数 ≤3 个。\n\n【topic words（高亮目标词）】\n- 每篇 3–5 个目标词，单独成表（word — 中文释义），不计入超纲词率。\n- 目标词首次出现的段落，必须包含足以推断词义的上下文（豁免的代价是必须给足可推断语境）。\n\n【必须自查的六条硬指标（篇幅与语言难度同等重要）】\n① **正文字数**：以「目标 {{#nodeClean.a2_tgt#}} 词」为靶心，**必须落在硬区间 {{#nodeClean.a2_lo#}}–{{#nodeClean.a2_hi#}}**——低于下限或超过上限都不合格。先按「写作标尺」把每一段铺满，再数总词数；不够就补，超了才删。宁可靠近目标值，也不要低于下限。\n   **每段词数优先于每段句数**：先保证每段落在写作标尺的「每段约 20–22 词」内，再决定该段写几句；两者不能同时满足时**以词数为准** —— 宁可让某段句数低于标尺，也不要把全篇撑出上限。\n② **每段句数**：按写作标尺给出的「约 M 句」写足。\n③ **平均句长 = 正文总词数 ÷ 句子数**，必须落在 10–13 词区间内。写完自己数一遍总词数、句子数与段数，与规格核对。\n④ **词汇难度**：只用本档词表内的词（见上「词汇层」），**不得用明显偏难、生僻的词来凑字数或显高级**。宁可换简单词，也不要超纲。\n⑤ **语法复杂度**：严格遵守上「语法 Construction」四档（preferred/allowed/discouraged/forbidden），**不得用高等级句式来凑长度**。\n⑥ **段数**：正文必须是 **{{#nodeClean.seg_count#}} 段**，且第 i 段严格对应母稿第 i 段。写完先数一遍段落数、再数一遍母稿段落数 —— 两个数不相等就是不合格，必须重写。\n\n【段数规则】\n- 全篇 {{#nodeClean.seg_count#}} 段（4 档段数必须完全一致），**第 i 段严格对应第 i 条大意**：切换难度档位时第 i 段的内容大意保持不变，只是语言难度不同。段数定下后，全文词数仍必须落在硬区间。\n- **每段词数硬上限**：每段必须落在写作标尺的「每段约 X 词」区间内。**某段对应的素材信息特别多时（如多个专家观点挤在同一条大意里），要精简压缩到区间内，绝不能因为信息多就把段落写超长**；信息少的段则合理展开。段落之间词数要大致均匀，不允许某一段是其他段的 2 倍以上。\n- **一条大意 = 一段，严格 1:1**：既不得把一条大意拆成两段，也不得把两条大意并成一段。某条大意信息量超过本段词数上限时，**只保留主干、砍掉分支** —— 宁可少写一个细节，也**不许拆段**。\n- **最后一段（第 {{#nodeClean.seg_count#}} 段）必须存在**：拆段会让段数变成 13 段，末尾那条就会被整段丢掉，整篇从拆段处起与其它档位**逐段错位**，读者切档时会看到内容跳位。\n\n【素材不足时怎么办（关键，直接决定达标率）】\n- 若素材不足以支撑本档下限词数，**优先保证下限**：允许做**不引入新数字、新人名、新机构、新事件的合理背景扩写**。\n- **扩写绝不允许抬高难度**：不得靠更长的句子、更难的词、更复杂的句式来凑字数——扩写必须用本档的简单词、短句完成，**难度优先于篇幅**。\n- **绝对不得编造**具体的百分比、年份、机构名、人名、地名。\n- **不允许以「怕编造」为理由把文章写短**：写不到下限同样判不合格。\n\n【素材过多时怎么办】\n- 素材很长时，本档只取与认知半径匹配的要点，其余细节宁可不写，也必须守住本档上限。\n\n【段落总纲】\n- 这是供英语学习者阅读的完整文章，不是摘要。围绕素材充分展开：补充背景、成因、过程、细节、影响。\n- 段落顺序严格遵循素材顺序：第 1 段引入（是什么/在哪/何时），中间段展开，末段收尾（意义/现状/影响）。\n- 每一段只讲对应的大意条，不要跨段混讲——这样读者切换难度档位时，第 i 段的内容大意保持不变，只是语言难度不同。\n- 生词表 = topic words：3–4 个高亮目标词，格式 \"word — 中文释义\"，不计入超纲词率。\n- **不要输出标题**，不要在 JSON 里出现 title 字段。\n\n【大意引用标注（必须输出）】\n上方「素材大意」按 1 开始编号。你必须在 JSON 中额外输出 gist_map，标明每一段依据了哪几条大意。\n- 内层数组长度必须等于段数 {{#nodeClean.seg_count#}}（第 i 段对应母稿第 i 段）\n- 元素是该段所依据的大意条号（1-based，按升序排列）；**第 i 段必须输出 `[i]`** —— 出现 `[[1,2],…]` 这类合并、或跳号 / 少一项，即判不合格\n\n【输出格式：严格 JSON，只输出一个 JSON 对象，不要 markdown 代码块、不要解释、不要多余文字】\n{\"A2\":[\"段1\",...,\"段N\"],\"words\":{\"A2\":[\"word — 中文释义\"]},\"gist_map\":{\"A2\":[[1,2],...]}}\n\n【JSON 键名规则】键名用 A2（即 A2）。标题（必须原样使用，不要另拟）：{{#nodeTitle.text#}}\n主题：{{#nodeClean.summary#}}\n母稿段落骨架（**共 {{#nodeClean.seg_count#}} 段，按 1 开始编号；第 i 段只写第 i 段**）——下面是母稿**原文**，是**待压缩的原料**，不是要你逐句改写：\n{{#nodeClean.seg_lines#}}\n\n⚠️ 本档是入门/初级档：**正文不得出现数字、百分比、年份、普通人名、机构名、地名**——这些属于细节层，由更高档位承载。\n例外：**中国文化专名**（如 Spring Festival、dumpling、Terracotta Army）可保留，全文不超过 3 个，且首次出现时另起一句就地解释。\n\n切入角度：{{#nodeClean.summary#}}\n\n写作风格：{{#nodeStyle.style_instruction#}}\n\n请生成 A2 档的文章（共 {{#nodeClean.seg_count#}} 段，第 i 段严格对应母稿第 i 段），输出严格 JSON。\n\n【篇幅 · 逐段硬约束（本链路：段数由母稿决定，**不是固定 12 段**）】\n- 母稿骨架共 {{#nodeClean.seg_count#}} 段 ⇒ 产出**也必须是这 {{#nodeClean.seg_count#}} 段**，第 i 段只写母稿第 i 段的内容。\n- **每一段都必须落在 20–22 词**（这是逐段硬约束，不是平均要求）。\n- 全文目标 = **{{#nodeClean.a2_tgt#}} 词**（= {{#nodeClean.seg_count#}} 段 × 每段 20–22 词 ⇒ 硬区间 {{#nodeClean.a2_lo#}}–{{#nodeClean.a2_hi#}} 词）。\n- 逐段写完后**一段一段数词数**：某段超过上限 ⇒ 删掉该段的次要信息（举例、个案、解释性从句、铺陈）或把两句并成一句；**不许把两段合成一段，也不许补写母稿里没有的内容。**\n- 段数、每段词数、全文词数**三者必须同时成立** —— 只满足一个不算合格。\n\n\n【每段句数预算 —— **照这个写，篇幅就会自动命中**】\n- 本档**每一段恰好写 2 句**，每句 **10–11 词** ⇒ 每段 20–22 词。\n- 全篇 = {{#nodeClean.seg_count#}} 段 × 2 句 = **约 {{#nodeClean.seg_count#}}×2 句**，正好落在 {{#nodeClean.a2_lo#}}–{{#nodeClean.a2_hi#}} 词。\n- 🔴 **不许写 3 句**：3 句会把篇幅顶到 1.5 倍，一定超上限；**也不许写 1 句**：会低于下限。句数错了，篇幅必错。\n- 句数预算与篇幅是同一件事的两种说法 —— 满足句数预算就等于满足篇幅。\n- ⚠️ 本预算**覆盖上文任何「每段 1–2 句 / 2–3 句」的表述**：本链路一律每段 2 句。\n- ⚠️ 本预算里的**每句词数优先于**上文「平均句长 X–Y 词」的表述 —— 本预算的区间本就落在那个区间**之内**，所以两者不冲突，只是更紧、更可执行。\n- ⚠️ **段数一个都不能多**：只能写 {{#nodeClean.seg_count#}} 段。多写一段会被聚合层砍掉末段，整篇从那里起与其它档错位。\n"
+            }
+          ],
+          "selected": false,
+          "title": "④-A2 生成（A2）",
+          "type": "llm"
+        },
+        "height": 22,
+        "id": "nodeGenA2",
+        "position": {
+          "x": 620,
+          "y": 300
+        },
+        "type": "llm",
+        "width": 150,
+        "zIndex": 0,
+        "positionAbsolute": {
+          "x": 620,
+          "y": 300
+        }
+      },
+      {
+        "data": {
+          "answer": "",
+          "context": {
+            "enabled": false,
+            "variable_selector": []
+          },
+          "desc": "生成 A1 档文章（固定 12 段，段落对应素材大意）",
+          "model": {
+            "completion_params": {
+              "max_tokens": 2000,
+              "temperature": 0.45,
+              "thinking": false
+            },
+            "mode": "chat",
+            "name": "deepseek-v4-pro",
+            "provider": "langgenius/deepseek/deepseek"
+          },
+          "prompt_template": [
+            {
+              "role": "system",
+              "text": "你是英语分级阅读教学专家，专精 CEFR 分级改写。任务：把已获授权的英文母稿（难度 {{#nodeClean.level#}}）**降档改写**成 A1- 严格达标的文章。\n\n🔴 **降档的本质是「大幅做减法」，不是「换词」。** 这是本链路最容易做错的地方：\n   - 母稿每一段是**完整原文**（往往 40–60 词、3–4 句），而目标档每段只有 11–14 词 —— **信息量必须砍掉一半以上**。\n   - 每一段**只保留最核心的一个意思**；该段的举例、数字罗列、次要论证、铺陈与过渡句**一律删掉**。只换更简单的词、却不删内容，**一定超字数**。\n   - 因此产出**不是母稿段的逐句翻译**，而是母稿段的**概要**：读者拿到的是这个意思，而不是原段的所有细节。\n   - 语言难度同时要降到位（更简单的词、更短的句子、更少的从句）。\n\n\n【本档硬性规格】（逐项达标，任一项显著偏离即视为不合格）\n- A1-：正文 **目标 {{#nodeClean.a1_tgt#}} 词**（硬区间 {{#nodeClean.a1_lo#}}–{{#nodeClean.a1_hi#}}；低于下限或超过上限都判不合格）\n    平均句长 6–9 词；蓝思 BR–400L\n    写作标尺：全篇段数 = 母稿骨架段数（共 {{#nodeClean.seg_count#}} 段，4 档完全一致）；每段约 11–14 词（**每段 1–2 句** —— 不需要每段都写 2 句，句子也可以短一些；全篇约 {{#nodeClean.a1_tgt#}} 词）\n    【篇幅】每段 **1–2 句**（**不要求每段都写 2 句**，信息量少的段写 1 句即可）；每句 6–9 词 —— 全篇约 **{{#nodeClean.a1_tgt#}} 词**（硬区间 {{#nodeClean.a1_lo#}}–{{#nodeClean.a1_hi#}}）、{{#nodeClean.seg_count#}} 段（每段词数 = 全文词数 ÷ 段数，见写作标尺）。\n【句子层】平均句长 6–9 词；最长句 ≤12 词、最短句 ≥4 词；句长标准差 ≥1.5；每句 1 个限定动词；从句 ≤1 层（不得嵌套，仅可附 1 个简单原因从句）；每句 1 个命题（主句 1 个，可附 1 个简单原因从句）；被动句 0%；名词化 ≤1 个/百词。\n【词汇层】只用 EVP A1（约 600 词族）；超纲词率 ≤7%；每段新词 ≤1；topic words 3 个（豁免超纲，首次出现须有可推断语境）；平均音节 ≤1.4；8 字母以上词 ≤2%；短语动词仅限最高频 10 个（get / take / look / live / eat 这类日常搭配鼓励用）；**鼓励日常固定搭配与常用语块**（如 live longer、sleep well、eat well、get enough rest）——这些正是母语者最自然的说法，不要为了「简单」而拆成生硬的字面表达；只禁生僻习语与文学性隐喻；实词允许自然复现（本档词表小，不要求换词），但**同一段内、以及相邻段落的首句，不得原样重复同一个名词短语**（第二遍改用代词、the + 概括词，或直接省略）。\n【本轮禁用词】上一稿下列词超出本档上限，本次**必须换成更简单的表达**（国家名/机构名/人名等专有名词、以及无法替换的固定搭配可保留）：{{#nodeClean.avoid_a1#}}\n【语篇层】每段 ≥1 个显性连接词；因果必须 because/so 明写；代词指代限同句或相邻句；每段首句名词主语开头；信息严格时间/因果线性；每段自足；背景知识依赖为零。\n【语言地道性（与分级参数同等硬性，不得为了「简单」而牺牲自然）】\n读者是英语学习者，产出必须是**母语者会说的话**，不是「把难词换成简单词」的字面直译。硬性要求：\n① **优先用动词**：写 \"People sleep badly\"，不写 \"People have bad sleep quality\"。\n② **搭配必须地道，禁止生造**：反面例子（本档已实测出现过，禁止再犯）——**\"sleep at bad times\"**（应为 \"do not sleep well\"）、\"have bad sleep\"。拿不准时，宁可换一个你确定地道的简单说法。\n③ **禁止用定义句凑段**：连续两段都用 \"X means Y. It means ...\" 这种释义句式即不合格。要解释一个词，用一句自然的例子代替：\"Good habits, like eating well and sleeping well, help a lot.\"\n④ **句式要有变化**：不要连续三句都是「主语 + 动词 + 宾语」的同一模板；相邻两句不要用同一个词开头。\n⑤ **删冗余**：同一个名词短语不要在一段里原样出现两次。前句说过的，后句用代词（it / they / this）、概括词或直接省略。反面例子：**\"People with good family help do not live long if ...\" 紧跟在 \"good family help is not enough\" 之后 —— 应写成 \"They may not live long if ...\"**。\n⑥ **不确定的事要写成不确定**：研究结论、可能性、推测必须用 may / might / can（\"People **may** not live long if they eat badly\"）。把 \"may not live long\" 写成 \"do not live long\" 是**语义错误**（把可能当成确定），不是简化。\n⑦ **套话限量**：\"In the end,\" / \"Small changes can help a lot.\" / \"This is very important.\" 这类收尾套话，一篇里各自最多出现一次。\n⑧ **本条不改变篇幅、句数、段数**：「删冗余、不写释义句」**不等于可以少写**。\n- **写完必须逐段自检**：段落词数、每段句数、全篇段落数都要落在【本档硬性规格】的写作标尺区间内。\n- **低档句数**：**A2 每段就是 2 句**—— 不得合成 1 句长句，也不得只写 1 句（句数不足会同时造成篇幅偏短与句长超标，两项都判不合格）；**A1- 每段 1–2 句** —— **不要求每段都写 2 句**，信息量少的段写 1 句即可；句子也可以短一些（6–9 词），但每句不得少于 4 词。B1 / B2+ 按本档写作标尺给出的句数写足。\n- 需要展开时，用**具体例子、具体动作、具体后果**来写（\"A person who stays up late may feel tired even with a loving family.\"），不要退回 \"X means Y\" 的释义句。\n【语法 Construction（形式+功能，preferred/allowed/discouraged/forbidden 四档）】\n通用判定：① 按实际功能判级，不按词形判级（如 A2 可用 would like 表礼貌愿望，不等于放行假设意义 would）；② 高等级继承低等级的 preferred 与 allowed；③ 固定搭配与开放句式分开判定；④ 每句最多 1 个非 preferred construction（低档不得同句叠加关系从句+条件从句+被动等多重结构）；⑤ 直接引语/标题/文化专名不自动豁免语法；⑥ 违规要能指出具体句与 construction 类型。\n【语法 Construction】\nPreferred（本档主要表达，可主动用）：be+名词/形容词/地点（身份·性质·状态·位置）；一般现在时（事实·状态·习惯·重复）；一般过去时（已完成过去事件）；have/has+名词（所有·组成·特征）；there is/are（引入人事物地点，每句只引入一个信息点）；can/can't+动词原形（能力·允许·简单可能）；may/might+动词原形（可能性——研究结论尚不确定时必须用它，例如 \"People may not live long\"）；名词/明确专名作主语（明确动作执行者，优先重复名词）；and（连词·短语·简单动作，不连 3 个以上分句）；but（直接对比，每句最多一处）；so（直接结果，原文须有明确因果）；because+简单从句（只一层原因从句，不得嵌套）；then（简单时间顺序，作时间副词）。\nForbidden（禁用）：关系从句；被动语态（含 by）；现在/过去完成及其他完成体；现在/过去进行；第一/二/三/混合条件句；间接引语与时态回移；分词状语/分词后置修饰/独立分词；完成/被动/进行不定式；it 形式主语；倒装/强调/虚拟语气；从句嵌套。（⚠️ 口径澄清：这里禁的是「假设 / 反事实 / 虚拟语气」，**不是「可能性」**——may / might / can 表「可能」不在禁用之列，**必须保留使用**。）\nAllowed 摘要：want/need/like+不定式；like/love+V-ing；简单祈使（不主动加）；this/that/these/those+名词（不跨卡）；简单并列谓语。\nDiscouraged（尽量改写）：目的不定式（拆两句）；I think/people say（仅原文确有观点时）；一句两个连接词（拆句）；省略主语的连续句（补主语）。\n【内容保真】核心事实 100% 保留；支撑细节 0–20%；例证 ≤1；数字 ≤2 且全约数化；观点压缩为一句。\n\n【中国文化专名（文化条线内容尤其要吃这条）】\n- 核心文化词（如 Spring Festival、dumpling、Terracotta Army）各级都保留原形，不做替换——它们是学习目标而非障碍。\n- 首次出现时就地解释，解释另起一句（不要用同位语塞回原句，同位语会拉长句子、抵消降级）。\n- 解释句本身必须符合该级别的全部参数。\n- A1- / A2 全文专名总数 ≤3 个。\n\n【topic words（高亮目标词）】\n- 每篇 3–5 个目标词，单独成表（word — 中文释义），不计入超纲词率。\n- 目标词首次出现的段落，必须包含足以推断词义的上下文（豁免的代价是必须给足可推断语境）。\n\n【必须自查的六条硬指标（篇幅与语言难度同等重要）】\n① **正文字数**：以「目标 {{#nodeClean.a1_tgt#}} 词」为靶心，**必须落在硬区间 {{#nodeClean.a1_lo#}}–{{#nodeClean.a1_hi#}}**——低于下限或超过上限都不合格。先按「写作标尺」把每一段铺满，再数总词数；不够就补，超了才删。宁可靠近目标值，也不要低于下限。\n   **每段词数优先于每段句数**：先保证每段落在写作标尺的「每段约 11–14 词」内，再决定该段写几句；两者不能同时满足时**以词数为准** —— 宁可让某段句数低于标尺，也不要把全篇撑出上限。\n   A1- 特别注意：**不需要每段都写 2 句** —— {{#nodeClean.seg_count#}} 段里写 1 句的段落可以占到一半；句子也可以写得短一些（6–9 词）。全篇约 {{#nodeClean.a1_tgt#}} 词（硬区间 {{#nodeClean.a1_lo#}}–{{#nodeClean.a1_hi#}}）。\n② **每段句数**：按写作标尺给出的「约 M 句」写足。\n③ **平均句长 = 正文总词数 ÷ 句子数**，必须落在 7–9 词区间内。写完自己数一遍总词数、句子数与段数，与规格核对。\n④ **词汇难度**：只用本档词表内的词（见上「词汇层」），**不得用明显偏难、生僻的词来凑字数或显高级**。宁可换简单词，也不要超纲。\n⑤ **语法复杂度**：严格遵守上「语法 Construction」四档（preferred/allowed/discouraged/forbidden），**不得用高等级句式来凑长度**。\n⑥ **段数**：正文必须是 **{{#nodeClean.seg_count#}} 段**，且第 i 段严格对应母稿第 i 段。写完先数一遍段落数、再数一遍母稿段落数 —— 两个数不相等就是不合格，必须重写。\n\n【段数规则】\n- 全篇 {{#nodeClean.seg_count#}} 段（4 档段数必须完全一致），**第 i 段严格对应第 i 条大意**：切换难度档位时第 i 段的内容大意保持不变，只是语言难度不同。段数定下后，全文词数仍必须落在硬区间。\n- **每段词数硬上限**：每段必须落在写作标尺的「每段约 X 词」区间内。**某段对应的素材信息特别多时（如多个专家观点挤在同一条大意里），要精简压缩到区间内，绝不能因为信息多就把段落写超长**；信息少的段则合理展开。段落之间词数要大致均匀，不允许某一段是其他段的 2 倍以上。\n- **一条大意 = 一段，严格 1:1**：既不得把一条大意拆成两段，也不得把两条大意并成一段。某条大意信息量超过本段词数上限时，**只保留主干、砍掉分支** —— 宁可少写一个细节，也**不许拆段**。\n- **最后一段（第 {{#nodeClean.seg_count#}} 段）必须存在**：拆段会让段数变成 13 段，末尾那条就会被整段丢掉，整篇从拆段处起与其它档位**逐段错位**，读者切档时会看到内容跳位。\n\n【素材不足时怎么办（关键，直接决定达标率）】\n- 若素材不足以支撑本档下限词数，**优先保证下限**：允许做**不引入新数字、新人名、新机构、新事件的合理背景扩写**。\n- **扩写绝不允许抬高难度**：不得靠更长的句子、更难的词、更复杂的句式来凑字数——扩写必须用本档的简单词、短句完成，**难度优先于篇幅**。\n- **绝对不得编造**具体的百分比、年份、机构名、人名、地名。\n- **不允许以「怕编造」为理由把文章写短**：写不到下限同样判不合格。\n\n【素材过多时怎么办】\n- 素材很长时，本档只取与认知半径匹配的要点，其余细节宁可不写，也必须守住本档上限。\n\n【段落总纲】\n- 这是供英语学习者阅读的完整文章，不是摘要。围绕素材充分展开：补充背景、成因、过程、细节、影响。\n- 段落顺序严格遵循素材顺序：第 1 段引入（是什么/在哪/何时），中间段展开，末段收尾（意义/现状/影响）。\n- 每一段只讲对应的大意条，不要跨段混讲——这样读者切换难度档位时，第 i 段的内容大意保持不变，只是语言难度不同。\n- 生词表 = topic words：3 个高亮目标词，格式 \"word — 中文释义\"，不计入超纲词率。\n- **不要输出标题**，不要在 JSON 里出现 title 字段。\n\n【大意引用标注（必须输出）】\n上方「素材大意」按 1 开始编号。你必须在 JSON 中额外输出 gist_map，标明每一段依据了哪几条大意。\n- 内层数组长度必须等于段数 {{#nodeClean.seg_count#}}（第 i 段对应母稿第 i 段）\n- 元素是该段所依据的大意条号（1-based，按升序排列）；**第 i 段必须输出 `[i]`** —— 出现 `[[1,2],…]` 这类合并、或跳号 / 少一项，即判不合格\n\n【输出格式：严格 JSON，只输出一个 JSON 对象，不要 markdown 代码块、不要解释、不要多余文字】\n{\"A1\":[\"段1\",...,\"段N\"],\"words\":{\"A1\":[\"word — 中文释义\"]},\"gist_map\":{\"A1\":[[1,2],...]}}\n\n【JSON 键名规则】键名用 A1（即 A1-）。标题（必须原样使用，不要另拟）：{{#nodeTitle.text#}}\n主题：{{#nodeClean.summary#}}\n母稿段落骨架（**共 {{#nodeClean.seg_count#}} 段，按 1 开始编号；第 i 段只写第 i 段**）——下面是母稿**原文**，是**待压缩的原料**，不是要你逐句改写：\n{{#nodeClean.seg_lines#}}\n\n⚠️ 本档是入门/初级档：**正文不得出现数字、百分比、年份、普通人名、机构名、地名**——这些属于细节层，由更高档位承载。\n例外：**中国文化专名**（如 Spring Festival、dumpling、Terracotta Army）可保留，全文不超过 3 个，且首次出现时另起一句就地解释。\n\n切入角度：{{#nodeClean.summary#}}\n\n写作风格：{{#nodeStyle.style_instruction#}}\n\n请生成 A1- 档的文章（共 {{#nodeClean.seg_count#}} 段，第 i 段严格对应母稿第 i 段），输出严格 JSON。\n\n【篇幅 · 逐段硬约束（本链路：段数由母稿决定，**不是固定 12 段**）】\n- 母稿骨架共 {{#nodeClean.seg_count#}} 段 ⇒ 产出**也必须是这 {{#nodeClean.seg_count#}} 段**，第 i 段只写母稿第 i 段的内容。\n- **每一段都必须落在 11–14 词**（这是逐段硬约束，不是平均要求）。\n- 全文目标 = **{{#nodeClean.a1_tgt#}} 词**（= {{#nodeClean.seg_count#}} 段 × 每段 11–14 词 ⇒ 硬区间 {{#nodeClean.a1_lo#}}–{{#nodeClean.a1_hi#}} 词）。\n- 逐段写完后**一段一段数词数**：某段超过上限 ⇒ 删掉该段的次要信息（举例、个案、解释性从句、铺陈）或把两句并成一句；**不许把两段合成一段，也不许补写母稿里没有的内容。**\n- 段数、每段词数、全文词数**三者必须同时成立** —— 只满足一个不算合格。\n\n\n【每段句数预算 —— **照这个写，篇幅就会自动命中**】\n- 本档**每一段恰好写 2 句**，每句 **6–7 词** ⇒ 每段 11–14 词。\n- 全篇 = {{#nodeClean.seg_count#}} 段 × 2 句 = **约 {{#nodeClean.seg_count#}}×2 句**，正好落在 {{#nodeClean.a1_lo#}}–{{#nodeClean.a1_hi#}} 词。\n- 🔴 **不许写 3 句**：3 句会把篇幅顶到 1.5 倍，一定超上限；**也不许写 1 句**：会低于下限。句数错了，篇幅必错。\n- 句数预算与篇幅是同一件事的两种说法 —— 满足句数预算就等于满足篇幅。\n- ⚠️ 本预算**覆盖上文任何「每段 1–2 句 / 2–3 句」的表述**：本链路一律每段 2 句。\n- ⚠️ 本预算里的**每句词数优先于**上文「平均句长 X–Y 词」的表述 —— 本预算的区间本就落在那个区间**之内**，所以两者不冲突，只是更紧、更可执行。\n- ⚠️ **段数一个都不能多**：只能写 {{#nodeClean.seg_count#}} 段。多写一段会被聚合层砍掉末段，整篇从那里起与其它档错位。\n"
+            }
+          ],
+          "selected": false,
+          "title": "④-A1 生成（A1-）",
+          "type": "llm"
+        },
+        "height": 22,
+        "id": "nodeGenA1",
+        "position": {
+          "x": 620,
+          "y": 480
+        },
+        "type": "llm",
+        "width": 150,
+        "zIndex": 0,
+        "positionAbsolute": {
+          "x": 620,
+          "y": 480
+        }
+      },
+      {
+        "id": "nodeFix",
+        "type": "code",
+        "position": {
+          "x": 900,
+          "y": 40
+        },
+        "positionAbsolute": {
+          "x": 900,
+          "y": 40
+        },
+        "width": 244,
+        "height": 110,
+        "zIndex": 0,
+        "data": {
+          "type": "code",
+          "title": "②-a 量词数",
+          "selected": false,
+          "desc": "量出每档逐段实际词数，标出超标的段号（压缩节点的输入）",
+          "code_language": "javascript",
+          "code": "function main({ t_b1, t_a2, t_a1, targets_json, seg_count }) {\n  const JS = (t, d) => { try { const v = JSON.parse(t || ''); return (v && typeof v === 'object') ? v : d; } catch (e) { return d; } };\n  const N = parseInt(seg_count, 10) || 0;\n  const targets = JS(targets_json, []);\n  const LABEL = { A1: 'A1-', A2: 'A2', B1: 'B1', B2: 'B2+' };\n  const PER = { A1: [11, 14], A2: [20, 22], B1: [28, 35], B2: [41, 50] };\n  const clean = (r) => String(r == null ? '' : r).replace(/Invalid JSON[^\\n]*/g, '').replace(/```json/gi, '').replace(/```/g, '').trim();\n  const parse = (r) => { const t = clean(r); const i = t.indexOf('{'), j = t.lastIndexOf('}'); if (i < 0 || j <= i) return null; try { return JSON.parse(t.slice(i, j + 1)); } catch (e) { return null; } };\n  const paras = (r, k) => { const o = parse(r); if (o) { const c = o[k] || o.paras || o.paragraphs; if (Array.isArray(c) && c.length) return c.map((x) => String(x || '').trim()).filter(Boolean); } return clean(r).split(/\\n\\s*\\n/).map((x) => x.trim()).filter(Boolean); };\n\n  const RAW = { B1: t_b1, A2: t_a2, A1: t_a1 };\n  const rep = {}, texts = {}, need = [];\n  targets.forEach((k) => {\n    const arr = paras(RAW[k], k);\n    const lo = PER[k][0], hi = PER[k][1];\n    const counts = arr.map((x) => (x.match(/[A-Za-z0-9'-]+/g) || []).length);\n    const bad = [];\n    counts.forEach((c, i) => { if (c < lo || c > hi) { bad.push((i + 1) + ':' + c); } });\n    const tot = counts.reduce((a, b) => a + b, 0);\n    /* 🔴 必须给出「超出上限多少词」的**硬差值** —— 只说「压到区间内」，模型会估着压、压不到位\n       （实测：A1- 前一轮 174 词 vs 上限 154，交回来的还是 174，等于没压）。 */\n    const over = Math.max(0, tot - hi * arr.length);\n    const under = Math.max(0, lo * arr.length - tot);\n    rep[k] = { per: lo + '-' + hi, lo: lo, hi: hi, n: arr.length, counts: counts,\n               total: tot, total_lo: lo * arr.length, total_hi: hi * arr.length,\n               must_cut: over ? String(over) : '', must_add: under ? String(under) : '',\n               bad: bad.join(' ') };\n    texts[k] = arr.join('\\n\\n');\n    if (bad.length) { need.push(LABEL[k]); }\n  });\n\n  return {\n    need: need.join('、'),\n    need_count: String(need.length),\n    /* 给压缩节点用的「逐段实测词数台账」—— 压缩必须看到真实数字才砍得准 */\n    fix_json: JSON.stringify(rep),\n    b1: texts.B1 || '', a2: texts.A2 || '', a1: texts.A1 || '',\n  };\n}",
+          "variables": [
+            {
+              "variable": "t_b1",
+              "value_selector": [
+                "nodeGenB1",
+                "text"
+              ]
+            },
+            {
+              "variable": "t_a2",
+              "value_selector": [
+                "nodeGenA2",
+                "text"
+              ]
+            },
+            {
+              "variable": "t_a1",
+              "value_selector": [
+                "nodeGenA1",
+                "text"
+              ]
+            },
+            {
+              "variable": "targets_json",
+              "value_selector": [
+                "nodeClean",
+                "targets_json"
+              ]
+            },
+            {
+              "variable": "seg_count",
+              "value_selector": [
+                "nodeClean",
+                "seg_count"
+              ]
+            }
+          ],
+          "outputs": {
+            "need": {
+              "children": null,
+              "type": "string"
+            },
+            "need_count": {
+              "children": null,
+              "type": "string"
+            },
+            "fix_json": {
+              "children": null,
+              "type": "string"
+            },
+            "b1": {
+              "children": null,
+              "type": "string"
+            },
+            "a2": {
+              "children": null,
+              "type": "string"
+            },
+            "a1": {
+              "children": null,
+              "type": "string"
+            }
+          }
+        }
+      },
+      {
+        "id": "nodeCompress",
+        "type": "llm",
+        "position": {
+          "x": 900,
+          "y": 620
+        },
+        "positionAbsolute": {
+          "x": 900,
+          "y": 620
+        },
+        "width": 244,
+        "height": 110,
+        "zIndex": 0,
+        "data": {
+          "type": "llm",
+          "title": "②-b 按实测压缩",
+          "selected": false,
+          "desc": "带「每段实际词数」反馈做收尾压缩；已达标则逐字原样输出",
+          "model": {
+            "provider": "langgenius/deepseek/deepseek",
+            "name": "deepseek-v4-pro",
+            "mode": "chat",
+            "completion_params": {
+              "temperature": 0.45,
+              "max_tokens": 6000,
+              "thinking": false
+            }
+          },
+          "prompt_template": [
+            {
+              "role": "system",
+              "text": "上一步已经把母稿降档改写完成，但**篇幅普遍超标**。现在做收尾压缩。\n\n【第一步：看实测台账】\n{{#nodeFix.fix_json#}}\n\n台账字段说明：`per` = 每段应有词数区间；`counts` = **每一段的实际词数**（按段号顺序）；\n`total` = 全文实际词数；`total_lo`/`total_hi` = 全文应有区间；`bad` = 超标的「段号:词数」。\n\n【需要压缩的档位】{{#nodeFix.need#}}\n（若为空 ⇒ **逐字原样输出下面三段，一个字都不要动**，直接按输出格式返回。）\n\n【任务】\n只压缩**超标**的档位；**不超标的档位逐字原样输出**。\n\n🔴 **每档必须砍掉的词数（硬指标，砍不够就是失败）**：\n- `must_cut` 不为空 ⇒ 该档**至少要删掉这么多词**（如 `must_cut: \"24\"` ⇒ 全文至少减 24 词）。\n- 压完之后再数一遍：没达到 `must_cut` 就继续删，直到达到为止。\n- `must_add` 不为空 ⇒ 该档偏短，补回最有价值的一个细节。\n\n压缩规则（这一轮**只做减法**，不换更难的词、不改难度、不重新创作）：\n1. **段数一段都不能变** —— 第 i 段压缩后仍是第 i 段，讲的还是同一个意思。\n2. 先把 `must_cut` 的总量**分派到各超标段**（超得多的段多删），再逐段照 `counts` 压到 `per` 区间内。\n   优先删：举例、数字罗列、解释性从句、可省的形容词与状语。\n   **不要为了压词数把句子写得不通顺** —— 宁可删掉一个次要信息点。\n3. 每段保持 2 句（A1- 可以是 1 句主语 + 1 个短句），每句按该档的每句词数区间写。\n4. A1- 特别提醒：**一段往往就是一个短句 + 一个更短的句子**，不要保留任何铺陈。\n\n【A1- 原文】\n{{#nodeFix.a1#}}\n\n【A2 原文】\n{{#nodeFix.a2#}}\n\n【B1 原文】\n{{#nodeFix.b1#}}\n\n【输出格式：严格 JSON，只输出一个 JSON 对象，不要 markdown 代码块、不要解释、不要多余文字】\n{\"A1\":[\"段1\",\"段2\",…],\"A2\":[\"段1\",\"段2\",…],\"B1\":[\"段1\",\"段2\",…]}\n（每档的元素个数必须与该档原文的段数**完全一致**。）"
+            }
+          ],
+          "context": {
+            "enabled": false,
+            "variable_selector": []
+          },
+          "vision": {
+            "enabled": false,
+            "configs": {
+              "detail": "low"
+            }
+          },
+          "memory": null,
+          "answer": ""
+        }
+      },
+      {
+        "id": "nodeAgg",
+        "type": "code",
+        "position": {
+          "x": 1240,
+          "y": 300
+        },
+        "positionAbsolute": {
+          "x": 1240,
+          "y": 300
+        },
+        "width": 244,
+        "height": 110,
+        "zIndex": 0,
+        "data": {
+          "type": "code",
+          "title": "② 聚合",
+          "selected": false,
+          "desc": "按母稿档位收集目标档产出 + 母稿本身，生成 align_map",
+          "code_language": "javascript",
+          "code": "function main({ t_b1, t_a2, t_a1, targets_json, seg_count, mat_text, level, title_in, source, summary }) {\n  const JS = (t, d) => { try { const v = JSON.parse(t || ''); return (v && typeof v === 'object') ? v : d; } catch (e) { return d; } };\n  const N = parseInt(seg_count, 10) || 0;\n  const targets = JS(targets_json, []);\n  const LABEL = { A1: 'A1-', A2: 'A2', B1: 'B1', B2: 'B2+' };\n\n  /* 🔴 key 必须传进来：生成节点的输出是 {\"B1\":[\"段1\",…]} ——\n     只认 o.paras / o.paragraphs 会把整块 JSON 当一段（踩过：各档 para_count 全是 1）。 */\n  const cleanJSON = (raw) => String(raw == null ? '' : raw)\n    .replace(/Invalid JSON[^\\n]*/g, '').replace(/```json/gi, '').replace(/```/g, '').trim();\n  const parseObj = (raw) => {\n    const t = cleanJSON(raw);\n    const i = t.indexOf('{'), j = t.lastIndexOf('}');\n    if (i < 0 || j <= i) return null;\n    try { return JSON.parse(t.slice(i, j + 1)); } catch (e) { return null; }\n  };\n  const splitParas = (raw, key) => {\n    const t = cleanJSON(raw);\n    const o = parseObj(t);\n    if (o) {\n      const cand = o[key] || o.paras || o.paragraphs;\n      if (Array.isArray(cand) && cand.length) {\n        return cand.map((x) => String(x || '').trim()).filter(Boolean);\n      }\n    }\n    return t.split(/\\n\\s*\\n/).map((s) => s.trim()).filter(Boolean);\n  };\n  /* 模型自报的「第 i 段 ↔ 母稿第 i 段」映射（gist_map 字段名沿用 GEN，语义是段号轴） */\n  const pickMap = (raw, key) => {\n    const o = parseObj(raw);\n    if (!o) return null;\n    const m = o.gist_map || o.seg_map;\n    const a = m && m[key];\n    if (!Array.isArray(a) || !a.length) return null;\n    return a.map((x) => (Array.isArray(x) ? x : [x]).map((n) => parseInt(n, 10)).filter((n) => n >= 1)).sort((p, q) => (p[0] || 0) - (q[0] || 0));\n  };\n\n  const RAW = { B1: t_b1, A2: t_a2, A1: t_a1 };\n  const paras = {}, alignMap = {}, paraClean = {}, unused = [];\n  const warns = [];\n\n  targets.forEach((k) => {\n    let arr = splitParas(RAW[k], k);\n    let am = pickMap(RAW[k], k);\n    paraClean[k] = arr.length;\n    /* 段数硬约束：必须与母稿骨架一致（N 段） */\n    if (N && arr.length !== N) {\n      if (arr.length > N) { warns.push(LABEL[k] + ' 段数 ' + arr.length + ' → ' + N + '（截断 ' + (arr.length - N) + ' 段，末段内容已丢失）'); arr = arr.slice(0, N); }\n      else { warns.push(LABEL[k] + ' 段数 ' + arr.length + ' 不足 ' + N + ' 段（无法补齐）'); }\n    }\n    paras[k] = arr;\n    /* 段落对齐：优先用模型自报的映射；缺了就按「第 i 段 = 第 i 段」恒等。\n       恒等不代表没问题 —— 段数是否对得上由 para_count / para_clean_count 管。 */\n    if (am && am.length === arr.length) {\n      alignMap[k] = am;\n      if (am.length === N) {\n        for (let i = 0; i < N; i++) {\n          if ((am[i] || []).indexOf(i + 1) < 0) { warns.push(LABEL[k] + ' 第 ' + (i + 1) + ' 段↔母稿第 ' + (i + 1) + ' 段错位（实为 ' + JSON.stringify(am[i]) + '）'); break; }\n        }\n      }\n    } else {\n      const idm = []; for (let i = 0; i < arr.length; i++) idm.push([i + 1]);\n      alignMap[k] = idm;\n    }\n  });\n\n  /* 母稿本身也作为一篇进入产出（它就是入库的高档稿） */\n  const matParas = String(mat_text || '').split(/\\n\\s*\\n/).map((s) => s.trim()).filter(Boolean);\n  paras[level] = matParas;\n  paraClean[level] = matParas.length;\n  const am2 = []; for (let i = 0; i < N; i++) am2.push([i + 1]);\n  alignMap[level] = am2;\n\n  const allKeys = [level].concat(targets);\n  const articles = {}, plain = {};\n  allKeys.forEach((k) => {\n    const arr = paras[k] || [];\n    articles[k] = arr.join('\\n\\n');\n    plain[k] = arr.join('\\n\\n');\n  });\n\n  return {\n    title: String(title_in || '').trim() || 'Untitled',\n    articles_json: JSON.stringify(articles),\n    paras_json: JSON.stringify(paras),\n    align_map: JSON.stringify(alignMap),\n    para_count: JSON.stringify(Object.fromEntries(allKeys.map((k) => [k, (paras[k] || []).length]))),\n    para_clean_count: JSON.stringify(paraClean),\n    seg_count: String(N),\n    levels_json: JSON.stringify(allKeys),\n    levels_out: allKeys.join(','),\n    map_warn: warns.join('；'),\n    unused_facts: '[]',\n    map_basis: JSON.stringify(Object.fromEntries(allKeys.map((k) => [k, 'seg']))),\n    /* 身份完整性（授权链路专属）：版权来源必须留痕，缺了就会判 fail */\n    identity_json: JSON.stringify({\n      theme: String(summary || '').slice(0, 120),\n      angle: '授权母稿逐段降档改写',\n      shelf: String(source || '').trim() || '授权母稿',\n      fit: level,\n      provenance: '授权母稿向下改写 · 母稿档位 ' + level + ' · 来源 ' + (String(source || '').trim() || '未填'),\n    }),\n    /* 出题节点的素材：按档给出「档位 → 文章」的清单 */\n    quiz_source: allKeys.map((k) => '=== ' + LABEL[k] + ' ===\\n' + (articles[k] || '').slice(0, 4000)).join('\\n\\n'),\n    is_owned: 'true',\n  };\n}",
+          "variables": [
+            {
+              "variable": "t_b1",
+              "value_selector": [
+                "nodeCompress",
+                "text"
+              ]
+            },
+            {
+              "variable": "t_a2",
+              "value_selector": [
+                "nodeCompress",
+                "text"
+              ]
+            },
+            {
+              "variable": "t_a1",
+              "value_selector": [
+                "nodeCompress",
+                "text"
+              ]
+            },
+            {
+              "variable": "targets_json",
+              "value_selector": [
+                "nodeClean",
+                "targets_json"
+              ]
+            },
+            {
+              "variable": "seg_count",
+              "value_selector": [
+                "nodeClean",
+                "seg_count"
+              ]
+            },
+            {
+              "variable": "mat_text",
+              "value_selector": [
+                "nodeClean",
+                "mat_text"
+              ]
+            },
+            {
+              "variable": "level",
+              "value_selector": [
+                "nodeClean",
+                "level"
+              ]
+            },
+            {
+              "variable": "title_in",
+              "value_selector": [
+                "nodeStart",
+                "title_in"
+              ]
+            },
+            {
+              "variable": "source",
+              "value_selector": [
+                "nodeClean",
+                "source"
+              ]
+            },
+            {
+              "variable": "summary",
+              "value_selector": [
+                "nodeClean",
+                "summary"
+              ]
+            }
+          ],
+          "outputs": {
+            "title": {
+              "children": null,
+              "type": "string"
+            },
+            "articles_json": {
+              "children": null,
+              "type": "string"
+            },
+            "paras_json": {
+              "children": null,
+              "type": "string"
+            },
+            "align_map": {
+              "children": null,
+              "type": "string"
+            },
+            "para_count": {
+              "children": null,
+              "type": "string"
+            },
+            "para_clean_count": {
+              "children": null,
+              "type": "string"
+            },
+            "seg_count": {
+              "children": null,
+              "type": "string"
+            },
+            "levels_json": {
+              "children": null,
+              "type": "string"
+            },
+            "levels_out": {
+              "children": null,
+              "type": "string"
+            },
+            "map_warn": {
+              "children": null,
+              "type": "string"
+            },
+            "unused_facts": {
+              "children": null,
+              "type": "string"
+            },
+            "map_basis": {
+              "children": null,
+              "type": "string"
+            },
+            "quiz_source": {
+              "children": null,
+              "type": "string"
+            },
+            "is_owned": {
+              "children": null,
+              "type": "string"
+            },
+            "identity_json": {
+              "children": null,
+              "type": "string"
+            }
+          }
+        }
+      },
+      {
+        "data": {
+          "answer": "",
+          "context": {
+            "enabled": false,
+            "variable_selector": []
+          },
+          "desc": "按四类题型（语言/文本/逻辑/认知）逐档出题，含中文解析",
+          "model": {
+            "completion_params": {
+              "max_tokens": 12000,
+              "temperature": 0.6,
+              "thinking": false
+            },
+            "mode": "chat",
+            "name": "deepseek-v4-pro",
+            "provider": "langgenius/deepseek/deepseek"
+          },
+          "prompt_template": [
+            {
+              "role": "system",
+              "text": "You are an English reading assessment designer. For EACH of the 4 levels below, write EXACTLY 3 exercises based ONLY on that level's article. Exactly 3 is a hard rule — never output 2 questions, never output 4 questions.\n\n[Question types - four categories]\n- \"language\": tests vocabulary / grammar itself - word meaning in context, reference (what does \"it\" refer to), guessing meaning from context.\n- \"text\": tests information in the passage - locating details, sequence, main idea, cross-paragraph integration.\n- \"logic\": tests reasoning and argument structure - single-step cause/effect, one-step inference, telling a claim apart from its support.\n- \"cognitive\": tests stance and hidden premises - the author's attitude, mapping where each side stands, implicit assumptions. It must NOT ask \"what does the passage say\".\n\n[Mandatory type mix per level - exactly 3 questions each]\nA1: language 1-2, text 1-2, logic 0-1   (logic = single-step cause/effect explicitly signposted; NO cognitive)\nA2: language 1, text 1-2, logic 0-1     (logic requires one inference step - answer NOT stated verbatim; NO cognitive)\nB1: language 0-1, text 1, logic 1, cognitive 0-1  (cognitive appears - ask about the author's attitude)\nB2: text 1, logic 2                       (logic targets argument structure - which is the claim, which is support)\n\n[Question count is a HARD RULE - higher priority than the type mix]\n- Every level MUST have exactly 3 questions. If the type mix ranges above would sum to fewer or more than 3, the COUNT always wins: adjust the types so the total is always exactly 3.\n- Never output 2 questions. Never output 4 questions. Always 3, for every level, no exceptions.\n\n[Difficulty scaling - the question wording must match the level's own article]\n- A1 / A2: very short stems, high-frequency words, distractors clearly wrong.\n- B1: stems may contain one subordinate clause; distractors moderately confusing.\n- B2: may rely on synonym replacement, hedging and inference; distractors need careful discrimination.\n\n[Explanation - mandatory for every question]\n\"explain\" must be written in CHINESE, 1-3 sentences, saying why the key is correct AND why the single most tempting distractor is wrong.\n\n[Output format: STRICT JSON only - one JSON object, no markdown code block, no explanation, no extra text]\n{\"levels\":{\"A1\":[{\"type\":\"language\",\"q\":\"...\",\"options\":[\"A\",\"B\",\"C\",\"D\"],\"answer\":0,\"explain\":\"...\"},{\"type\":\"text\",\"q\":\"...\",\"options\":[\"A\",\"B\",\"C\",\"D\"],\"answer\":1,\"explain\":\"...\"},{\"type\":\"language\",\"q\":\"...\",\"options\":[\"A\",\"B\",\"C\",\"D\"],\"answer\":2,\"explain\":\"...\"}],\"A2\":[...],\"B1\":[...],\"B2\":[...]}}\n\nRules for the JSON:\n- \"answer\" is the zero-based index of the correct option.\n- \"type\" must be exactly one of: language, text, logic, cognitive.\n- Question stems and options must be entirely in ENGLISH. Only \"explain\" is in Chinese.\n- All 4 level keys must be present (A1, A2, B1, B2), each with EXACTLY 3 questions (never 2, never 4). The type mix is a guideline; the count of 3 is non-negotiable."
+            },
+            {
+              "role": "user",
+              "text": "The 4 graded articles follow. Each block starts with === LEVEL_KEY ===.\n\n{{#nodeAgg.quiz_source#}}\n\nWrite exactly 3 exercises for each of the 4 levels, in the mandated type mix. Output strict JSON only."
+            }
+          ],
+          "selected": false,
+          "title": "③ 练习题生成",
+          "type": "llm",
+          "variables": [
+            {
+              "variable": "quiz_source",
+              "value_selector": [
+                "nodeAgg",
+                "quiz_source"
+              ]
+            },
+            {
+              "variable": "levels_json",
+              "value_selector": [
+                "nodeAgg",
+                "levels_json"
+              ]
+            }
+          ]
+        },
+        "height": 22,
+        "id": "nodeQuiz",
+        "position": {
+          "x": 1520,
+          "y": 480
+        },
+        "positionAbsolute": {
+          "x": 1520,
+          "y": 480
+        },
+        "type": "llm",
+        "width": 150,
+        "zIndex": 0
+      },
+      {
+        "id": "nodeValidate",
+        "type": "code",
+        "position": {
+          "x": 1520,
+          "y": 260
+        },
+        "positionAbsolute": {
+          "x": 1520,
+          "y": 260
+        },
+        "width": 244,
+        "height": 110,
+        "zIndex": 0,
+        "data": {
+          "type": "code",
+          "title": "④ 全套校验",
+          "selected": false,
+          "desc": "字数（段数 × 每段区间）/ 句长 / 蓝思 / 词汇 / 语法 / 段落对齐",
+          "code_language": "javascript",
+          "code": "function main({ articles_json, plain_json, map_basis, align_map, para_count, para_clean_count, seg_count, levels_json, identity_json }) {\n  const PER = {\n    A1: [11, 14, -1000, 400, 6, 9],\n    A2: [20, 22, 400, 750, 10, 13],\n    B1: [28, 35, 750, 1050, 14, 17],\n    B2: [41, 50, 1050, 1350, 18, 24]\n  };\n  const SEGN = parseInt(seg_count, 10) || 12;\n  const SPEC = {};\n  /* 🔴 必须保留全部 6 个字段：顺序 = [词数下限, 上限, 蓝思下限, 上限, 句长下限, 上限]。\n     只算前 2 个会让后 4 项变 undefined → 「句长校验」「蓝思校验」永远 fail（已踩）。 */\n  Object.keys(PER).forEach((k) => { SPEC[k] = [Math.round(SEGN * PER[k][0]), Math.round(SEGN * PER[k][1]), PER[k][2], PER[k][3], PER[k][4], PER[k][5]]; });\n  const LABEL = { A1: 'A1-', A2: 'A2', B1: 'B1', B2: 'B2+' };\n  const ALL = (function(){ try { var a = JSON.parse(levels_json||'[]'); return Array.isArray(a) && a.length ? a : ['A1','A2','B1','B2']; } catch(e){ return ['A1','A2','B1','B2']; } })();\n  const words = (t) => (String(t || '').match(/[A-Za-z0-9'-]+/g) || []).length;\n  const JS = (t, d) => { try { const v = JSON.parse(t || ''); return (v && typeof v === 'object') ? v : d; } catch (e) { return d; } };\n  const body = JS(plain_json, {});\n  const full = JS(articles_json, {});\n  /* 每档的引用基准：'fact' = 用完整事实卡生成（B1/B2+）；'gist' = 用不含数字的大意拍生成（A1/A2）。\n     这个分流是必须的 —— 低档按设计就不该出现素材数字，用高档口径去校验会系统性误判。 */\n  const BASISOBJ = JS(map_basis, {});\n\n  /* 蓝思估算：est = 45×平均句长 + 1500×长词占比(≥7字符) − 350\n     系数由 12 档真实生成文本对目标区间做最小二乘标定得到（RMSE ≈ 45L，覆盖 100–1300L）。\n     仍非 MetaMetrics 官方值，仅作档位一致性参考。 */\n  const estLexile = (t) => {\n    const ws = String(t || '').match(/[A-Za-z'-]+/g) || [];\n    if (!ws.length) return 0;\n    const n = ws.length;\n    const lng = ws.filter((w) => w.length >= 7).length;\n    const st = Math.max(1, (String(t).match(/[.!?]+/g) || []).length);\n    return Math.round(45 * (n / st) + 1500 * (lng / n) - 350);\n  };\n\n  const validate = (key, article) => {\n    const checks = [], fails = [];\n    const [lo, hi, lxlo, lxhi, slo, shi] = SPEC[key];\n    const basis = BASISOBJ[key] === 'gist' ? 'gist' : 'fact';\n    const wc = words(article);\n    /* 长度闸门（2026-09-18 收紧）：越界即不合格，不再保留「低于下限 25% 仍放行」的容差。\n       区间内再按与靶心（区间中点）的距离区分 pass / warn —— 产出应尽量贴中点，而不是贴下限。 */\n    const tgt = Math.round((lo + hi) / 2);\n    if (wc < lo || wc > hi) {\n      fails.push('长度校验: 词数 ' + wc + '，' + LABEL[key] + ' 应为 ' + lo + '-' + hi);\n      checks.push({ name: '长度校验', status: 'fail', detail: wc + ' 词（越界，靶心 ' + tgt + '）' });\n    } else {\n      const okIn = Math.abs(wc - tgt) <= (hi - lo) * 0.2;\n      checks.push({ name: '长度校验', status: okIn ? 'pass' : 'warn',\n        detail: wc + ' 词（' + lo + '-' + hi + '，靶心 ' + tgt + '）' });\n    }\n    const st = Math.max(1, (String(article || '').match(/[.!?]+/g) || []).length);\n    const msl = wc / st;\n    if (msl < slo * 0.75 || msl > shi * 1.3) {\n      fails.push('句长校验: 平均句长 ' + msl.toFixed(1) + ' 词，' + LABEL[key] + ' 应为 ' + slo + '-' + shi);\n      checks.push({ name: '句长校验', status: 'fail', detail: msl.toFixed(1) + ' 词/句' });\n    } else {\n      const okIn = (msl >= slo * 0.9 && msl <= shi * 1.1);\n      checks.push({ name: '句长校验', status: okIn ? 'pass' : 'warn', detail: msl.toFixed(1) + ' 词/句（' + slo + '-' + shi + '）' });\n    }\n    const lex = estLexile(article);\n    const pLo = (lxlo > 0 ? lxlo * 0.80 : lxlo) - 80, pHi = lxhi * 1.20 + 80;\n    if (lex < pLo || lex > pHi) {\n      fails.push('蓝思校验: 估算 ' + lex + 'L，' + LABEL[key] + ' 应为 ' + (lxlo > 0 ? lxlo + '-' + lxhi : 'BR-' + lxhi) + 'L');\n      checks.push({ name: '蓝思校验', status: 'fail', detail: '估算 ' + lex + 'L' });\n    } else {\n      const okIn = (lxlo <= 0 || lex >= lxlo * 0.90) && lex <= lxhi * 1.10;\n      checks.push({ name: '蓝思校验', status: okIn ? 'pass' : 'warn', detail: '估算 ' + lex + 'L（' + (lxlo > 0 ? lxlo + '-' + lxhi : 'BR-' + lxhi) + 'L）' });\n    }\n    const sensWords = ['分裂', '血腥', '赌博', '毒品', '色情', '种族歧视', '遇难者隐私'];\n    const hits = sensWords.filter((w) => String(article || '').includes(w));\n    if (hits.length) {\n      fails.push('敏感排查: 命中 ' + hits.join('/'));\n      checks.push({ name: '敏感排查', status: 'fail', detail: hits.join('/') });\n    } else {\n      checks.push({ name: '敏感排查', status: 'pass', detail: '' });\n    }\n    /* 语法粗筛（轻量，仅 warn 不做 fail）：A1- 完全禁用被动与完成时，用保守表面形式检测。\n       只抓 A1 的明显违规，A2/B1 的被动/完成时是「有条件允许」，正则判不了条件故不粗筛。 */\n    if (key === 'A1') {\n      const passive = String(article || '').match(/\\b(is|are|was|were|been|being)\\s+\\w{3,}(ed|en)\\b/gi) || [];\n      const perfect = String(article || '').match(/\\b(has|have|had)\\s+\\w{3,}(ed|en)\\b/gi) || [];\n      const gw = [];\n      if (passive.length) gw.push('疑似被动 ' + passive.slice(0, 3).join(' / '));\n      if (perfect.length) gw.push('疑似完成时 ' + perfect.slice(0, 3).join(' / '));\n      if (gw.length) {\n        checks.push({ name: '语法粗筛', status: 'warn', detail: gw.join('；') });\n      } else {\n        checks.push({ name: '语法粗筛', status: 'pass', detail: '' });\n      }\n    } else {\n      checks.push({ name: '语法粗筛', status: 'pass', detail: '非 A1 不粗筛' });\n    }\n    let factNums = [];\n    try { factNums = (JSON.stringify(JSON.parse('{}')).match(/\\d[\\d,.]*%?/g) || []).slice(0, 6); } catch (e) { }\n    /* 低档（gist 基准）按设计只用「不含数字与专名的大意拍」生成，所以「素材数字未出现」\n       是**预期结果**，不是缺陷 —— 用高档口径判它 fail 会让 A1/A2 六档被系统性误判。\n       低档真正该防的是相反方向：凭空编出数字。所以这里改成「出现数字就告警」。 */\n    if (basis === 'gist') {\n      const anyNum = String(article || '').match(/\\d[\\d,.]*%?/g) || [];\n      if (anyNum.length) {\n        checks.push({ name: '事实一致性', status: 'warn',\n          detail: '低档出现数字 ' + anyNum.slice(0, 4).join('/') + '（本档按设计不含数字，请核实来源）' });\n      } else {\n        checks.push({ name: '事实一致性', status: 'pass', detail: '低档无数字（符合大意拍口径）' });\n      }\n    } else {\n      const missNums = factNums.filter((n) => !String(article || '').includes(n));\n      if (factNums.length && missNums.length === factNums.length) {\n        fails.push('事实一致性: 事实卡关键数字未出现');\n        checks.push({ name: '事实一致性', status: 'fail', detail: '' });\n      } else {\n        checks.push({ name: '事实一致性', status: 'pass', detail: factNums.length ? (factNums.length - missNums.length) + '/' + factNums.length + ' 数字命中' : '' });\n      }\n    }\n    const placeholders = /(TBD|TODO|\\{f\\d+\\}|XXX|\\(EMPTY\\))/i.test(String(article || ''));\n    const zh = (String(article || '').match(/[\\u4e00-\\u9fff]/g) || []).length;\n    /* 语言闸门必须能区分三种截然不同的成因，否则人工审核会被误导：\n       (a) 残留占位符；\n       (b) 生词表被当成段落混进了正文数组（实测过，见 docs/11）；\n       (c) 模型整篇输出中文（实测短素材 S2 的 B1.3 首跑：JSON 合法、段数正确、正文却全中文）。\n       (c) 在聚合层已把含中文的段丢弃，所以走到这里通常表现为「正文为空」。 */\n    if (!String(body[key] || '').trim()) {\n      fails.push('语言纯净度: 该档正文为空（模型未产出英文段落，或产出被判为非英文后丢弃）→ 需重新生成');\n      checks.push({ name: '语言纯净度', status: 'fail', detail: '正文为空 / 非英文产出' });\n    } else if (placeholders || zh > 5) {\n      const zhLines = String(article || '').match(/[^\\n]*[\\u4e00-\\u9fff][^\\n]*/g) || [];\n      const snippet = zhLines.slice(0, 3).map((s) => s.trim().slice(0, 36)).join(' ｜ ');\n      const zhHeavy = (zh > 30 && zh > wc * 2);\n      fails.push('语言纯净度: ' + (placeholders\n        ? '含占位符'\n        : (zhHeavy\n          ? '模型未输出英文（中文 ' + zh + ' 字 / 英文 ' + wc + ' 词）→ 需重新生成'\n          : '正文段落疑似混入生词表/中文 ' + zh + ' 字 → ' + snippet)));\n      checks.push({ name: '语言纯净度', status: 'fail',\n        detail: placeholders ? '占位符' : (zhHeavy ? '整篇非英文（' + zh + ' 中文字）' : '疑似生词表混入：' + snippet) });\n    } else {\n      checks.push({ name: '语言纯净度', status: 'pass', detail: '' });\n    }\n    /* 自然度粗筛（v2 · 2026-09-20，只 warn 不 fail）—— 针对实测「翻译腔」的可机械判定症状：\n       ① 段内原样重复同一名词短语（实测 A2 首段 \"good family help\" 说两遍）；\n       ② 已知的中式搭配硬凑（\"sleep at bad times\" 这类「介词 + 好/坏 + 时间」结构）；\n       ③ 收尾套话过量（\"In the end,\" 一篇里出现两次以上）。\n       只告警不判 fail —— 自然度的最终判定权在教研，这里只负责把可疑项摆到审核台上。\n       ⚠️ 不要往这里加需要语义理解的规则（那类问题交给 ⑨ 大意复核 + 人工审核）。 */\n    {\n      const nat = [];\n      /* 取一句话里的「内容词对」（2 词窗口，剔除功能词） */\n      const bgOf = (s) => {\n        const ws = String(s || '').toLowerCase().replace(/[^a-z\\s']/g, ' ').split(/\\s+/).filter(Boolean);\n        const out = [];\n        for (let i = 0; i < ws.length - 1; i++) {\n          if (STOP[ws[i]] || STOP[ws[i + 1]]) continue;\n          const g = ws[i] + ' ' + ws[i + 1];\n          if (out.indexOf(g) < 0) out.push(g);\n        }\n        return out;\n      };\n      /* 功能词表：只统计「内容词对」。必须够全 —— 实测漏掉助动词时会报出\n         「句 22-23 重复「people should」」这类**正常写作**的噪音（v2 首跑实测），\n         噪音一多这条 warn 就没人看了。 */\n      const STOP = { the: 1, a: 1, an: 1, of: 1, to: 1, in: 1, on: 1, at: 1, and: 1, or: 1,\n        for: 1, with: 1, is: 1, are: 1, was: 1, were: 1, be: 1, been: 1, being: 1, am: 1,\n        it: 1, its: 1, this: 1, that: 1, these: 1, those: 1, they: 1, them: 1, their: 1,\n        he: 1, she: 1, him: 1, his: 1, her: 1, you: 1, your: 1, we: 1, us: 1, our: 1,\n        i: 1, me: 1, my: 1, as: 1, by: 1, from: 1, but: 1, not: 1, no: 1,\n        do: 1, does: 1, did: 1, can: 1, may: 1, might: 1, will: 1, would: 1, could: 1,\n        should: 1, must: 1, has: 1, have: 1, had: 1, more: 1, most: 1, much: 1, many: 1,\n        very: 1, also: 1, than: 1, then: 1, when: 1, where: 1, why: 1, how: 1, who: 1,\n        which: 1, what: 1, if: 1, so: 1, such: 1, other: 1, another: 1, same: 1,\n        into: 1, out: 1, up: 1, down: 1, over: 1, after: 1, before: 1, between: 1,\n        during: 1, while: 1, because: 1, although: 1, since: 1, until: 1, about: 1,\n        there: 1, here: 1 };\n      /* 🔴 v1 的教训（实测）：v1 是「先按换行切段，再在同一段内找重复」，但\n         **不能假定 body[key] 里一定有换行** —— v1 上线实测把整篇当成一段，于是报出\n         「第 1 段内重复：people live / family help / daily habits」这类**全篇级误报**\n         （主题词在同一篇里重复出现是正常的英语写法）。\n         ⇒ 判据必须对分段方式不敏感：改为**按句子切分 + 只看相邻句对**，有没有换行都成立。 */\n      const sents = String(body[key] || '').split(/[.!?]+/).map((s) => s.trim()).filter(Boolean);\n      const rep = [];\n      for (let i = 0; i < sents.length - 1; i++) {\n        const a = bgOf(sents[i]), b = bgOf(sents[i + 1]);\n        const hit = a.filter((g) => b.indexOf(g) >= 0);\n        if (hit.length) rep.push('句 ' + (i + 1) + '-' + (i + 2) + ' 重复「' + hit.slice(0, 2).join(' / ') + '」');\n      }\n      if (rep.length) nat.push(rep.slice(0, 3).join('；') + (rep.length > 3 ? ' 等 ' + rep.length + ' 处' : ''));\n      const zhStyle = String(body[key] || '').match(/\\b(?:at|in|on)\\s+(?:bad|good|wrong|right)\\s+(?:time|times|moment|moments)\\b/gi) || [];\n      if (zhStyle.length) {\n        const uniq = [];\n        zhStyle.forEach((s) => { const t = s.toLowerCase().replace(/\\s+/g, ' '); if (uniq.indexOf(t) < 0) uniq.push(t); });\n        nat.push('疑似中式搭配：' + uniq.slice(0, 3).join(' / '));\n      }\n      const wrap = (String(body[key] || '').match(/\\bin the end\\s*,?/gi) || []).length;\n      if (wrap > 1) nat.push('收尾套话 \"In the end\" 出现 ' + wrap + ' 次');\n      if (nat.length) checks.push({ name: '自然度粗筛', status: 'warn', detail: nat.join('；') });\n      else checks.push({ name: '自然度粗筛', status: 'pass', detail: '' });\n    }\n    /* 段落对齐（v1 · 2026-09-20）：这一项是「A1- 与其它档错位」的唯一机械拦截点。\n       为什么必须单独有一项 ——\n         ① 聚合层无条件把 >N 段 slice 回 N，所以 para_count **恒为 N**、\n            「段数不一致」在最终产物里根本看不见 → 另取 para_clean_count（截断前）补上，\n            否则「拆段 → 砍末段」这个头号失败模式仍会静默通过；\n         ② nodeAgg 明确「4 档体系：每组 1 档，无需组内统一」，各档自报映射、互不校验；\n         ③ ⑨ 大意复核明文「低档覆盖不全不算失败」。\n       判据：align_map 是各档折算到同一母稿段落轴后的映射，正常情况**恒等于 [[1],[2],…,[N]]**。\n       任何合并 / 跳号 / 少一项，都意味着「第 i 段讲的不是第 i 条大意」→ 切档会跳位。 */\n    {\n      const am = JS(align_map, {});\n      const pc = JS(para_count, {});\n      const cc = JS(para_clean_count, {});\n      const bad = [];\n      const pure = Array.isArray(am[key]) ? am[key] : null;\n      const pars = parseInt(pc[key], 10);\n      if (pars !== SEGN) { bad.push('段数 ' + (isNaN(pars) ? '?' : pars) + '（应为 ' + SEGN + '）'); }\n      const cleanN = parseInt(cc[key], 10);\n      if (!isNaN(cleanN) && cleanN !== SEGN) {\n        bad.push('模型原始段数 ' + cleanN + (cleanN > SEGN\n          ? '（超过 ' + SEGN + '，聚合层已砍掉尾部 ' + (cleanN - SEGN) + ' 段，末段内容已丢失）'\n          : '（不足 ' + SEGN + '，无法补齐）'));\n      }\n      if (!pure || pure.length !== SEGN) {\n        bad.push('引用标注 ' + (pure ? pure.length : 0) + ' 项（应为 ' + SEGN + '）');\n      } else {\n        const off = [];\n        for (let i = 0; i < SEGN; i++) {\n          const ids = (pure[i] || []).map((x) => parseInt(x, 10));\n          if (ids.indexOf(i + 1) < 0) { off.push('第' + (i + 1) + '段↔大意' + (i + 1) + '（实为 ' + JSON.stringify(ids) + '）'); }\n        }\n        if (off.length) { bad.push('错位 ' + off.length + ' 处：' + off.slice(0, 3).join('，')); }\n      }\n      if (bad.length) {\n        fails.push('段落对齐: ' + LABEL[key] + ' ' + bad.join('；') + ' → 该档与其它档逐段错位，需重新生成');\n        checks.push({ name: '段落对齐', status: 'fail', detail: bad.join('；') });\n      } else {\n        checks.push({ name: '段落对齐', status: 'pass', detail: SEGN + ' 段 ↔ 母稿 ' + SEGN + ' 段严格 1:1' });\n      }\n    }\n    let idKeys = [];\n    try { idKeys = Object.keys(JSON.parse(identity_json || '{}')); } catch (e) { }\n    const need = ['theme', 'angle', 'shelf', 'fit', 'provenance'];\n    const miss = need.filter((k) => idKeys.indexOf(k) < 0);\n    if (miss.length) {\n      fails.push('身份完整性: 缺少 ' + miss.join('/'));\n      checks.push({ name: '身份完整性', status: 'fail', detail: miss.join('/') });\n    } else {\n      checks.push({ name: '身份完整性', status: 'pass', detail: '' });\n    }\n    checks.push({ name: '合规署名', status: 'pass', detail: '人工审核标记由发布环节补充' });\n    return {\n      level: LABEL[key], level_key: key, word_count: wc, word_range: lo + '-' + hi,\n      msl: Math.round(msl * 10) / 10, msl_range: slo + '-' + shi,\n      lexile_est: lex, lexile_range: (lxlo > 0 ? lxlo + '-' + lxhi : 'BR-' + lxhi),\n      has_body: !!(body[key] && String(body[key]).trim()),\n      score: checks.filter((c) => c.status === 'pass').length,\n      pass: fails.length === 0, checks: checks, fail_reasons: fails\n    };\n  };\n\n  const results = ALL.map((k) => validate(k, body[k]));\n  const legKeys = { a2: 'A2', b1: 'B1', b2: 'B2' };\n  const legacy = Object.keys(legKeys).map((k) => {\n    const r = results.filter((x) => x.level_key === legKeys[k])[0];\n    if (!r) return null;\n    const c = JSON.parse(JSON.stringify(r)); c.level = k.toUpperCase(); c.level_key_legacy = legKeys[k]; return c;\n  }).filter(Boolean);\n  const overall = {\n    total_checks: ALL.length * 11,\n    total_pass: results.reduce((s, r) => s + r.score, 0),\n    all_pass: results.every((r) => r.pass),\n    levels: ALL.length,\n    lexile_note: '蓝思为按平均句长 + 长词占比 + 平均词长估算，非 MetaMetrics 官方值，仅作档位一致性参考',\n    results: results,\n    results_legacy: legacy\n  };\n  return {\n    validation_json: JSON.stringify(overall),\n    validation_pass: String(overall.all_pass),\n    validation_score: overall.total_pass + '/' + overall.total_checks\n  };\n}",
+          "variables": [
+            {
+              "variable": "articles_json",
+              "value_selector": [
+                "nodeAgg",
+                "articles_json"
+              ]
+            },
+            {
+              "variable": "plain_json",
+              "value_selector": [
+                "nodeAgg",
+                "paras_json"
+              ]
+            },
+            {
+              "variable": "levels_json",
+              "value_selector": [
+                "nodeAgg",
+                "levels_json"
+              ]
+            },
+            {
+              "variable": "align_map",
+              "value_selector": [
+                "nodeAgg",
+                "align_map"
+              ]
+            },
+            {
+              "variable": "para_count",
+              "value_selector": [
+                "nodeAgg",
+                "para_count"
+              ]
+            },
+            {
+              "variable": "para_clean_count",
+              "value_selector": [
+                "nodeAgg",
+                "para_clean_count"
+              ]
+            },
+            {
+              "variable": "seg_count",
+              "value_selector": [
+                "nodeAgg",
+                "seg_count"
+              ]
+            },
+            {
+              "variable": "map_basis",
+              "value_selector": [
+                "nodeAgg",
+                "map_basis"
+              ]
+            },
+            {
+              "variable": "identity_json",
+              "value_selector": [
+                "nodeAgg",
+                "identity_json"
+              ]
+            }
+          ],
+          "outputs": {
+            "validation_json": {
+              "children": null,
+              "type": "string"
+            },
+            "validation_pass": {
+              "children": null,
+              "type": "string"
+            },
+            "validation_score": {
+              "children": null,
+              "type": "string"
+            }
+          }
+        }
+      },
+      {
+        "data": {
+          "answer": "",
+          "context": {
+            "enabled": false,
+            "variable_selector": []
+          },
+          "desc": "把每档正文与分层大意基准比对，判定主线是否走样（方向 / 主体 / 因果 / 新增事件）",
+          "model": {
+            "completion_params": {
+              "max_tokens": 2400,
+              "temperature": 0.1,
+              "thinking": false
+            },
+            "mode": "chat",
+            "name": "deepseek-v4-flash",
+            "provider": "langgenius/deepseek/deepseek"
+          },
+          "prompt_template": [
+            {
+              "role": "system",
+              "text": "你是英语分级阅读流水线上的「主线一致性审核员」。上游已抽出一份**素材大意基准**（若干条，已去掉数字与专名），并把同一条素材改写成 4 个难度档位的文章。你的任务：逐档核对，判断这一档的正文**是否仍在讲同一件事、同一条主线**。\n\n你判的是「主线有没有走样」，**不是**「细节全不全」：\n- 低档（A1/A2）本来就只讲大意、更简略 —— **简略不算走样**。\n- 高档（B1/B2）细节更丰富 —— **更详细也不算走样**。\n- 只有下列情况才算走样：把主线换成了另一件事；把因果或方向讲反（增加写成减少、上升写成下降、有利写成有害）；主体张冠李戴（国家、机构、人物错位）；凭空增加了素材里不存在的新事件或新结论。\n\n输出严格 JSON（只输出 JSON，不要 markdown 代码块，不要任何解释）：\n{\"levels\":[{\"level\":\"A1\",\"main_ok\":true,\"covered\":[1,2,3,4,5,6,7],\"drift\":\"\"}],\"pass\":true,\"fail_levels\":\"\",\"summary\":\"一句话结论\"}\n\n字段说明：\n- `levels`：4 个档位各一条，顺序必须是 A1 A2 B1 B2。\n- `covered`：该档正文实际覆盖到的大意基准条号（1-based，升序）。低档覆盖不全**不算失败**，但必须如实报告。\n- `main_ok`：主线是否一致，true / false。\n- `drift`：仅当 `main_ok` 为 false 时填写，用中文说明「哪一条主线偏了、偏成什么」，40 字以内；正常时留空字符串。\n- `pass`：4 档 `main_ok` 全为 true 时才为 true。\n- `fail_levels`：`main_ok` 为 false 的档位，用逗号连接（如 \"B1,B2\"）；全过则为空字符串。\n- `summary`：一句话中文结论，说明整体是否一致、低档覆盖情况如何。"
+            },
+            {
+              "role": "user",
+              "text": "【素材大意基准】\n{{#nodeClean.seg_lines#}}\n\n【4 档文章的正文段落】（JSON：键为档位，值为该档的段落数组）\n{{#nodeAgg.paras_json#}}\n\n请逐档核对主线一致性，输出严格 JSON。"
+            }
+          ],
+          "selected": false,
+          "title": "⑨ 大意复核（4 档 × 主线一致性）",
+          "type": "llm",
+          "variables": [
+            {
+              "variable": "paras_json",
+              "value_selector": [
+                "nodeAgg",
+                "paras_json"
+              ]
+            },
+            {
+              "variable": "gist",
+              "value_selector": [
+                "nodeClean",
+                "seg_lines"
+              ]
+            }
+          ]
+        },
+        "height": 22,
+        "id": "nodeGistCheck",
+        "position": {
+          "x": 1520,
+          "y": 40
+        },
+        "positionAbsolute": {
+          "x": 1520,
+          "y": 40
+        },
+        "type": "llm",
+        "width": 150,
+        "zIndex": 0
+      },
+      {
+        "id": "nodeEnd",
+        "type": "end",
+        "position": {
+          "x": 1800,
+          "y": 300
+        },
+        "positionAbsolute": {
+          "x": 1800,
+          "y": 300
+        },
+        "width": 244,
+        "height": 110,
+        "zIndex": 0,
+        "data": {
+          "type": "end",
+          "title": "结束",
+          "selected": false,
+          "desc": "输出母稿 + 各低档文章 / 题目 / 校验结果",
+          "outputs": [
+            {
+              "variable": "articles_json",
+              "value_selector": [
+                "nodeAgg",
+                "articles_json"
+              ]
+            },
+            {
+              "variable": "paras_json",
+              "value_selector": [
+                "nodeAgg",
+                "paras_json"
+              ]
+            },
+            {
+              "variable": "align_map",
+              "value_selector": [
+                "nodeAgg",
+                "align_map"
+              ]
+            },
+            {
+              "variable": "levels_json",
+              "value_selector": [
+                "nodeAgg",
+                "levels_json"
+              ]
+            },
+            {
+              "variable": "seg_count",
+              "value_selector": [
+                "nodeAgg",
+                "seg_count"
+              ]
+            },
+            {
+              "variable": "map_warn",
+              "value_selector": [
+                "nodeAgg",
+                "map_warn"
+              ]
+            },
+            {
+              "variable": "title",
+              "value_selector": [
+                "nodeAgg",
+                "title"
+              ]
+            },
+            {
+              "variable": "quiz_json",
+              "value_selector": [
+                "nodeQuiz",
+                "text"
+              ]
+            },
+            {
+              "variable": "validation_json",
+              "value_selector": [
+                "nodeValidate",
+                "validation_json"
+              ]
+            },
+            {
+              "variable": "validation_pass",
+              "value_selector": [
+                "nodeValidate",
+                "validation_pass"
+              ]
+            },
+            {
+              "variable": "validation_score",
+              "value_selector": [
+                "nodeValidate",
+                "validation_score"
+              ]
+            },
+            {
+              "variable": "level",
+              "value_selector": [
+                "nodeClean",
+                "level"
+              ]
+            }
+          ]
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "e-start-clean",
+        "source": "nodeStart",
+        "target": "nodeClean",
+        "type": "custom",
+        "sourceHandle": "source",
+        "targetHandle": "target",
+        "zIndex": 11,
+        "data": {
+          "isInIteration": false,
+          "sourceHandle": "source",
+          "targetHandle": "target",
+          "sourceType": "start",
+          "targetType": "code",
+          "isInLoop": false
+        }
+      },
+      {
+        "id": "e-start-style",
+        "source": "nodeStart",
+        "target": "nodeStyle",
+        "type": "custom",
+        "sourceHandle": "source",
+        "targetHandle": "target",
+        "zIndex": 11,
+        "data": {
+          "isInIteration": false,
+          "sourceHandle": "source",
+          "targetHandle": "target",
+          "sourceType": "start",
+          "targetType": "code",
+          "isInLoop": false
+        }
+      },
+      {
+        "id": "e-clean-title",
+        "source": "nodeClean",
+        "target": "nodeTitle",
+        "type": "custom",
+        "sourceHandle": "source",
+        "targetHandle": "target",
+        "zIndex": 11,
+        "data": {
+          "isInIteration": false,
+          "sourceHandle": "source",
+          "targetHandle": "target",
+          "sourceType": "code",
+          "targetType": "llm",
+          "isInLoop": false
+        }
+      },
+      {
+        "id": "e-clean-b1",
+        "source": "nodeClean",
+        "target": "nodeGenB1",
+        "type": "custom",
+        "sourceHandle": "source",
+        "targetHandle": "target",
+        "zIndex": 11,
+        "data": {
+          "isInIteration": false,
+          "sourceHandle": "source",
+          "targetHandle": "target",
+          "sourceType": "code",
+          "targetType": "llm",
+          "isInLoop": false
+        }
+      },
+      {
+        "id": "e-style-b1",
+        "source": "nodeStyle",
+        "target": "nodeGenB1",
+        "type": "custom",
+        "sourceHandle": "source",
+        "targetHandle": "target",
+        "zIndex": 11,
+        "data": {
+          "isInIteration": false,
+          "sourceHandle": "source",
+          "targetHandle": "target",
+          "sourceType": "code",
+          "targetType": "llm",
+          "isInLoop": false
+        }
+      },
+      {
+        "id": "e-title-b1",
+        "source": "nodeTitle",
+        "target": "nodeGenB1",
+        "type": "custom",
+        "sourceHandle": "source",
+        "targetHandle": "target",
+        "zIndex": 11,
+        "data": {
+          "isInIteration": false,
+          "sourceHandle": "source",
+          "targetHandle": "target",
+          "sourceType": "llm",
+          "targetType": "llm",
+          "isInLoop": false
+        }
+      },
+      {
+        "id": "e-b1-fix",
+        "source": "nodeGenB1",
+        "target": "nodeFix",
+        "type": "custom",
+        "sourceHandle": "source",
+        "targetHandle": "target",
+        "zIndex": 11,
+        "data": {
+          "isInIteration": false,
+          "sourceHandle": "source",
+          "targetHandle": "target",
+          "sourceType": "llm",
+          "targetType": "code",
+          "isInLoop": false
+        }
+      },
+      {
+        "id": "e-clean-a2",
+        "source": "nodeClean",
+        "target": "nodeGenA2",
+        "type": "custom",
+        "sourceHandle": "source",
+        "targetHandle": "target",
+        "zIndex": 11,
+        "data": {
+          "isInIteration": false,
+          "sourceHandle": "source",
+          "targetHandle": "target",
+          "sourceType": "code",
+          "targetType": "llm",
+          "isInLoop": false
+        }
+      },
+      {
+        "id": "e-style-a2",
+        "source": "nodeStyle",
+        "target": "nodeGenA2",
+        "type": "custom",
+        "sourceHandle": "source",
+        "targetHandle": "target",
+        "zIndex": 11,
+        "data": {
+          "isInIteration": false,
+          "sourceHandle": "source",
+          "targetHandle": "target",
+          "sourceType": "code",
+          "targetType": "llm",
+          "isInLoop": false
+        }
+      },
+      {
+        "id": "e-title-a2",
+        "source": "nodeTitle",
+        "target": "nodeGenA2",
+        "type": "custom",
+        "sourceHandle": "source",
+        "targetHandle": "target",
+        "zIndex": 11,
+        "data": {
+          "isInIteration": false,
+          "sourceHandle": "source",
+          "targetHandle": "target",
+          "sourceType": "llm",
+          "targetType": "llm",
+          "isInLoop": false
+        }
+      },
+      {
+        "id": "e-a2-fix",
+        "source": "nodeGenA2",
+        "target": "nodeFix",
+        "type": "custom",
+        "sourceHandle": "source",
+        "targetHandle": "target",
+        "zIndex": 11,
+        "data": {
+          "isInIteration": false,
+          "sourceHandle": "source",
+          "targetHandle": "target",
+          "sourceType": "llm",
+          "targetType": "code",
+          "isInLoop": false
+        }
+      },
+      {
+        "id": "e-clean-a1",
+        "source": "nodeClean",
+        "target": "nodeGenA1",
+        "type": "custom",
+        "sourceHandle": "source",
+        "targetHandle": "target",
+        "zIndex": 11,
+        "data": {
+          "isInIteration": false,
+          "sourceHandle": "source",
+          "targetHandle": "target",
+          "sourceType": "code",
+          "targetType": "llm",
+          "isInLoop": false
+        }
+      },
+      {
+        "id": "e-style-a1",
+        "source": "nodeStyle",
+        "target": "nodeGenA1",
+        "type": "custom",
+        "sourceHandle": "source",
+        "targetHandle": "target",
+        "zIndex": 11,
+        "data": {
+          "isInIteration": false,
+          "sourceHandle": "source",
+          "targetHandle": "target",
+          "sourceType": "code",
+          "targetType": "llm",
+          "isInLoop": false
+        }
+      },
+      {
+        "id": "e-title-a1",
+        "source": "nodeTitle",
+        "target": "nodeGenA1",
+        "type": "custom",
+        "sourceHandle": "source",
+        "targetHandle": "target",
+        "zIndex": 11,
+        "data": {
+          "isInIteration": false,
+          "sourceHandle": "source",
+          "targetHandle": "target",
+          "sourceType": "llm",
+          "targetType": "llm",
+          "isInLoop": false
+        }
+      },
+      {
+        "id": "e-a1-fix",
+        "source": "nodeGenA1",
+        "target": "nodeFix",
+        "type": "custom",
+        "sourceHandle": "source",
+        "targetHandle": "target",
+        "zIndex": 11,
+        "data": {
+          "isInIteration": false,
+          "sourceHandle": "source",
+          "targetHandle": "target",
+          "sourceType": "llm",
+          "targetType": "code",
+          "isInLoop": false
+        }
+      },
+      {
+        "id": "e-fix-compress",
+        "source": "nodeFix",
+        "target": "nodeCompress",
+        "type": "custom",
+        "sourceHandle": "source",
+        "targetHandle": "target",
+        "zIndex": 11,
+        "data": {
+          "isInIteration": false,
+          "sourceHandle": "source",
+          "targetHandle": "target",
+          "sourceType": "code",
+          "targetType": "llm",
+          "isInLoop": false
+        }
+      },
+      {
+        "id": "e-compress-agg",
+        "source": "nodeCompress",
+        "target": "nodeAgg",
+        "type": "custom",
+        "sourceHandle": "source",
+        "targetHandle": "target",
+        "zIndex": 11,
+        "data": {
+          "isInIteration": false,
+          "sourceHandle": "source",
+          "targetHandle": "target",
+          "sourceType": "llm",
+          "targetType": "code",
+          "isInLoop": false
+        }
+      },
+      {
+        "id": "e-agg-quiz",
+        "source": "nodeAgg",
+        "target": "nodeQuiz",
+        "type": "custom",
+        "sourceHandle": "source",
+        "targetHandle": "target",
+        "zIndex": 11,
+        "data": {
+          "isInIteration": false,
+          "sourceHandle": "source",
+          "targetHandle": "target",
+          "sourceType": "code",
+          "targetType": "llm",
+          "isInLoop": false
+        }
+      },
+      {
+        "id": "e-agg-validate",
+        "source": "nodeAgg",
+        "target": "nodeValidate",
+        "type": "custom",
+        "sourceHandle": "source",
+        "targetHandle": "target",
+        "zIndex": 11,
+        "data": {
+          "isInIteration": false,
+          "sourceHandle": "source",
+          "targetHandle": "target",
+          "sourceType": "code",
+          "targetType": "code",
+          "isInLoop": false
+        }
+      },
+      {
+        "id": "e-agg-gist",
+        "source": "nodeAgg",
+        "target": "nodeGistCheck",
+        "type": "custom",
+        "sourceHandle": "source",
+        "targetHandle": "target",
+        "zIndex": 11,
+        "data": {
+          "isInIteration": false,
+          "sourceHandle": "source",
+          "targetHandle": "target",
+          "sourceType": "code",
+          "targetType": "llm",
+          "isInLoop": false
+        }
+      },
+      {
+        "id": "e-quiz-end",
+        "source": "nodeQuiz",
+        "target": "nodeEnd",
+        "type": "custom",
+        "sourceHandle": "source",
+        "targetHandle": "target",
+        "zIndex": 11,
+        "data": {
+          "isInIteration": false,
+          "sourceHandle": "source",
+          "targetHandle": "target",
+          "sourceType": "llm",
+          "targetType": "end",
+          "isInLoop": false
+        }
+      },
+      {
+        "id": "e-validate-end",
+        "source": "nodeValidate",
+        "target": "nodeEnd",
+        "type": "custom",
+        "sourceHandle": "source",
+        "targetHandle": "target",
+        "zIndex": 11,
+        "data": {
+          "isInIteration": false,
+          "sourceHandle": "source",
+          "targetHandle": "target",
+          "sourceType": "code",
+          "targetType": "end",
+          "isInLoop": false
+        }
+      },
+      {
+        "id": "e-gist-end",
+        "source": "nodeGistCheck",
+        "target": "nodeEnd",
+        "type": "custom",
+        "sourceHandle": "source",
+        "targetHandle": "target",
+        "zIndex": 11,
+        "data": {
+          "isInIteration": false,
+          "sourceHandle": "source",
+          "targetHandle": "target",
+          "sourceType": "llm",
+          "targetType": "end",
+          "isInLoop": false
+        }
+      }
+    ],
+    "viewport": {}
+  },
+  "features": {},
+  "conversation_variables": [],
+  "environment_variables": []
+}

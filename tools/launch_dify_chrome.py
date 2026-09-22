@@ -21,6 +21,13 @@
          curl -s http://127.0.0.1:<port>/json/version | grep -i headless
      命中就换一个未被占用的端口（例如 9237）。
 
+⚠️ profile 位置（2026-09-22 修）：**必须在持久目录**，不能用 /tmp。
+   原先用 /tmp/chrome-dify-<port>，而 macOS 会在重启/清理时删 /tmp ⇒ **登录态连同 cookie
+   一起消失**，表现为「昨天还好好的，今天所有 console/api 都 401」。
+   2026-09-22 实测确认：`document.cookie` 里 access_token 与 __Host-csrf_token 全没了、
+   只剩第三方 cookie ⇒ 不是「需要刷新」，是根本存不住。
+   ⇒ 现改为 ~/.workbuddy/chrome-dify-<port>。**别再改回 /tmp。**
+
 退出码：0 = 端口已就绪；1 = 15s 内没起来
 """
 import json
@@ -31,7 +38,8 @@ import time
 import urllib.request
 
 PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 9224
-PROFILE = f"/tmp/chrome-dify-{PORT}"
+# 持久目录（不能放 /tmp：系统重启/清理会连登录 cookie 一起删掉 —— 详见文件头注释）
+PROFILE = os.path.join(os.path.expanduser("~/.workbuddy"), f"chrome-dify-{PORT}")
 URL = "https://cloud.dify.ai/"
 CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
 
