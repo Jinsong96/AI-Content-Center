@@ -4273,13 +4273,60 @@ function licGoGen(){
   st.pendingGen = true;
   go(7);   /* idx 7 = s6（08 内容生成页）—— 授权链路跳过「事实分段/分级标准」直接进内容生成 */
 }
+/* ══ 授权链路产出的三档质量校验（字数 + 句长 + 词汇超纲，2026-09-22 根治「三档糊成一个难度」）══
+   判据全部可量化、不碰生成提示词：生成后量一遍，不达标的档触发整篇重跑（上限见 licRunGen）。
+   - 字数：每档「每段平均词数」是否落进 LIC_PER_PARA[k]（如 A2 [20,22]）
+   - 句长：每档平均句长是否落进 specOf(k).avg 的区间（如 B1 14–17）
+   - 超纲：后端 EVP 词汇校验是否 exceed（复用 vocabCheck）
+   返回 { badWc:[档:均值/区间], badSent:[档:句长/区间], msg:[中文说明] } */
+function licGenIssues(){
+  const ret = { badWc: [], badSent: [], msg: [] };
+  const paraAvg = function(k){
+    const g = GEN[k];
+    if(!g || !g.paras || !g.paras.length) return null;
+    let tot = 0, cnt = 0;
+    g.paras.forEach(function(p){ const t = Array.isArray(p) ? p.join(" ") : p; tot += licWordCount(t); cnt++; });
+    return cnt ? tot / cnt : null;
+  };
+  const sentAvg = function(k){
+    const g = GEN[k];
+    if(!g || !g.paras || !g.paras.length) return null;
+    const txt = g.paras.map(function(p){ return Array.isArray(p) ? p.join(" ") : p; }).join(" ");
+    const words = (txt.match(/[A-Za-z][A-Za-z'-]*/g) || []).length;
+    const sents = (txt.match(/[.!?](\s|$)/g) || []).length || 1;
+    return words / Math.max(1, sents);
+  };
+  /* 解析 specOf(k).avg 的「10–13 词/句」→ [10,13]；len 的「204–276 词」→ [204,276] */
+  const range = function(s){
+    const m = String(s || "").match(/(\d+)\s*[-–—]\s*(\d+)/);
+    return m ? [parseInt(m[1],10), parseInt(m[2],10)] : null;
+  };
+  allKeys().forEach(function(k){
+    const g = GEN[k];
+    if(!g || !g.paras || !g.paras.length) return;   /* 该档没产出（母稿 B1 时 B1 档被丢）——跳过 */
+    const perBand = LIC_PER_PARA[k];
+    const avgW = paraAvg(k);
+    if(perBand && avgW != null){
+      const lo = perBand[0], hi = perBand[1];
+      /* 每段平均词数低于下限即「写太短了」（三档糊一起的直接特征） */
+      if(avgW < lo) ret.badWc.push(k + ":" + Math.round(avgW) + "/" + lo + "-" + hi);
+    }
+    const sr = range(specOf(k).avg);
+    const avgS = sentAvg(k);
+    if(sr && avgS != null){
+      if(avgS < sr[0]) ret.badSent.push(k + ":" + avgS.toFixed(1) + "/" + sr[0] + "-" + sr[1]);
+    }
+  });
+  if(ret.badWc.length) ret.msg.push(L("字数偏短：", "Too short: ") + ret.badWc.join("、"));
+  if(ret.badSent.length) ret.msg.push(L("句长偏短：", "Sentences too short: ") + ret.badSent.join("、"));
+  return ret;
+}
+
 function licRunGen(){
   const st = licState(); const a = licCurArt();
   if(!st.prep || !a){ toast(L("还没有可生成的分段结果","No prepared segmentation yet")); return; }
   const segs = st.prep.segs.map(function(x){ return String(x||"").trim(); }).filter(function(x){ return x; });
   if(!segs.length){ toast(L("分段内容为空，无法生成","Segmentation is empty — cannot generate")); return; }
-  /* 开始真正生成：清掉「待生成」标记，避免生成页按钮与进行中状态打架 */
-  st.pendingGen = false;
   /* 🔴 不再有段数上限（2026-09-22 用户拍板：放开、只提示不阻断）。
      段数由内容决定；下游按「段数 × 每段规格词数」现算全文目标，段数多就文章长一点，不会算错。 */
   if(licBusyBlocked("gen")) return;
@@ -4291,53 +4338,77 @@ function licRunGen(){
   licSetBusy(st, L("正在逐段改写 " + segs.length + " 段并生成 " + tgts.map(function(k){ return nkDisp(k); }).join(" + ") + "（段数越多越久，预计 1–3 分钟）…",
               "Rewriting " + segs.length + " paragraphs into " + tgts.map(function(k){ return nkDisp(k); }).join(" + ") + " (~1–3 min)…"));
   st.errStage = "gen"; st.err = null; render();
-  const inputs = {
-    segments_json: JSON.stringify(segs),       /* 图 B 的 max_length 就是 20000 */
-    level: st.prep.level,
-    title_in: String(a.title || "").slice(0, 200),
-    style: state.style || "default",
-    avoid_words: "{}",                          /* 授权链路暂不做超纲词回灌，先传空对象占位 */
-    source: L("授权母稿","Licensed master"),
-  };
   (async function(){
-    try {
-      _runAbort = new AbortController();
-      const data = await difyCall("licgen", inputs, AIWF_LICGEN.user, _runAbort.signal);
-      _runAbort = null;
-      if(data && data.data && (data.data.status === "succeeded" || data.data.outputs)){
+    const MAX_REGEN = 2;   /* 不达标最多重跑 2 次 */
+    let avoidByLevel = {};
+    let prevIssues = "";
+    for(let attempt = 0; attempt <= MAX_REGEN; attempt++){
+      const wfInputs = {
+        segments_json: JSON.stringify(segs),
+        level: st.prep.level,
+        title_in: String(a.title || "").slice(0, 200),
+        style: state.style || "default",
+        avoid_words: JSON.stringify(avoidByLevel),
+        source: L("授权母稿","Licensed master"),
+      };
+      if(attempt > 0){
+        licSetBusy(st, L("质量不达标，自动重跑第 " + attempt + " 次（" + prevIssues + "）…",
+                         "Below spec — auto re-run " + attempt + " (" + prevIssues + ")…"));
+        st.errStage = "gen"; st.err = null; render();
+      }
+      try {
+        _runAbort = new AbortController();
+        const data = await difyCall("licgen", wfInputs, AIWF_LICGEN.user, _runAbort.signal);
+        _runAbort = null;
+        if(!(data && data.data && (data.data.status === "succeeded" || data.data.outputs))){
+          st.errStage = "gen"; st.err = licCallFail(data); licClearBusy(st); render(); return;
+        }
         st.gen = data;
         st.confirmed = true;
-        /* 关键：把结果灌进 state.live.run —— 下游（段落校对 / 逐段审核 / 文章库 / 校验面板）
-           读的都是它，走同一条路就不必为新链路再写一套展示逻辑。 */
-        /* licN：本轮运行的段数（授权链路 10–15 段，热点链路恒 12）。
-           段落对齐护栏读它来定「期望段数」，不能写死 12 —— 见 expectedParaCount()。 */
         state.live = { status: "done", material: String(a.text || "").slice(0, 4800), label: String(a.title || ""), book: "", run: data, err: null, t0: Date.now(), elapsed: 0, licN: segs.length };
         state.liveSel = ""; state.liveCustom = "";
         state.extracted = true; state.validated = true; state.reviewed = false;
-        if(st.doneIds.indexOf(a.id) < 0) st.doneIds.push(a.id);
         applyLive();
-        licClearBusy(st);
-        /* 跳转前把 state.lvl 指到「本批真有内容」的最高档（B1 母稿向下只产 A2/A1-，
-           而 applyLive 只在有推荐档时才动 state.lvl，可能仍停在母稿档 ⇒ s6 空白）。
-           LEVELS12 按高→低排，取第一个 GEN 里有段落的档。 */
-        const firstGen = (typeof LEVELS12 !== "undefined" ? LEVELS12 : []).map(function(l){ return l.key; })
-          .reverse()   /* LEVELS12 是 A1→B2 升序，反转后取第一个 = 最高档 */
-          .filter(function(k){ return GEN[k] && GEN[k].paras && GEN[k].paras.length; })[0];
-        if(firstGen){ state.lvl = firstGen; state.lvlManual = false; }
-        toast(L("已生成 " + tgts.map(function(k){ return nkDisp(k); }).join(" + ") + "，正在进入文章生产…","Generated — opening Article Production…"));
-        /* 2026-09-22 Bryan 拍板（Q1=A / Q2=A）：生成成功后**自动跳**到「08 内容生成」结果页，
-           与其它素材「跑完就看到结果」一致 —— 不再只弹一句 toast 让用户自己找入口。
-           🔴 idx 7 = s6（08 内容生成）；此前误写 go(6) 会落到「07 知识库与分级标准」页。 */
-        go(7);
+
+        /* ── 三层质量校验（字数 + 句长 + 超纲）── */
+        const iss = licGenIssues();
+        const cv = collectGenForVocab();
+        const v = await vocabCheck(cv.arts, cv.words);
+        state.live.vocab = v;
+        /* 判定是否需要重跑：字数/句长任一条不达标，或词汇超纲 */
+        const needRerun = (iss.badWc.length || iss.badSent.length || (v && v.any_exceed));
+        prevIssues = [];
+        if(iss.badWc.length) prevIssues.push(L("字数") + " " + iss.badWc.join("、"));
+        if(iss.badSent.length) prevIssues.push(L("句长") + " " + iss.badSent.join("、"));
+        if(v && v.any_exceed) prevIssues.push(L("超纲") + " " + Object.keys(v.results||{}).filter(function(k){ return v.results[k] && v.results[k].exceed; }).map(nkDisp).join("、"));
+        prevIssues = prevIssues.join("；");
+
+        if(!needRerun || attempt >= MAX_REGEN){
+          /* 达标，或用尽重跑次数仍不达标（避免死循环，照样入库，但显式提示） */
+          if(st.doneIds.indexOf(a.id) < 0) st.doneIds.push(a.id);
+          licClearBusy(st);
+          const firstGen = (typeof LEVELS12 !== "undefined" ? LEVELS12 : []).map(function(l){ return l.key; })
+            .reverse().filter(function(k){ return GEN[k] && GEN[k].paras && GEN[k].paras.length; })[0];
+          if(firstGen){ state.lvl = firstGen; state.lvlManual = false; }
+          if(attempt >= MAX_REGEN && needRerun){
+            toast(L("已重跑 " + MAX_REGEN + " 次仍未完全达标（" + prevIssues + "）——已入库，请在段落校对中人工处理。","After " + MAX_REGEN + " re-runs, still not fully in spec (" + prevIssues + ") — saved; please handle in proofreading."));
+          } else {
+            toast(L("已生成 " + tgts.map(function(k){ return nkDisp(k); }).join(" + ") + "，正在进入文章生产…","Generated — opening Article Production…"));
+          }
+          go(7);
+          return;
+        }
+        /* 不达标且还有重跑额度 → 回灌超纲词，继续 */
+        avoidByLevel = collectAvoidWords(v);
+        // eslint-disable-next-line no-constant-condition
+      } catch(e){
+        _runAbort = null;
+        st.errStage = "gen"; st.err = (e && (e.name === "AbortError" || /abort/i.test(String(e.message))))
+          ? L("已取消本次生成","Generation cancelled")
+          : L("网络错误：","Network error: ") + (e && e.message);
+        licClearBusy(st); render();
         return;
       }
-      st.errStage = "gen"; st.err = licCallFail(data); licClearBusy(st); render();
-    } catch(e){
-      _runAbort = null;
-      st.errStage = "gen"; st.err = (e && (e.name === "AbortError" || /abort/i.test(String(e.message))))
-        ? L("已取消本次生成","Generation cancelled")
-        : L("网络错误：","Network error: ") + (e && e.message);
-      licClearBusy(st); render();
     }
   })();
 }
