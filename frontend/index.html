@@ -4474,8 +4474,9 @@ function s0(){
     /* 图 A 跑完 → 停在确认页（需求：分段后停一下让人确认），不再回到导入面板 */
     body = licStatusHTML() + (licState().prep ? licConfirmHTML() : licensedPanelHTML());
   }
-  return head("01", L("素材选择","Material Selection")) +
-    matWorkflowBar() +
+  const isLicensed = state.route === "licensed";
+  return head("01", isLicensed ? L("CEFR分级","CEFR Grading") : L("素材选择","Material Selection")) +
+    (isLicensed ? "" : matWorkflowBar()) +
     intakeBackBar() + body +
     (state.route === "trend"
       ? nextBtn("进入热点搜集","To trend discovery")
