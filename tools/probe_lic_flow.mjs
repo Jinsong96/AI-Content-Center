@@ -1,13 +1,14 @@
-// ReadPal · 授权链路（第四入口）回归 —— 覆盖 2026-09-22 的「保留原文 + 段数只提示不阻断」
+// ReadPal · 授权链路（第四入口）回归
+//
+// 覆盖 2026-09-22 二次改口径：**导入母稿时每段词数是分段的唯一依据，全文字数不参与决策**；
+// 合格带 = 该档每段规格 ±5 词（B1 23–40 / B2+ 36–55）；段数 8–15 内不提示；
+// 「参考段数」输入框已撤，改成只读「预计段数」。
 //
 // 用法：
 //   cd frontend && python3 -m http.server 8899      # 另开一个终端
 //   node tools/probe_lic_flow.mjs --url=http://127.0.0.1:8899/index.html --port=9242
 //
-// 覆盖：入口卡 / 导入面板（参考段数 6–30）/ 分段确认页三态（12 段无提示 · 20 段黄条+继续按钮 ·
-//       精简未达标红条）/ 保留原文不标红 / 精简回落显式提示 / 校验分母与母稿档说明 /
-//       逐段编辑不丢焦点 / 合并删除 / 期望段数动态 / 窄屏不塌。
-// 断言数 37 项，退出码 0 = 全过且无 JS 异常。
+// 退出码 0 = 全过且无 JS 异常。
 import fs from 'node:fs';
 import { spawn } from 'node:child_process';
 import os from 'node:os';
@@ -19,7 +20,7 @@ const URL_ = arg('url', 'http://127.0.0.1:8899/index.html');
 const PORT = Number(arg('port', process.env.CDP_PORT || 9242));
 const CDP = `http://127.0.0.1:${PORT}`;
 const PROFILE = path.join(os.tmpdir(), `readpal_licprobe_${PORT}`);
-const SHOT = arg('out', '/tmp/licshot2');
+const SHOT = arg('out', '/tmp/licshot3');
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 function findChrome() {
@@ -44,11 +45,13 @@ const R = [];
 const errs = [];
 const ok = (label, cond, detail) => R.push({ ok: !!cond, label, detail: detail == null ? '' : String(detail) });
 
+/* 51 词的样例正文（前端 licWordCount 按空白切词） */
 const ART = 'Virtual reality is spreading through history classrooms faster than most schools expected. ' +
   'A study of more than two thousand students found measurable comprehension gains. ' +
   'Teachers welcome the engagement, but cost and training remain unsolved. ' +
   'Rural districts face the steepest climb of all. ' +
   'Some have started sharing headsets on a rotating schedule.';
+const ART_WC = 51;
 
 async function main() {
   await ensureChrome();
@@ -97,87 +100,121 @@ async function main() {
   await sleep(700);
   ok('授权导入面板渲染', await ev(`!!document.getElementById("licPanel")`));
 
-  await ev(`(function(){
-    var st = licState(); st.arts = [];
-    licPush("VR in the Classroom", ${JSON.stringify(ART)});
-    render(); return 1;
-  })()`);
+  const push = (title, text) => ev(`(function(){ licPush(${JSON.stringify(title)}, ${JSON.stringify(text)}); render(); return 1; })()`);
+  await ev(`(function(){ licState().arts = []; return 1; })()`);
+  await push('VR in the Classroom', ART);
   await sleep(250);
 
-  // 参考段数：改名 + 新的夹取范围（6–30）
-  const refLabel = await ev(`(function(){
+  // ---- 字段：参考段数 → 只读「预计段数」 ----
+  const labels = await ev(`(function(){
     var ls=document.querySelectorAll("#licPanel .licf span"); var t=[];
     for(var i=0;i<ls.length;i++) t.push(ls[i].textContent);
     return t.join("|");
   })()`);
-  ok('字段改名「参考段数」（不再叫「目标段数」）', refLabel.indexOf('参考段数') >= 0 && refLabel.indexOf('目标段数') < 0, refLabel);
-  const clamp = await ev(`(function(){ licSet(licArts()[0].id,"target",99); return licArts()[0].target; })()`);
-  ok('参考段数夹到 30（旧上限 16 已放开）', clamp === 30, '实际 ' + clamp);
-  const clamp2 = await ev(`(function(){ licSet(licArts()[0].id,"target",1); return licArts()[0].target; })()`);
-  ok('参考段数下限 6', clamp2 === 6, '实际 ' + clamp2);
-  await ev(`(function(){ licSet(licArts()[0].id,"target",12); licSet(licArts()[0].id,"level","B2"); render(); return 1; })()`);
-  await sleep(200);
-  const calc = await ev(`(document.querySelectorAll("#licPanel .liccalc")[0]||{}).textContent||""`);
-  ok('字数区间文案改成「该档推荐 …（按 12 段估）」', calc.indexOf('推荐') >= 0 && calc.indexOf('492') >= 0, calc.slice(0, 110));
-  const emb = await ev(`(document.getElementById("licBar")||{}).textContent||""`);
-  ok('启动按钮不再写「精简 + 分段」，且说明默认保留原文',
-     emb.indexOf('分段') >= 0 && emb.indexOf('逐字保留原文') >= 0, emb.slice(0, 130));
+  ok('字段改名「预计段数」（不再叫「参考段数」/「目标段数」）',
+     labels.indexOf('预计段数') >= 0 && labels.indexOf('参考段数') < 0 && labels.indexOf('目标段数') < 0, labels);
+  ok('「目标段数」输入框已撤（面板里不再有 number 输入）',
+     (await ev(`document.querySelectorAll("#licPanel input[type=number]").length`)) === 0);
+
+  // ---- 预计段数算法 ----
+  const ests = await ev(`(function(){
+    return { b1: licEstSegs("B1", ${ART_WC}), b2: licEstSegs("B2", ${ART_WC}),
+             b1long: licEstSegs("B1", ${ART_WC * 8}), b1vlong: licEstSegs("B1", ${ART_WC * 12}),
+             none: licEstSegs("", ${ART_WC}) };
+  })()`);
+  ok('预计段数 = 词数 ÷ 每段中点（51 词 → B1 2 段 / B2 1 段）',
+     ests.b1 === 2 && ests.b2 === 1, JSON.stringify(ests));
+  ok('预计段数：无档位时返回 0', ests.none === 0, String(ests.none));
+
+  // ---- 偏短 / 偏长提示 ----
+  await ev(`(function(){ licSet(licArts()[0].id,"level","B1"); render(); return 1; })()`);
+  await sleep(220);
+  const shortCalc = await ev(`(document.querySelectorAll("#licPanel .liccalc")[0]||{}).textContent||""`);
+  ok('正文偏短：提示预估段数与常规区间', shortCalc.indexOf('偏短') >= 0 && shortCalc.indexOf('8–15') >= 0, shortCalc.slice(0, 130));
+
+  await ev(`(function(){ licArts()[0].text = ${JSON.stringify(ART.repeat(12))}; render(); return 1; })()`);
+  await sleep(220);
+  const longCalc = await ev(`(document.querySelectorAll("#licPanel .liccalc")[0]||{}).textContent||""`);
+  ok('正文偏长：提示预估段数超出常规区间', longCalc.indexOf('偏长') >= 0 && longCalc.indexOf(String(ests.b1vlong)) >= 0, longCalc.slice(0, 130));
+
+  await ev(`(function(){ licArts()[0].text = ${JSON.stringify(ART)}; licSet(licArts()[0].id,"level","B2"); render(); return 1; })()`);
+  await sleep(220);
   await shot(1440, 900, '1_panel');
 
-  // ---------- 2) 确认页 · 不精简 + 12 段（无提示） ----------
-  const prepSet = (simplified, segs, extra) => ev(`(function(){
+  // ---------- 2) 确认页 · 保留原文 + 10 段（8–15 内 → 无黄条） ----------
+  const prepSet = (simplified, segs, extra, level) => ev(`(function(){
     var A = licArts();
     state.lic.queue = [A[0].id]; state.lic.qi = 0; state.lic.doneIds = [];
-    state.lic.prep = Object.assign({ id: A[0].id, level: "B2", simplified: ${simplified ? 'true' : 'false'},
-      masterText: "", rawWordCount: 0, segNote: "", ok: true, warn: "", warn_: "" }, ${JSON.stringify({ segs: segs })}, ${JSON.stringify(extra || {})});
+    state.lic.prep = Object.assign({ id: A[0].id, level: ${JSON.stringify(level || "B2")}, simplified: ${simplified ? 'true' : 'false'},
+      masterText: "", rawWordCount: 0, segNote: "", ok: true, warn: "", outOfBand: 0 },
+      ${JSON.stringify({ segs: segs })}, ${JSON.stringify(extra || {})});
     render(); return 1;
   })()`);
-  const seg12 = Array.from({ length: 12 }, (_, i) => ART);
-  const seg20 = Array.from({ length: 20 }, (_, i) => ART);
+  const seg10 = Array.from({ length: 10 }, () => ART);
+  const seg20 = Array.from({ length: 20 }, () => ART);
 
-  await prepSet(false, seg12, { segNote: "" });
+  await prepSet(false, seg10, {}, 'B2');
   await sleep(350);
   ok('确认页渲染（保留原文）', await ev(`!!document.getElementById("licConfirm")`));
   const title1 = await ev(`document.querySelector("#licConfirm b").textContent`);
   ok('标题 = 确认分段（保留原文）', title1.indexOf('保留原文') >= 0, title1);
-  ok('12 段：不出现段数黄条', (await ev(`document.querySelectorAll("#licConfirm .licneed").length`)) === 0);
-  ok('保留原文模式：不显示「建议 28–35 词」（与档位规格无关）',
-     (await ev(`document.querySelectorAll("#licConfirm .licsegt").length`)) === 0);
-  ok('保留原文模式：每段词数不标红',
+  ok('10 段（8–15 内）：不出现段数黄条',
+     (await ev(`document.querySelectorAll("#licConfirm .licneed").length`)) === 0);
+  const tgts1 = await ev(`(function(){
+    var e=document.querySelectorAll("#licConfirm .licsegt"); return e.length? e[0].textContent : "";
+  })()`);
+  ok('保留原文：每段显示合格带目标「36–55 词」（B2 ±5）', tgts1.indexOf('36–55') >= 0, tgts1);
+  ok('保留原文：51 词落在 B2 合格带内 → 不标红',
      (await ev(`document.querySelectorAll("#licConfirm .licsegw.warn").length`)) === 0);
   const tot1 = await ev(`document.getElementById("licSegTot").textContent.replace(/\\s+/g," ")`);
-  ok('全文行说明「母稿长度不参与规格校验」', tot1.indexOf('不参与规格校验') >= 0, tot1.slice(0, 140));
-  await shot(1440, 900, '2_confirm_plain12');
+  ok('全文行写「全文字数不参与分段判断」（不再摆字数区间）',
+     tot1.indexOf('不参与分段判断') >= 0 && tot1.indexOf('切成') >= 0, tot1.slice(0, 140));
+  ok('全文行不再出现「× 41–50 词/段 = 区间」这种乘积',
+     tot1.indexOf('词/段 =') < 0, tot1.slice(0, 140));
+  await shot(1440, 900, '2_confirm_plain10');
 
-  // ---------- 3) 确认页 · 不精简 + 20 段（提示 + 仍然继续生成，但不拦） ----------
-  await prepSet(false, seg20, { segNote: '按内容分成 20 段（推荐 12 段）' });
+  // ---------- 2b) 保留原文 + B1：51 词超出 23–40 → 必须标红 ----------
+  await prepSet(false, seg10, {}, 'B1');
+  await sleep(320);
+  const tgtsB1 = await ev(`(function(){
+    var e=document.querySelectorAll("#licConfirm .licsegt"); return e.length? e[0].textContent : "";
+  })()`);
+  ok('B1 保留原文：合格带目标显示「23–40 词」', tgtsB1.indexOf('23–40') >= 0, tgtsB1);
+  ok('B1 保留原文：51 词越界 → 10 段全标红（±5 外）',
+     (await ev(`document.querySelectorAll("#licConfirm .licsegw.warn").length`)) === 10);
+  await shot(1440, 900, '2b_confirm_plain10_b1');
+
+  // ---------- 3) 确认页 · 保留原文 + 20 段（> 15 → 提示 + 仍然继续生成，但不拦） ----------
+  await prepSet(false, seg20, { segNote: '切出 20 段，超出常规区间 8–15 段' }, 'B2');
   await sleep(350);
   const bar = await ev(`(document.querySelector("#licConfirm .licneed")||{}).textContent||""`);
-  ok('20 段：出现段数提示（写明实际段数与推荐值）', bar.indexOf('20') >= 0 && bar.indexOf('12') >= 0, bar.slice(0, 110));
+  ok('20 段：出现段数提示（写明实际段数与常规区间）',
+     bar.indexOf('20') >= 0 && bar.indexOf('8–15') >= 0, bar.slice(0, 140));
   const contBtn = await ev(`(function(){
     var b=document.querySelectorAll("#licConfirm .licneed button"); for(var i=0;i<b.length;i++){ if(b[i].textContent.indexOf("继续生成")>=0) return b[i].getAttribute("onclick")||""; } return "";
   })()`);
   ok('提示旁有「仍然继续生成」按钮（指向 licRunGen）', contBtn.indexOf('licRunGen') >= 0, contBtn);
   ok('20 段：主生成按钮仍然可用（不阻断）',
      (await ev(`(document.querySelector("#licConfirm .nextbar button")||{}).textContent||""`)).indexOf('B1') >= 0);
-  ok('20 段：每段仍不标红（保留原文）',
-     (await ev(`document.querySelectorAll("#licConfirm .licsegw.warn").length`)) === 0);
   ok('段数上限拦截已移除（源码里不再有 LIC_MAX_SEG）',
      (await ev(`typeof LIC_MAX_SEG === "undefined" && licRunGen.toString().indexOf("LIC_MAX_SEG") < 0 && licRunGen.toString().indexOf("段数超过上限") < 0`)));
   await shot(1440, 900, '3_confirm_plain20');
 
-  // ---------- 4) 确认页 · 精简 + 12 段（判红 + 标题切换） ----------
-  await prepSet(true, seg12, { segNote: "" });
+  // ---------- 4) 确认页 · 精简 + 12 段（标题切换 + 严格规格 + 判红） ----------
+  await prepSet(true, Array.from({ length: 12 }, () => ART), {}, 'B2');
   await sleep(350);
   const title2 = await ev(`document.querySelector("#licConfirm b").textContent`);
   ok('标题 = 确认分段与精简稿', title2.indexOf('精简稿') >= 0, title2);
-  ok('精简模式：显示「建议 28–35 词」', (await ev(`document.querySelectorAll("#licConfirm .licsegt").length`)) === 12);
-  ok('精简模式：每段词数越界标红（本用例每段 > 35 词 → 12 段全红）',
+  const tgts2 = await ev(`(function(){
+    var e=document.querySelectorAll("#licConfirm .licsegt"); return e.length? e[0].textContent : "";
+  })()`);
+  ok('精简模式：目标显示严格规格「41–50 词」（不带 ±5）', tgts2.indexOf('41–50') >= 0, tgts2);
+  ok('精简模式：51 词越严格规格 → 12 段全红',
      (await ev(`document.querySelectorAll("#licConfirm .licsegw.warn").length`)) === 12);
   await shot(1440, 900, '4_confirm_simp12');
 
-  // ---------- 5) 确认页 · 精简 + 6 段（未达标 → 红条，且提示非阻断以外还有重跑路径） ----------
-  await prepSet(true, seg12.slice(0, 6), { ok: false, warn: '段数 6 不等于要求的 12 段' });
+  // ---------- 5) 确认页 · 精简 + 6 段（未达标 → 红条 + 重跑出口） ----------
+  await prepSet(true, Array.from({ length: 6 }, () => ART), { ok: false, warn: '段数 6 不等于要求的 12 段' }, 'B2');
   await sleep(350);
   const bad = await ev(`(document.querySelector("#licConfirm .licneed.bad")||{}).textContent||""`);
   ok('精简未达标：红条写明原因', bad.indexOf('段数 6') >= 0, bad.slice(0, 120));
@@ -185,8 +222,17 @@ async function main() {
      (await ev(`document.querySelectorAll("#licConfirm .nextbar button").length`)) >= 2);
   await shot(1440, 900, '5_confirm_simp6');
 
-  // ---------- 6) 交互不回归：单行刷新不丢焦点、合并/删除 ----------
-  await prepSet(false, seg12, {});
+  // ---------- 6) 质检兜底治不了的段：out_of_band 必须显式说 ----------
+  await prepSet(false, seg10, { outOfBand: 2, warn: '有 2 段仍落在 36–55 词之外（句子太长、无处可切）' }, 'B2');
+  await sleep(320);
+  const obTxt = await ev(`(document.querySelector("#licConfirm .licneed")||{}).textContent||""`);
+  ok('代码也治不了的越界段：界面明说，不静默',
+     obTxt.indexOf('无处可切') >= 0, obTxt.slice(0, 130));
+  ok('out_of_band 已被前端收进 state',
+     (await ev(`licState().prep.outOfBand`)) === 2);
+
+  // ---------- 7) 交互不回归：单行刷新不丢焦点、合并/删除 ----------
+  await prepSet(false, seg10, {}, 'B2');
   await sleep(300);
   const before = await ev(`(function(){ window.__ta = document.querySelectorAll("#licConfirm .licseg textarea")[0]; window.__ta.focus(); return document.activeElement === window.__ta; })()`);
   await ev(`(function(){ licSetSeg(0, "One two three four five six seven eight nine ten eleven twelve thirteen fourteen."); return 1; })()`);
@@ -194,13 +240,13 @@ async function main() {
   ok('打字时焦点不丢（未整页重渲染）', before && after.foc, 'focus=' + after.foc);
   ok('只更新第 1 段徽标，其余段不动', after.w.indexOf('14') >= 0 && after.others.indexOf('14') < 0, JSON.stringify(after));
   await ev(`licMergeSeg(0); "ok"`); await sleep(180);
-  ok('合并下一段后段数 = 11', (await ev(`document.querySelectorAll("#licConfirm .licseg").length`)) === 11);
+  ok('合并下一段后段数 = 9', (await ev(`document.querySelectorAll("#licConfirm .licseg").length`)) === 9);
   await ev(`licDelSeg(0); "ok"`); await sleep(180);
-  ok('删一段后段数 = 10', (await ev(`document.querySelectorAll("#licConfirm .licseg").length`)) === 10);
+  ok('删一段后段数 = 8', (await ev(`document.querySelectorAll("#licConfirm .licseg").length`)) === 8);
   const totAfter = await ev(`document.getElementById("licSegTot").textContent.replace(/\\s+/g," ")`);
-  ok('改完段数后全文行按新段数重算', /\\b10\\b/.test(totAfter) || totAfter.indexOf('10 段') >= 0 || totAfter.indexOf('10 ×') >= 0, totAfter.slice(0, 110));
+  ok('改完段数后全文行按新段数重算', totAfter.indexOf('切成 8 段') >= 0, totAfter.slice(0, 110));
 
-  // ---------- 7) 护栏：期望段数动态 ----------
+  // ---------- 8) 护栏：期望段数动态 ----------
   const wn1 = await ev(`(function(){ state.live = { status:"done", licN: 20 }; return expectedParaCount(); })()`);
   ok('期望段数取本轮授权分段数（20 段，超旧上限 16 仍生效）', wn1 === 20, String(wn1));
   const wn2 = await ev(`(function(){ state.live = { status:"done" }; return expectedParaCount(); })()`);
@@ -211,14 +257,15 @@ async function main() {
   ok('告警文案说「不是 20 段」', String(wnTxt).indexOf('不是 20 段') >= 0, String(wnTxt).slice(0, 120));
   await ev(`(function(){ state.live={status:"idle"}; state.alignGuard=null; return 1; })()`);
 
-  // ---------- 7b) 精简回落（fallback）必须显式提示，不能静默 ----------
-  await prepSet(true, seg12, { fallback: true, ok: false, warn: '勾了精简但没拿到精简稿（模型未按指令输出），已自动回落为保留原文' });
+  // ---------- 9) 精简回落（fallback）必须显式提示，不能静默 ----------
+  await prepSet(true, Array.from({ length: 12 }, () => ART),
+    { fallback: true, ok: false, warn: '勾了精简但没拿到精简稿（模型未按指令输出），已自动回落为保留原文' }, 'B2');
   await sleep(320);
   const fbTxt = await ev(`(document.querySelector("#licConfirm .licneed.bad")||{}).textContent||""`);
   ok('精简未跑出来 → 显式提示已保留原文（不静默）',
      fbTxt.indexOf('保留原文') >= 0 && fbTxt.indexOf('重新预处理') >= 0, fbTxt.slice(0, 120));
 
-  // ---------- 7c) 校验区：分母用后端回传值 + 说明母稿档不参与校验 ----------
+  // ---------- 10) 校验区：分母用后端回传值 + 说明母稿档不参与校验 ----------
   const sumTxt = await ev(`(function(){
     var d=document.createElement("div"); d.id="vsum"; document.body.appendChild(d);
     state.live = { status:"done", licN:19, run:{ data:{ outputs:{
@@ -234,7 +281,7 @@ async function main() {
   ok('校验区说明「母稿档不参与规格校验」', sumTxt.indexOf('不参与规格校验') >= 0, sumTxt.slice(-130));
   await ev(`(function(){ state.live={status:"idle"}; state.lic.prep=null; return 1; })()`);
 
-  // ---------- 8) 窄屏不塌 ----------
+  // ---------- 11) 窄屏不塌 ----------
   for (const [w, h, tag] of [[1024, 800, '6_panel_1024'], [420, 820, '7_panel_420']]) {
     await ev(`(function(){ state.lic.prep = null; render(); return 1; })()`);
     await sleep(220);

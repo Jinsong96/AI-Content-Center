@@ -3781,12 +3781,15 @@ function bankPanelHTML(){
 /* 每段词数区间 —— 必须与 Dify 两张图里的 PER_PARA / SPEC 前两位同源。
    改这里就要改 tools/build_graphB.py 的 PER_PARA 与 SPECS，否则前端算的区间与实际产出对不上。 */
 const LIC_PER_PARA = { A1:[11,14], A2:[20,22], B1:[28,35], B2:[41,50] };
-/* 🔴 段数没有上限了（2026-09-22 用户拍板：不勾精简时段数由内容决定，只提示不阻断）。
-   下面的 REF 只用来在**导入阶段**估一个「该档推荐字数区间」，帮你判断要不要勾精简 ——
-   它**不决定**实际段数（实际段数由图 A 按内容分出来，可能多于也可能少于它）。 */
-const LIC_REF_MIN = 6;       /* 参考段数下限 */
-const LIC_REF_MAX = 30;      /* 参考段数上限 */
-const LIC_DEF_SEG = 12;      /* 参考段数默认 = 推荐段数 */
+/* 🔴 2026-09-22 二次改口径（Bryan 用真实 B1 母稿验收后拍板）：
+   **导入母稿时，每段词数是分段的唯一依据，全文字数不参与决策**
+   （原话「字数反而没有每段段落的词数重要，其实字数不构成分段的影响」）。
+   ⇒ 「参考段数」输入框已撤掉（它唯一的作用是估字数区间，现在不这么算了），
+     改成导入面板上一行只读的「预计段数」= 正文词数 ÷ 每段中点。
+   ⇒ 下面两个常量只作 `licRange()` 的合法区间夹取用（防止脏值）。 */
+const LIC_REF_MIN = 6;
+const LIC_REF_MAX = 30;
+const LIC_DEF_SEG = 12;      /* 精简模式固定 12 段（也是 licRange 的默认段数） */
 /* 母稿档位 → 要往下产的低档（顺序即产出顺序，也是「只向下」的体现） */
 const LIC_TARGETS = { B2:["B1","A2","A1"], B1:["A2","A1"] };
 let _licSeq = 0;             /* 条目稳定 id —— 不用下标定位（下标会随删除错位） */
@@ -3832,7 +3835,7 @@ function licAddPaste(){
   toast(L("已加入 1 篇（共 " + licArts().length + " 篇）","Added 1 (total " + licArts().length + ")"));
 }
 function licPush(title, text){
-  licArts().push({ id: ++_licSeq, title: String(title || "").slice(0, 120), text: String(text || ""), level: "", target: LIC_DEF_SEG, simplify: false, src: "paste" });
+  licArts().push({ id: ++_licSeq, title: String(title || "").slice(0, 120), text: String(text || ""), level: "", simplify: false, src: "paste" });
   licState().prep = null; licState().confirmed = false; licState().gen = null;   /* 列表变了：旧的预处理结果作废 */
 }
 /* ---- 导入：文件（.txt / .md / .docx，可一次多选） ---- */
@@ -3887,8 +3890,9 @@ function licDocxXmlToText(xml){
 /* ---- 列表操作 ---- */
 function licSet(id, key, val){
   const a = licById(id); if(!a) return;
-  if(key === "target"){ a.target = Math.max(LIC_REF_MIN, Math.min(LIC_REF_MAX, parseInt(val, 10) || LIC_DEF_SEG)); }
-  else if(key === "simplify"){ a.simplify = !!val; }
+  /* 段数不再是可设字段（2026-09-22：「参考段数」输入框已撤），
+     实际段数由图 A 按每段词数切出来。 */
+  if(key === "simplify"){ a.simplify = !!val; }
   else { a[key] = val; }
   licState().prep = null; licState().confirmed = false; licState().gen = null;
 }
@@ -3914,17 +3918,20 @@ function licensedPanelHTML(){
   const rows = A.map(function(a, i){
     const no = ("0" + (i + 1)).slice(-2);
     const wc = licWordCount(a.text);
-    const r = licRange(a.level, a.target);
+    const r = licRange(a.level, LIC_DEF_SEG);
     const tgts = LIC_TARGETS[bigOf(a.level) || ""] || [];
+    /* 🔴 2026-09-22 改口径（用户拍板）：导入母稿时**每段词数是分段的唯一依据**，
+       全文字数不参与决策。所以这里不再摆「推荐字数区间」，改成**预估段数**：
+       正文词数 ÷ 每段中点 —— 只用来一眼看出这篇够不够长、会不会太长。
+       预估段数落在常规区间（8–15）之外才提示一句，且**不阻断**。 */
+    const est = licEstSegs(a.level, wc);
     let calc;
-    if(!bigOf(a.level)) calc = '<span style="color:#A32D2D">' + L("先选母稿档位，才能算字数区间","Pick a master level to compute the word range") + '</span>';
-    else if(r) calc = L("该档推荐 <b>" + r.lo + "–" + r.hi + "</b> 词（按 " + r.n + " 段 × " + r.per[0] + "–" + r.per[1] + " 词/段估）",
-                        "Recommended <b>" + r.lo + "–" + r.hi + "</b> words (est. " + r.n + " × " + r.per[0] + "–" + r.per[1] + ")") +
+    if(!bigOf(a.level)) calc = '<span style="color:#A32D2D">' + L("先选母稿档位，才能预估段数","Pick a master level to estimate paragraphs") + '</span>';
+    else if(r) calc = L("预计切成 <b>" + est + "</b> 段（每段 " + r.per[0] + "–" + r.per[1] + " 词，可浮动 ±5）",
+                        "Expect ~<b>" + est + "</b> paragraphs (" + r.per[0] + "–" + r.per[1] + " words each, ±5)") +
                 (wc ? L("　·　当前正文 <b>" + wc + "</b> 词", "　·　current <b>" + wc + "</b> words") : "");
-    const over = (r && wc > r.hi);
-    /* 偏短也要提示：正文不足区间下限时，段数该调小而不是靠「加水」凑字
-       （需求明确「按内容自然分，不硬凑、不加水」）—— 否则会静默产出字数不足的档。 */
-    const under = (r && wc > 0 && wc < r.lo);
+    const tooLong = (wc > 0 && est > LIC_SEG_OK_HI);
+    const tooShort = (wc > 0 && est > 0 && est < LIC_SEG_OK_LO);
     return `<div class="licrow">
       <div class="lich">
         <span class="licno">${no}</span>
@@ -3939,18 +3946,17 @@ function licensedPanelHTML(){
             <option value="B1"${a.level === "B1" ? " selected" : ""}>B1</option>
           </select>
         </label>
-        <label class="licf" title="${L("只用来估算「该档推荐字数区间」，帮你判断要不要勾精简。实际段数由预处理按内容分段决定，可能多于也可能少于它。","Only used to estimate the recommended word range for this level — it does NOT decide the actual paragraph count, which is derived from the content.")}"><span>${L("参考段数","Reference paragraphs")}</span>
-          <input type="number" min="${LIC_REF_MIN}" max="${LIC_REF_MAX}" value="${a.target}" onchange="licSet(${a.id},'target',this.value);render()">
-        </label>
+        <div class="licf" title="${L("按「正文词数 ÷ 每段中点」估出来的段数，只作参考 —— 实际段数由预处理按每段词数切出来，不受这里影响（2026-09-22 起不再可改）。","Estimated as word count ÷ per-paragraph midpoint. The actual count is decided during preparation by the per-paragraph word target.")}"><span>${L("预计段数","Est. paragraphs")}</span>
+          <b style="font-size:13px;color:${est ? "var(--ink)" : "var(--sub)"}">${bigOf(a.level) ? (est + " 段") : "—"}</b>
+        </div>
         <label class="licf licchk" title="${L("勾选 = 先砍次要信息、保住主线，压到该档 12 段规格内（精简稿即入库的母稿）；不勾 = 逐字保留原文，只做按内容分段。","Checked = cut secondary details and fit the 12-paragraph spec. Unchecked = keep the text verbatim and only segment it.")}">
           <input type="checkbox"${a.simplify ? " checked" : ""} onchange="licSet(${a.id},'simplify',this.checked)"> ${L("需要精简","Condense")}
         </label>
       </div>
-      <div class="liccalc${(over && !a.simplify) ? " warn" : ""}">
+      <div class="liccalc${tooLong ? " warn" : ""}">
         ${calc}${tgts.length ? L("　·　将产出 ", "　·　will produce ") + tgts.map(function(k){ return '<b>' + nkDisp(k) + '</b>'; }).join(" + ") : ""}
-        ${(over && !a.simplify) ? '<br><span style="color:var(--sub)">' + L("正文超出该档推荐字数。<b>不勾精简</b> = 逐字保留原文并往下生成（低档仍按每段规格写，文章会相应变长）；想让母稿本身也落进规格，就勾选「需要精简」。","Longer than recommended. <b>Without “Condense”</b> the text is kept verbatim and lower levels follow the per-paragraph spec — articles just get longer. Tick “Condense” to bring the master into spec.") + "</span>" : ""}
-        ${(over && a.simplify) ? '<br><span style="color:var(--sub)">' + L("正文超出区间，已勾选精简 —— 预处理会先砍次要信息保主线，压到 12 段规格内。","Over the range and set to condense — secondary details will be cut first to fit 12 paragraphs.") + "</span>" : ""}
-        ${under ? '<br><span style="color:var(--sub)">' + L("正文比该档推荐字数少 —— 分出来的段数会相应少一些，低档文章也会短一些。","Shorter than recommended — expect fewer paragraphs and shorter articles.") + "</span>" : ""}
+        ${tooLong ? '<br><span style="color:var(--sub)">' + L("正文偏长：会切成 <b>" + est + "</b> 段（常规 8–15 段）。<b>不勾精简</b> = 逐字保留原文，段数多、低档文章相应变长；想让母稿本身也短一些，就勾「需要精简」（压到 12 段规格内）。","Long: ~<b>" + est + "</b> paragraphs (usual range 8–15). <b>Without “Condense”</b> the text is kept verbatim, so more paragraphs means longer articles. Tick “Condense” to fit the 12-paragraph spec.") + "</span>" : ""}
+        ${tooShort ? '<br><span style="color:var(--sub)">' + L("正文偏短：预计只切成 <b>" + est + "</b> 段（常规 8–15 段）。低档文章也会相应短一些 —— 不必为了凑段数往里加内容。","Short: only ~<b>" + est + "</b> paragraphs (usual range 8–15). Articles will be shorter too — no need to pad the text.") + "</span>" : ""}
       </div>
       <details class="licdet"><summary>${L("查看正文（前 600 字）","Preview (first 600 chars)")}</summary><pre>${esc(String(a.text || "").slice(0, 600))}${String(a.text || "").length > 600 ? "\n…" : ""}</pre></details>
     </div>`;
@@ -4106,6 +4112,10 @@ async function licPrepOne(){
                     /* ok=false 只在**勾了精简**时才会出现（段数≠12 或词数越界）——
                        必须显式收下来：过去只读 warn，段数错误被静默放行。 */
                     ok: String(o.ok || "") === "true",
+                    /* out_of_band：质检程序跑完后**仍有几段**落在合格带之外
+                       （典型是「一整句话 60 词」，句末无处可切）—— 这类代码也治不了，
+                       图 A 会同时写进 warn，界面必须说出来，不能静默。 */
+                    outOfBand: parseInt(o.out_of_band, 10) || 0,
                     warn: String(o.warn || "") };
       }
     } else {
@@ -4123,13 +4133,35 @@ async function licPrepOne(){
 }
 
 /* ---- 分段编辑（人工确认环节）：全在内存里改，确认时才送进图 B ---- */
-/* 一段词数是否算「不合格」：**只有勾了精简才算**。
-   不勾精简 = 保留原文，每段长度就是原文的自然长度，跟档位规格无关 ——
-   一律标红只会让确认页满屏红、真正的问题反而看不见（2026-09-22 改）。 */
+/* 一段词数是否算「不合格」。
+   🔴 2026-09-22 口径变更（Bryan 用真实 B1 母稿验收后拍板）：
+     · 导入母稿时**每段词数是分段的唯一依据**，全文字数不参与决策；
+       原话「每段最后都是作为阅读卡片在 APP 上呈现给用户阅读的，所以不能太长也不能太短」。
+     · 合格带 = 该档每段规格 **±5 词**（B1 23–40 / B2+ 36–55）—— 原话「不超过上下5个词」。
+     · 图 A 里的质检程序会先把每段拉进带内，所以这里标出来的基本只剩
+       「一整句话超长、无处可切」这类代码也治不了的真问题。
+   此前「保留原文一律不标」已过时 —— 那时分段根本没有词数目标。 */
 function licSegBad(k, r){
   const st = licState();
-  return !!(st.prep && st.prep.simplified && r && (k < r.per[0] || k > r.per[1]));
+  if(!st.prep || !r || !r.per || !r.per[0]) return false;
+  const tol = st.prep.simplified ? 0 : 5;   /* 精简稿按严格规格判；保留原文按 ±5 合格带判 */
+  return k < r.per[0] - tol || k > r.per[1] + tol;
 }
+/* 该档每段的「合格带」（保留原文时是 ±5，精简时是规格本身） */
+function licBand(r){
+  const st = licState();
+  const tol = (st.prep && st.prep.simplified) ? 0 : 5;
+  return [r.per[0] - tol, r.per[1] + tol];
+}
+/* 预估段数：正文词数 ÷ 每段中点（导入阶段用，帮你判断这篇原文够不够长 / 会不会太长）。
+   它**不参与**任何决策 —— 实际段数由图 A 按每段词数切出来。 */
+function licEstSegs(levelKey, words){
+  const per = LIC_PER_PARA[bigOf(levelKey) || ""];
+  if(!per || !words) return 0;
+  return Math.max(1, Math.round(words / ((per[0] + per[1]) / 2)));
+}
+const LIC_SEG_OK_LO = 8;    /* 段数常规区间下限（用户拍板：8–15 内不提示） */
+const LIC_SEG_OK_HI = 15;
 function licSetSeg(i, val){
   const st = licState(); if(!st.prep) return;
   st.prep.segs[i] = val;
@@ -4163,11 +4195,18 @@ function licSegRange(){
 function licTotalHTML(){
   const st = licState(); if(!st.prep) return "";
   const r = licSegRange(), tot = licSumWords(st.prep.segs);
+  /* 🔴 保留原文时**不给「全文字数区间」**（2026-09-22 用户拍板）：
+     「导入母稿的时候，字数反而没有每段段落的词数重要，其实字数不构成分段的影响」。
+     所以只陈述两个事实（全文多少词、切成几段）+ 每段的合格带，不再摆一个看着像目标的乘积。 */
+  if(!st.prep.simplified){
+    const b = licBand(r);
+    return L("全文 <b>" + tot + "</b> 词　·　切成 <b>" + st.prep.segs.length + "</b> 段　·　每段目标 <b>" + b[0] + "–" + b[1] + "</b> 词",
+             "Total <b>" + tot + "</b> words　·　<b>" + st.prep.segs.length + "</b> paragraphs　·　per-paragraph target <b>" + b[0] + "–" + b[1] + "</b>")
+      + '　<span style="color:var(--sub)">' + L("全文字数不参与分段判断；低档按每段规格写，段数多则文章自然变长",
+        "Total length doesn't drive segmentation; lower levels follow the per-paragraph spec, so more paragraphs means longer articles") + "</span>";
+  }
   const line = L("全文 <b>" + tot + "</b> 词　·　" + r.n + " 段 × " + r.per[0] + "–" + r.per[1] + " 词/段 = <b>" + r.lo + "–" + r.hi + "</b> 词",
                  "Total <b>" + tot + "</b> words　·　" + r.n + " × " + r.per[0] + "–" + r.per[1] + " = <b>" + r.lo + "–" + r.hi + "</b>");
-  if(!st.prep.simplified)
-    return line + '　<span style="color:var(--sub)">' + L("保留原文，母稿长度不参与规格校验；低档按每段规格写，段数多则文章自然变长",
-      "Text kept as-is — the master length is not checked; lower levels follow the per-paragraph spec, so more paragraphs means longer articles") + "</span>";
   const ok = tot >= r.lo && tot <= r.hi;
   return line + (ok ? '　<span style="color:var(--sub)">' + L("落在区间内","within range") + "</span>"
                     : '　<span style="color:#D04418">' + L("超出区间，可改段数或删减正文", "Out of range — adjust paragraphs or trim") + "</span>");
@@ -4246,13 +4285,18 @@ function licConfirmHTML(){
   const r = licSegRange(), tgts = LIC_TARGETS[P.level] || [];
   const n = (st.queue || []).length, done = (st.doneIds || []).length;
   const N = P.segs.length;
-  const off = N !== LIC_DEF_SEG;            /* 段数偏离推荐值 12 → 提示（**不拦截**） */
+  /* 段数提示口径（2026-09-22 用户拍板）：**8–15 段内一律不提示**。
+     段数现在由「全文词数 ÷ 每段目标」算出来（这篇 B1 → 10–11 段），
+     再喊「推荐 12 段」就是噪音。只有跑出常规区间才说一句，且**不拦截**。 */
+  const off = N < LIC_SEG_OK_LO || N > LIC_SEG_OK_HI;
+  const band = licBand(r);
   const rows = P.segs.map(function(p, i){
     const k = licWordCount(p), bad = licSegBad(k, r);
     return `<div class="licseg">
       <div class="licsegh"><span class="licno">${("0" + (i + 1)).slice(-2)}</span>
         <span class="licsegw${bad ? " warn" : ""}" id="licSegW${i}">${L(k + " 词", k + " words")}</span>
-        ${P.simplified ? `<span class="licsegt">${L("建议 " + r.per[0] + "–" + r.per[1] + " 词","aim " + r.per[0] + "–" + r.per[1] + " words")}</span>` : ""}
+        <span class="licsegt">${L("目标 " + (P.simplified ? r.per[0] + "–" + r.per[1] : band[0] + "–" + band[1]) + " 词",
+                                 "aim " + (P.simplified ? r.per[0] + "–" + r.per[1] : band[0] + "–" + band[1]) + " words")}</span>
         <button class="licmini" onclick="licMergeSeg(${i})"${i >= P.segs.length - 1 ? " disabled" : ""}>${L("合并下一段","Merge next")}</button>
         <button class="licmini danger" onclick="licDelSeg(${i})">${L("删除","Delete")}</button>
       </div>
@@ -4266,8 +4310,8 @@ function licConfirmHTML(){
       <span style="flex:1;min-width:280px">${P.simplified
         ? L("段数 <b>" + N + "</b>，简明起见要求正好 12 段。可以点上方「重新预处理」重跑，或就地合并后再生成。",
             "<b>" + N + "</b> paragraphs — exactly 12 is required here. Re-prepare, or merge below.")
-        : L("按内容分成 <b>" + N + "</b> 段（推荐 12 段）。段数只是建议值 —— 照实继续也能生成；段数越多，低档文章会越长（每段词数不变）。",
-            "Segmented into <b>" + N + "</b> paragraphs (12 recommended). It's a guideline — continue as-is; more paragraphs make longer articles.")}</span>
+        : L("切成 <b>" + N + "</b> 段，超出常规区间 " + LIC_SEG_OK_LO + "–" + LIC_SEG_OK_HI + " 段。按 " + nkDisp(P.level) + " 每段 " + r.per[0] + "–" + r.per[1] + " 词算，常规区间对应的正文约 " + (LIC_SEG_OK_LO * r.per[0]) + "–" + (LIC_SEG_OK_HI * r.per[1]) + " 词 —— 请确认原文长度与该档规格是否匹配。照实继续也能生成。",
+            "Segmented into <b>" + N + "</b> paragraphs — outside the usual " + LIC_SEG_OK_LO + "–" + LIC_SEG_OK_HI + ". At " + r.per[0] + "–" + r.per[1] + " words each, that range covers roughly " + (LIC_SEG_OK_LO * r.per[0]) + "–" + (LIC_SEG_OK_HI * r.per[1]) + " words. Please check that the master length fits this level — you can still continue.")}</span>
       <button class="btn sec" style="padding:4px 14px;font-size:12px" onclick="licRunGen()">${L("仍然继续生成","Continue anyway")}</button>
     </div>` : "";
   return `<div id="licConfirm" style="background:#fff;border:1px solid var(--border2);border-radius:12px;padding:18px 20px">
@@ -4284,8 +4328,8 @@ function licConfirmHTML(){
       ${P.simplified
         ? L("这是逐段改写的<b>骨架</b>，确认后才会开始生成低档文章。每段词数不理想可以就地改、合并或删除。",
             "This is the <b>skeleton</b> used for rewriting. Edit, merge or delete paragraphs if the word counts look off.")
-        : L("这是逐段改写的<b>骨架</b>。正文<b>逐字保留原样</b>，你只调整分段；确认后才会开始生成低档文章。",
-            "This is the <b>skeleton</b> used for rewriting. The text is <b>kept verbatim</b> — you only adjust the segmentation.")}
+        : L("这是逐段改写的<b>骨架</b>。正文<b>逐字保留原样</b>，切分点已按每段 <b>" + band[0] + "–" + band[1] + "</b> 词自动调匀（只移动切分点，不改一个字）；越界的段会标出来。确认后才会开始生成低档文章。",
+            "This is the <b>skeleton</b> used for rewriting. The text is <b>kept verbatim</b>; boundaries were auto-balanced to <b>" + band[0] + "–" + band[1] + "</b> words per paragraph (only cut points move — not a single word changes). Out-of-range paragraphs are flagged. Confirm to start generating.")}
     </p>
     ${P.fallback ? '<div class="licneed bad" style="margin-bottom:10px">'
         + "<b>" + L("精简没跑出来　","Condensing did not run　") + "</b>"

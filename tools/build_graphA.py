@@ -206,12 +206,22 @@ COUNT_CODE = r'''function main({ text }) {
   return { word_count: String(wc(t)), text: t };
 }'''
 
-# ── ② nodeSegment：按内容大意自然分段 ────────────────────────────────
-# 🔴 2026-09-22 重写。旧版有三条规则互相打架，原文一长就必然失控：
-#   ① 「段数上限 16」② 「B1 每段 28–35 / B2 每段 41–50 词」③ 「段数 = 总词数 ÷ 每段词数」
-#   —— 1400 词的不精简母稿按 ② 反推要 28–34 段，直接顶破 ①；模型只能乱给（实测给过 6 段）。
-#   新规则：**段数由内容决定** —— 不勾精简时「能合则合、尽量靠近 12，合不动就多，不设上限」；
-#   勾了精简时「必须正好 12 段」。词数规格不再用来反推段数（那是下游各档的事）。
+# ── ② nodeSegment：分段（保留原文模式以「每段词数」为唯一依据） ──────
+# 🔴 2026-09-22 二次重写（用户用真实 B1 母稿验收后拍板）。
+#   上午那版把「每段词数」整个删掉了 —— 判断依据是「保留原文时词数不由我们控制」，
+#   **这个判断是错的**：切开一段不改一个字，只是把切分点从段末移到句末，词数完全可控。
+#   后果实测：用户导入 B1 母稿 What's in a Name?（8 个自然段、各 38–54 词、共 334 词），
+#   模型原样照搬 8 段 —— 6 段越界（54/45/38/44/47/49），最后一段只有 18 词。
+#   全文 334 词落在 B1 区间 323–437 内，**长度本身完全合格，问题只在切分点**：
+#   按每段 31 词算本该切成 10–11 段。
+#
+# 🔴 用户口径（原话要点）：
+#   · 「导入母稿的时候，字数反而没有每段段落的词数重要，其实字数不构成分段的影响」
+#   · 「每段最后都是作为阅读卡片在 APP 上呈现给用户阅读的，所以不能太长也不能太短」
+#   · 「均匀优先，可以根据内容大意等做微调整」
+#   · 「允许小幅浮动」= **上下 5 个词**（B1 23–40 / B2+ 36–55）
+#   · 段数 8–15 内不提示；模型切不准时由**代码自动兜底**（见 CLEAN_CODE），静默不标
+#   ⇒ 「尽量靠近 12 段」这条在导入母稿场景下**废弃**，让位给每段规格。
 SEGMENT_SYS = '''你是英语分级阅读内容编辑。把下面这段文字**按内容大意分段**，产出的段落骨架将供后续多个难度档共用。
 
 🔴 **先判断模式**（看下面的【是否需要精简】）：
@@ -220,15 +230,29 @@ SEGMENT_SYS = '''你是英语分级阅读内容编辑。把下面这段文字**�
 
 【模式 A · 保留原文】
 正文**逐字保留**：你**只做切分**，不得改写、增删、调整任何一个词。
-1. **一个段落 = 一个信息单元（一个"大意"）**。不要把一段里的小句拆出来单独成段。
-2. **能合则合**：讲同一件事、同一话题的相邻内容，合并成一段。
-3. **目标 12 段**（这是产品规格），但 **以内容为准，绝不硬凑**：
-   - 信息单元**不足 12 个** ⇒ **照实给**（给 8 段就给 8 段）。硬拆凑数会让后续改写**逐段错位**，
-     这是最严重的错误，比段数不对更严重。
-   - 信息单元**多于 12 个** ⇒ 先把同一话题的相邻单元合并，尽量靠近 12 段；
-     **合并会破坏意思的，宁可多于 12 段**。段数**不设上限**，由内容决定。
-4. **不要输出碎段**：低于 20 词的段落，除非它本身就是独立大意，否则并入相邻段。
+
+🔴 **切分依据只有一个：每段词数。** 全文字数**不参与**判断。
+（这些段落之后会作为**阅读卡片**在 APP 上呈现给学生，太长太短都不行。）
+
+1. **每段目标 = 该档规格**，允许上下浮动 5 个词：
+
+   | 母稿档位 | 每段目标 | 可接受范围 |
+   |---|---|---|
+   | B1 | **28–35 词** | 23–40 词 |
+   | B2+ | **41–50 词** | 36–55 词 |
+
+2. **怎么切**：
+   - **只在句子末尾切**（句号 / 问号 / 感叹号之后），**绝不在一句话中间切**。
+   - **均匀优先**：让各段长度尽量接近区间中点（B1 约 31 词），哪里切更均衡就切哪里。
+   - **可按内容大意微调**：某处正好是话题转折，即使词数略有偏差也优先在那里切。
+3. **原文的自然段只是参考，不是边界**：一段太长就切成两段/多段；两段都太短就合并。
+   ⚠️ 照搬原文的自然段是**错误**的 —— 原文一段 50 词，就必须拆成约 31 + 19 或两段各 25。
+4. **段数不用凑**：段数 = 全文词数 ÷ 每段目标，自然算出来是多少就是多少（大约 8–15 段）。
+   不要为了凑某个段数把段落拉长或切碎。
 5. 不要保留原文的小标题、编号、markdown 标记（`#`、`*`、`-` 等）。
+
+⚠️ 输出的所有段落**按顺序拼接起来必须等于原文，一个词都不差**（连标点都不改）。
+   你唯一的自由是**决定在哪里断开**。
 
 【模式 B · 精简稿】
 上一步已按 12 段写好，**必须正好 12 段**：
@@ -246,11 +270,18 @@ SEGMENT_SYS = '''你是英语分级阅读内容编辑。把下面这段文字**�
 【输出格式】只输出 JSON，不要 markdown 代码块，不要任何解释：
 {"segments": ["第一段原文", "第二段原文", "第三段原文"]}'''
 
-# ── ③ nodeClean：解析分段结果 ───────────────────────────────────────
+# ── ③ nodeClean：解析分段结果 + 质检程序（把每段拉进合格带） ─────────
+# 🔴 2026-09-22 新增质检程序。用户拍板「要自动兜底，但界面上不用标出哪几段被调过」。
+#   为什么必须有：模型按指令切分的稳定性只有六七成（实测 8 段里 6 段越界、错得离谱），
+#   光靠提示词保证不了「每段落在 23–40」。代码兜底做且只做两件事：
+#     · 超上限 ⇒ 在**句子边界**补切
+#     · 低于下限 ⇒ 并入相邻段
+#   全程只移动切分点，**一个字都不改**（拼起来仍与原文逐字一致）。
 CLEAN_CODE = r'''function main({ level, need_simplify, master, raw, fallback }) {
   const strip = (s) => String(s == null ? '' : s).replace(/```json/gi, '').replace(/```/g, '').trim();
+  const wc = (t) => (String(t || '').match(/[A-Za-z][A-Za-z''-]*/g) || []).length;
 
-  /* 从模型输出里抠出 JSON（模型常带前后缀或 markdown 包裹） */
+  /* ---- 1) 从模型输出里抠出 JSON（模型常带前后缀或 markdown 包裹） ---- */
   let segs = [];
   const txt = strip(raw);
   const i = txt.indexOf('{'), j = txt.lastIndexOf('}');
@@ -266,33 +297,161 @@ CLEAN_CODE = r'''function main({ level, need_simplify, master, raw, fallback }) 
     segs = txt.split(/\n\s*\n/).map((s) => s.trim()).filter((s) => s.length > 0);
   }
 
-  const wc = (t) => (String(t || '').match(/[A-Za-z][A-Za-z''-]*/g) || []).length;
-  const per = segs.map((s) => wc(s));
-  const total = per.reduce((a, b) => a + b, 0);
   const lv = String(level || '').trim();
   const spec = { B1: [323, 437, 28, 35], B2: [468, 632, 41, 50] }[lv] || null;
   const simp = String(need_simplify || '').trim().toLowerCase() === 'true';
 
-  /* 🔴 段数的判定口径（2026-09-22 用户拍板）：
-     · **勾了精简** ⇒ 12 段是硬指标（精简稿本来就是按 12 段写的），不对就 ok=false。
-     · **没勾精简** ⇒ 段数由内容决定（能合则合、尽量靠近 12、合不动就多，**不设上限**）。
-       此时段数 ≠ 12 只报 `seg_note` 给前端提示，**不判失败、不阻断生成**。
-     同时词数越界也只对「精简稿」才判 —— 保留原文的母稿长度本来就不由我们控制。 */
-  const SEGN = 12;
+  /* ---- 2) 质检程序：把每段拉进合格带（只移切分点，不改一个字） ----
+     用户口径：导入母稿时**每段词数是分段的首要依据**，全文字数不参与决策；
+     段落最后是 APP 上的阅读卡片，不能太长也不能太短。允许上下浮动 **5 词**。 */
+  const TOL = 5;
+  const lo = spec ? spec[2] - TOL : 0;      /* B1 → 23 · B2 → 36 */
+  const hi = spec ? spec[3] + TOL : 0;      /* B1 → 40 · B2 → 55 */
+  const mid = (lo + hi) / 2;
+
+  /* 按句末标点分句 —— 只在「句末标点 + 空格 + 疑似新句开头」处断，
+     避免把 `Mac means "son of", ...` 这种引号/逗号切坏 */
+  const packText = (text) => {
+    const t = String(text).replace(/([.!?])\s+(?=["'(\[]?[A-Z0-9])/g, '$1\u0001');
+    return t.split('\u0001').map((s) => s.trim()).filter((s) => s.length > 0);
+  };
+
+  /* 把若干句切成 k 段：k = round(总词数 ÷ 区间中点)，用 DP 最小化「各段偏离中点」的平方和
+     （用户明确要求「均匀优先 —— 不能太长也不能太短」）。
+     越界段额外加罚，保证 DP 优先选落在带内的切法。句子数 ≤ 10、k ≤ 5，DP 开销可忽略。
+     用户原话：「每段最后都是作为阅读卡片在 APP 上呈现，所以不能太长也不能太短」。 */
+  const dpSplit = (sents) => {
+    const n = sents.length;
+    if (n < 2) return [sents.join(' ')];
+    const cnt = sents.map((s) => wc(s));
+    const pre = [0];
+    for (let a = 0; a < n; a++) pre.push(pre[a] + cnt[a]);
+    const W = pre[n];
+    let k = Math.max(1, Math.round(W / mid));
+    if (W > hi && k < 2) k = 2;     /* 超上限就必须至少切一刀，让外层比较哪种更接近合格带 */
+    if (k < 2) return [sents.join(' ')];
+    k = Math.min(k, n);
+    const dp = [], cut = [];
+    for (let a = 0; a <= k; a++) {
+      dp.push(new Array(n + 1).fill(Infinity));
+      cut.push(new Array(n + 1).fill(-1));
+    }
+    dp[0][0] = 0;
+    const cost = (len) => {
+      const d = len - W / k;
+      const pen = (len < lo ? (lo - len) * 40 : 0) + (len > hi ? (len - hi) * 40 : 0);
+      return d * d + pen;
+    };
+    for (let a = 1; a <= k; a++) {
+      for (let b = a; b <= n; b++) {
+        for (let c = a - 1; c < b; c++) {
+          if (dp[a - 1][c] === Infinity) continue;
+          const v = dp[a - 1][c] + cost(pre[b] - pre[c]);
+          if (v < dp[a][b]) { dp[a][b] = v; cut[a][b] = c; }
+        }
+      }
+    }
+    if (dp[k][n] === Infinity) return [sents.join(' ')];
+    const parts = [];
+    let b = n;
+    for (let a = k; a >= 1; a--) {
+      const c = cut[a][b];
+      if (c < 0) return [sents.join(' ')];
+      parts.unshift(sents.slice(c, b).join(' '));
+      b = c;
+    }
+    return parts;
+  };
+
+  /* 越界量：段长离合格带有多远（带内为 0）。用它做「改还是不改」的判据 ——
+     ⚠️ 不能只看「有没有越界」：B1 一段 44 词（超 4）比切成 30+14（14 严重偏短）更好，
+     所以只在**窗口总越界量下降**时才采纳新的切法。 */
+  const overOf = (len) => (len < lo ? lo - len : (len > hi ? len - hi : 0));
+  const badSum = (arr) => arr.reduce((s, x) => s + overOf(wc(x)), 0);
+
+  let autoFixed = 0;
+  /* 🔴 只在**保留原文**模式下质检。精简模式的契约是「正好 12 段」，质检一补切就会变成
+     18 段，直接违背精简的目的 —— 那边保持原口径：段数/字数不达标就判失败、交人处理。 */
+  if (!simp && spec && segs.length > 1) {
+    /* 逐处修，一次只动一个窗口，改完重新扫描（索引会变）。
+       窗口候选：自身、与左邻、与右邻 —— 「借邻居一起重排」是必要的：
+       例如 38 词 + 44 词两段单独都治不好，拼起来却能均匀切成 26/23/33 三段。 */
+    let skip = {};
+    for (let round = 0; round < 40; round++) {
+      let hit = -1;
+      for (let i = 0; i < segs.length; i++) {
+        const k = wc(segs[i]);
+        if ((k < lo || k > hi) && !skip[segs[i]]) { hit = i; break; }
+      }
+      if (hit < 0) break;
+
+      /* 窗口候选从 ±1 扩到 ±2：只剩一段 18 词时，只看左右邻居往往无解
+         （27+18=45 词切两段仍是 27/18，越界量没下降），拉上更外一层才腾得出空间。 */
+      const cands = [];
+      for (let L = 2; L >= 1; L--) { if (hit - L >= 0) cands.push([hit - L, hit]); }
+      cands.push([hit, hit]);
+      for (let R = 1; R <= 2; R++) { if (hit + R < segs.length) cands.push([hit, hit + R]); }
+
+      let best = null;
+      for (const c of cands) {
+        const a = c[0], b = c[1];
+        const win = segs.slice(a, b + 1);
+        const before = badSum(win);
+        const parts = dpSplit(packText(win.join(' ')));
+        if (parts.length < 2) continue;
+        const after = badSum(parts);
+        if (after < before && (best === null || after < best.after)) {
+          best = { a: a, b: b, parts: parts, after: after };
+        }
+      }
+      if (!best) { skip[segs[hit]] = true; continue; }   /* 治不了（如整句超长），跳过这一段 */
+      segs = segs.slice(0, best.a).concat(best.parts, segs.slice(best.b + 1));
+      autoFixed++;
+      skip = {};   /* 段落已变，之前的「治不了」判断全部作废 */
+    }
+  }
+
+  const per = segs.map((s) => wc(s));
+  const total = per.reduce((a, b) => a + b, 0);
+
+  /* ---- 3) 判定 ---- */
+  /* 段数：勾了精简 ⇒ 12 段是硬指标（精简稿本来就是按 12 段写的）。
+     没勾精简 ⇒ 段数由「全文词数 ÷ 每段目标」算出来，**8–15 段内一律不提示**
+     —— 再喊「推荐 12 段」就是噪音（用户 2026-09-22 拍板）。 */
+  const SEGN = 12, SEG_LO = 8, SEG_HI = 15;
   const segBad = simp && segs.length !== SEGN;
-  const wcBad = simp && !!spec && (total < spec[0] || total > spec[1]);
+  /* 当前仍越界的段数（含「一整句话超长、切不动」这种代码也治不了的） */
+  const outOfBand = spec ? per.filter((k) => k < lo || k > hi).length : 0;
+
   const warns = [];
+  if (!segs.length) warns.push('分段结果为空（模型没返回可用段落）');
   if (segBad) warns.push('段数 ' + segs.length + ' 不等于要求的 ' + SEGN + ' 段');
   if (!spec) warns.push('未知档位');
+  /* 词数越界只对精简稿才判 —— 保留原文的母稿长度本来就不由我们控制 */
+  const wcBad = simp && !!spec && (total < spec[0] || total > spec[1]);
   if (wcBad && spec) warns.push(total < spec[0]
     ? ('总词数 ' + total + ' 低于 ' + lv + ' 下限 ' + spec[0])
     : ('总词数 ' + total + ' 超过 ' + lv + ' 上限 ' + spec[1]));
+  /* 代码兜底也治不了的段：必须说出来（「一句话 60 词」这种情况无处可切）。
+     ⚠️ 只在**保留原文**模式下报 —— 精简模式压根没跑质检（12 段是硬契约），
+     那里的 outOfBand 只是「原始段落越界数」，报出来会误导成「连代码都没辙」。 */
+  if (!simp && spec && outOfBand > 0) {
+    warns.push('有 ' + outOfBand + ' 段仍落在 ' + lo + '–' + hi + ' 词之外（句子太长、无处可切）');
+  }
+  /* 静默丢内容是 Bryan 最反感的 —— 分段若漏句，总词数会掉 */
+  const srcWc = wc(master);
+  const lost = srcWc - total;
+  if (srcWc > 0 && lost > Math.max(5, Math.round(srcWc * 0.03))) {
+    warns.push('分段后总词数 ' + total + '，比原文 ' + srcWc + ' 少 ' + lost + ' 词 —— 可能有句子被漏掉');
+  }
   const fb = String(fallback || '').trim().toLowerCase() === 'true';
   if (fb) warns.push('勾了精简但没拿到精简稿（模型未按指令输出），已自动回落为保留原文');
 
-  /* 段数提示（非阻断）：偏离 12 就说一句，让老师心里有数 */
-  const note = (segs.length === SEGN) ? ''
-    : ('按内容分成 ' + segs.length + ' 段（推荐 12 段）');
+  /* 段数提示（非阻断）：只在跑出 8–15 这个常规区间时才说一句 */
+  const note = (segs.length >= SEG_LO && segs.length <= SEG_HI) ? ''
+    : ('切出 ' + segs.length + ' 段，超出常规区间 ' + SEG_LO + '–' + SEG_HI + ' 段'
+       + '（按 ' + lv + ' 每段 ' + (spec ? spec[2] + '–' + spec[3] : '?') + ' 词算，'
+       + '这篇原文约 ' + total + ' 词）—— 请确认原文长度与该档规格是否匹配');
 
   return {
     segments_json: JSON.stringify(segs),
@@ -304,9 +463,11 @@ CLEAN_CODE = r'''function main({ level, need_simplify, master, raw, fallback }) 
     need_simplify: simp ? 'true' : 'false',
     seg_note: note,
     fallback: fb ? 'true' : 'false',
+    auto_fixed: String(autoFixed),
+    out_of_band: String(outOfBand),
     /* 精简模式下「段数或词数不达标」都算失败（精简的目的就是落进规格）；
-       不精简模式 wcBad 恒为 false、segBad 恒为 false ⇒ 只提示不判失败。 */
-    ok: (!segBad && !wcBad && !!spec) ? 'true' : 'false',
+       不精简模式 wcBad / segBad 恒为 false ⇒ 只提示不判失败。 */
+    ok: (!segBad && !wcBad && !!spec && segs.length > 0) ? 'true' : 'false',
     warn: warns.join('；'),
   };
 }'''
@@ -371,8 +532,8 @@ def build():
         }),
         shell('nodeSegment', 'llm', 1190, 280, {
             'type': 'llm',
-            'title': '② 按大意分段',
-            'desc': '按内容自然切分（段数上限 16），并把每段词数纳入该档规格',
+            'title': '② 分段（以每段词数为准）',
+            'desc': '保留原文时按该档「每段词数」在句末切分（段数自然算出）；精简稿则固定 12 段',
             'selected': False,
             'model': MODEL_PRO,
             'prompt_template': [{'role': 'system', 'text': SEGMENT_SYS}],
@@ -383,8 +544,8 @@ def build():
         }),
         shell('nodeClean', 'code', 1470, 280, {
             'type': 'code',
-            'title': '③ 解析分段',
-            'desc': '解析 segments、统计段数与每段词数、标注越界告警',
+            'title': '③ 解析分段 + 质检兜底',
+            'desc': '解析 segments；**代码自动补切/合并**把每段拉进合格带（只移切分点、不改字）；统计越界段',
             'selected': False,
             'code_language': 'javascript',
             'code': CLEAN_CODE,
@@ -397,7 +558,8 @@ def build():
             ],
             'outputs': {k: {'children': None, 'type': 'string'} for k in
                         ('segments_json', 'seg_count', 'para_words', 'word_count',
-                         'master_text', 'level', 'need_simplify', 'seg_note', 'fallback', 'ok', 'warn')},
+                         'master_text', 'level', 'need_simplify', 'seg_note', 'fallback',
+                         'auto_fixed', 'out_of_band', 'ok', 'warn')},
         }),
         shell('nodeEnd', 'end', 1740, 280, {
             'type': 'end',
@@ -407,7 +569,8 @@ def build():
             'outputs': [
                 {'variable': k, 'value_selector': ['nodeClean', k]}
                 for k in ('segments_json', 'seg_count', 'para_words', 'word_count',
-                          'master_text', 'level', 'need_simplify', 'seg_note', 'fallback', 'ok', 'warn')
+                          'master_text', 'level', 'need_simplify', 'seg_note', 'fallback',
+                          'auto_fixed', 'out_of_band', 'ok', 'warn')
             ],
         }),
     ]
