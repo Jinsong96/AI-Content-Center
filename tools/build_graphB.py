@@ -18,7 +18,9 @@ App ID：d26cabd2-8837-4833-ab88-6f7aed015d4f
 
 【流水线】
   nodeStart → nodeClean(解析骨架 + 算目标档) → nodeGenB1 / nodeGenA2 / nodeGenA1
-            → nodeAgg(收集 + align_map) → nodeQuiz → nodeValidate → nodeGistCheck → nodeEnd
+            → nodeFix(量词数) → nodeCompress(收尾压缩) → nodeAgg(收集 + align_map)
+            → nodeQuiz → nodeValidate → nodeGistCheck(整体主线)
+            → nodeSemCheck(逐段大意核对) → nodeEnd
 
 ⚠️ 三档生成节点**都会跑**（Dify 是静态图，不做条件跳过）：
    母稿 B1 时 nodeGenB1 的结果会被 nodeAgg 丢弃 —— 代价是一次多余调用（约 8 秒），
@@ -321,6 +323,62 @@ AGG_CODE = r'''function main({ t_b1, t_a2, t_a1, targets_json, seg_count, mat_te
     is_owned: 'true',
   };
 }'''
+
+
+# ───────────────── nodeSemCheck：逐段大意一致性核对 ─────────────────
+# 🔴 2026-09-22 新增。用户原话：「4 个等级的段数和每段的内容大意是必须一致的，
+#    这个不论是精简还是不精简模式都是如此。」
+#
+# **为什么代码层保证不了「每段大意一致」**：
+#   · 段数一致 ⇒ 是**结构性保证**（三档生成节点都用 {{#nodeClean.seg_count#}}，
+#     nodeAgg 还有「多了就截断 + map_warn」的硬约束）——这块已经稳。
+#   · 「第 i 段讲的是不是母稿第 i 段那件事」⇒ **代码验不了**。图 B 不像 GEN 那样抽事实，
+#     没有独立的事实轴可以反查；nodeValidate 的「段落对齐」项查的是
+#     「模型**自报**的 gist_map 格式」（长度 = N、第 i 项含 [i]），
+#     而 gist_map 是模型自己写的 —— 它完全可以自报 [i] 而实际错位（实测就出过）。
+#   ⇒ 只能补一个 LLM 节点做**独立的语义核对**，这是本链路唯一的办法。
+#
+# 口径（2026-09-22 与用户确认）：
+#   · **只报对不上的段号，不判 fail、不拦入库**（报警性质，不进校验分母）
+#   · 低档更简略 / 换例子 / 换说法 **都不算错位**；只有「换了一件事」「两段混讲」
+#     「凭空新增」才算 —— 与 nodeGistCheck 的判据口径保持一致
+#   · 输出要短（只列 bad 段号），这是在为链路耗时做取舍
+#
+# 与 nodeGistCheck 的分工：nodeGistCheck 判「整体主线有没有跑题」（4 档横向比一个基准），
+# nodeSemCheck 判「逐段有没有错位」（各档纵向跟母稿第 i 段比）—— 互补，不重复。
+SEM_SYS = '''你是英语分级阅读流水线上的「逐段对齐审核员」。同一篇已授权母稿被按骨架逐段改写成若干个更低难度档位。每一档都必须是 N 段，且**第 i 段必须讲母稿第 i 段的那件事**。你的任务：逐档逐段核对，**只挑出对不上的段号**。
+
+【判据】只看「这一段讲的是不是母稿同一段的那件事」：
+- 低档更简略、词更简单、句子更短 —— **不算错位**。
+- 同一件事换了说法、换了例子、删掉了细节 —— **不算错位**。
+- 只有下列情况才算错位：
+  ① 把母稿第 i 段的内容讲成了**另一件事**；
+  ② **两段混讲**：一段里同时讲了两段的事，或整段的事被漏掉；
+  ③ **凭空增加**了母稿里不存在的新事件、新结论、新数字；
+  ④ 段数本身不对（某一档不是 N 段）—— 也要如实报告。
+
+【核对范围】只核对下面列出的档位；**母稿档位本身（{{#nodeClean.level#}}）不在核对范围内，请跳过**。
+
+输出严格 JSON（只输出 JSON，不要 markdown 代码块，不要任何解释）：
+{"levels":[{"level":"B1","bad":[3,7],"notes":["第 3 段讲的是 X，母稿第 3 段讲的是 Y"]}],"bad_total":2,"summary":"一句话中文结论"}
+
+字段说明：
+- `levels`：每个待核对档位一条，按档位从高到低排列。
+- `bad`：**只列出对不上的段号**（1-based、升序）。全部对得上就输出空数组 `[]`。
+- `notes`：与 `bad` **一一对应**的中文说明，每条 30 字以内；`bad` 为空时同样输出 `[]`。
+- `bad_total`：所有档位 `bad` 项数之和；全对时为 0。
+- `summary`：一句话中文结论（如「3 档逐段对齐，无错位」或「B1 有 2 段错位」）。
+
+【母稿段落骨架（共 {{#nodeClean.seg_count#}} 段，按 1 开始编号）】
+{{#nodeClean.seg_lines#}}
+
+【待核对的档位】
+{{#nodeAgg.levels_out#}}
+
+【各档正文段落】（JSON：键为档位，值为该档的段落数组；含母稿档，请跳过它）
+{{#nodeAgg.paras_json#}}
+
+请逐档逐段核对，输出严格 JSON。'''
 
 
 def carry_node(nid, retitle=None, refs=None):
@@ -762,9 +820,23 @@ def build():
     gist['positionAbsolute'] = dict(gist['position'])
     nodes.append(gist)
 
+    # nodeSemCheck：逐段大意一致性核对（新节点，见 SEM_SYS 的注释）
+    # ⚠️ 用 flash 档：这是**核对**任务（不是创作），且输出很短（只列错位段号）。
+    #    与 nodeGistCheck 同款模型，保持链路里两个审核节点的口径一致。
+    sem = shell('nodeSemCheck', 'llm', 1800, 620, {
+        'type': 'llm', 'title': '⑤ 逐段大意核对', 'selected': False,
+        'desc': '逐档核对「第 i 段是否讲母稿第 i 段那件事」；只报错位段号，报警不拦入库',
+        'model': MODEL_FLASH_LOW,
+        'prompt_template': [{'role': 'system', 'text': SEM_SYS}],
+        'context': {'enabled': False, 'variable_selector': []},
+        'vision': {'enabled': False, 'configs': {'detail': 'low'}},
+        'memory': None, 'answer': '',
+    })
+    nodes.append(sem)
+
     nodes.append(shell('nodeEnd', 'end', 1800, 300, {
         'type': 'end', 'title': '结束', 'selected': False,
-        'desc': '输出母稿 + 各低档文章 / 题目 / 校验结果',
+        'desc': '输出母稿 + 各低档文章 / 题目 / 校验结果 / 逐段大意核对',
         'outputs': [
             {'variable': 'articles_json', 'value_selector': ['nodeAgg', 'articles_json']},
             {'variable': 'paras_json', 'value_selector': ['nodeAgg', 'paras_json']},
@@ -777,6 +849,7 @@ def build():
             {'variable': 'validation_json', 'value_selector': ['nodeValidate', 'validation_json']},
             {'variable': 'validation_pass', 'value_selector': ['nodeValidate', 'validation_pass']},
             {'variable': 'validation_score', 'value_selector': ['nodeValidate', 'validation_score']},
+            {'variable': 'sem_json', 'value_selector': ['nodeSemCheck', 'text']},
             {'variable': 'level', 'value_selector': ['nodeClean', 'level']},
         ],
     }))
@@ -804,6 +877,9 @@ def build():
         edge('e-quiz-end', 'nodeQuiz', 'nodeEnd', 'llm', 'end'),
         edge('e-validate-end', 'nodeValidate', 'nodeEnd', 'code', 'end'),
         edge('e-gist-end', 'nodeGistCheck', 'nodeEnd', 'llm', 'end'),
+        # nodeSemCheck 引用 nodeAgg 的两个输出，所以必须先有 agg→sem 这条边
+        edge('e-agg-sem', 'nodeAgg', 'nodeSemCheck', 'code', 'llm'),
+        edge('e-sem-end', 'nodeSemCheck', 'nodeEnd', 'llm', 'end'),
     ]
 
     return {'graph': {'nodes': nodes, 'edges': edges, 'viewport': {}},

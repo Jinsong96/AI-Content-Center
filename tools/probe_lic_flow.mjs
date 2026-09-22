@@ -1,7 +1,7 @@
 // ReadPal · 授权链路（第四入口）回归
 //
 // 覆盖 2026-09-22 二次改口径：**导入母稿时每段词数是分段的唯一依据，全文字数不参与决策**；
-// 合格带 = 该档每段规格 ±5 词（B1 23–40 / B2+ 36–55）；段数 8–15 内不提示；
+// 合格带 = 该档每段规格 ±5 词（B1 23–40 / B2+ 36–55）；段数 10–15 内不提示；
 // 「参考段数」输入框已撤，改成只读「预计段数」。
 //
 // 用法：
@@ -130,7 +130,7 @@ async function main() {
   await ev(`(function(){ licSet(licArts()[0].id,"level","B1"); render(); return 1; })()`);
   await sleep(220);
   const shortCalc = await ev(`(document.querySelectorAll("#licPanel .liccalc")[0]||{}).textContent||""`);
-  ok('正文偏短：提示预估段数与常规区间', shortCalc.indexOf('偏短') >= 0 && shortCalc.indexOf('8–15') >= 0, shortCalc.slice(0, 130));
+  ok('正文偏短：提示预估段数与常规区间', shortCalc.indexOf('偏短') >= 0 && shortCalc.indexOf('10–15') >= 0, shortCalc.slice(0, 130));
 
   await ev(`(function(){ licArts()[0].text = ${JSON.stringify(ART.repeat(12))}; render(); return 1; })()`);
   await sleep(220);
@@ -141,7 +141,7 @@ async function main() {
   await sleep(220);
   await shot(1440, 900, '1_panel');
 
-  // ---------- 2) 确认页 · 保留原文 + 10 段（8–15 内 → 无黄条） ----------
+  // ---------- 2) 确认页 · 保留原文 + 10 段（10–15 内 → 无黄条） ----------
   const prepSet = (simplified, segs, extra, level) => ev(`(function(){
     var A = licArts();
     state.lic.queue = [A[0].id]; state.lic.qi = 0; state.lic.doneIds = [];
@@ -158,7 +158,7 @@ async function main() {
   ok('确认页渲染（保留原文）', await ev(`!!document.getElementById("licConfirm")`));
   const title1 = await ev(`document.querySelector("#licConfirm b").textContent`);
   ok('标题 = 确认分段（保留原文）', title1.indexOf('保留原文') >= 0, title1);
-  ok('10 段（8–15 内）：不出现段数黄条',
+  ok('10 段（10–15 内）：不出现段数黄条',
      (await ev(`document.querySelectorAll("#licConfirm .licneed").length`)) === 0);
   const tgts1 = await ev(`(function(){
     var e=document.querySelectorAll("#licConfirm .licsegt"); return e.length? e[0].textContent : "";
@@ -185,11 +185,11 @@ async function main() {
   await shot(1440, 900, '2b_confirm_plain10_b1');
 
   // ---------- 3) 确认页 · 保留原文 + 20 段（> 15 → 提示 + 仍然继续生成，但不拦） ----------
-  await prepSet(false, seg20, { segNote: '切出 20 段，超出常规区间 8–15 段' }, 'B2');
+  await prepSet(false, seg20, { segNote: '切出 20 段，超出常规区间 10–15 段' }, 'B2');
   await sleep(350);
   const bar = await ev(`(document.querySelector("#licConfirm .licneed")||{}).textContent||""`);
   ok('20 段：出现段数提示（写明实际段数与常规区间）',
-     bar.indexOf('20') >= 0 && bar.indexOf('8–15') >= 0, bar.slice(0, 140));
+     bar.indexOf('20') >= 0 && bar.indexOf('10–15') >= 0, bar.slice(0, 140));
   const contBtn = await ev(`(function(){
     var b=document.querySelectorAll("#licConfirm .licneed button"); for(var i=0;i<b.length;i++){ if(b[i].textContent.indexOf("继续生成")>=0) return b[i].getAttribute("onclick")||""; } return "";
   })()`);
@@ -214,7 +214,7 @@ async function main() {
   await shot(1440, 900, '4_confirm_simp12');
 
   // ---------- 5) 确认页 · 精简 + 6 段（未达标 → 红条 + 重跑出口） ----------
-  await prepSet(true, Array.from({ length: 6 }, () => ART), { ok: false, warn: '段数 6 不等于要求的 12 段' }, 'B2');
+  await prepSet(true, Array.from({ length: 6 }, () => ART), { ok: false, warn: '段数 6 段跑出常规区间 10–15 段（全文 228 词）' }, 'B2');
   await sleep(350);
   const bad = await ev(`(document.querySelector("#licConfirm .licneed.bad")||{}).textContent||""`);
   ok('精简未达标：红条写明原因', bad.indexOf('段数 6') >= 0, bad.slice(0, 120));
@@ -281,7 +281,63 @@ async function main() {
   ok('校验区说明「母稿档不参与规格校验」', sumTxt.indexOf('不参与规格校验') >= 0, sumTxt.slice(-130));
   await ev(`(function(){ state.live={status:"idle"}; state.lic.prep=null; return 1; })()`);
 
-  // ---------- 11) 窄屏不塌 ----------
+  // ---------- 11) 逐段大意核对（图 B · nodeSemCheck，2026-09-22 新增） ----------
+  // 覆盖：全过 / 有错位 / markdown 包裹 / 无法解析 / 无字段 五种情况，
+  // 以及「被点名的行加 sembad 标记」。判据全部走真实渲染，不查源码字符串。
+  {
+    const setSem = (raw) => ev(`(function(){
+      state.live = { status:"done", licN:12, run:{ data:{ outputs:{ sem_json: ${JSON.stringify(raw)} } } } };
+      state.lic = state.lic || {};
+      state.lic.prep = { id:1, level:"B2", simplified:false, segs:["a"], ok:true, warn:"", segNote:"", fallback:false, masterText:"", rawWordCount:0 };
+      var d=document.createElement("div"); d.id="licSemBox"; d.innerHTML = semWarnHTML();
+      return d.textContent.replace(/\\s+/g," ");
+    })()`);
+
+    const allOk = await setSem(JSON.stringify({ levels:[{level:"B1",bad:[],notes:[]},{level:"A2",bad:[],notes:[]}], bad_total:0, summary:"2 档逐段对齐，无错位" }));
+    ok('大意核对全过：出中性提示、不报警', allOk.indexOf('无错位') >= 0 && allOk.indexOf('发现错位') < 0, allOk.slice(0, 110));
+
+    const badTxt = await setSem(JSON.stringify({ levels:[{level:"B1",bad:[3,7],notes:["第3段讲的是成本","第7段讲的是师资"]},{level:"A2",bad:[],notes:[]}], bad_total:2, summary:"B1 有 2 段错位" }));
+    ok('大意核对有错位：报警 + 点名档位与段号',
+      badTxt.indexOf('发现错位') >= 0 && badTxt.indexOf('B1') >= 0 && badTxt.indexOf('第 3、7 段') >= 0, badTxt.slice(0, 150));
+    ok('大意核对：写明「不影响入库」（不拦）', badTxt.indexOf('不影响入库') >= 0, badTxt.slice(-80));
+    /* 文案里不许残留 markdown 星号（HTML 不解析，会原样显示出来） */
+    const star = await ev(`(function(){
+      state.live = { status:"done", licN:12, run:{ data:{ outputs:{ sem_json: JSON.stringify({levels:[{level:"B1",bad:[3],notes:["x"]}],bad_total:1,summary:""}) } } } };
+      return semWarnHTML().indexOf("**") >= 0;
+    })()`);
+    ok('大意核对：渲染结果里不含 markdown 星号', star === false, 'has**=' + star);
+
+    const wrapped = await setSem('```json\n' + JSON.stringify({ levels:[{level:"B1",bad:[2],notes:["两段混讲"]}], bad_total:1, summary:"1 段错位" }) + '\n```');
+    ok('大意核对：带 markdown 包裹仍能解析', wrapped.indexOf('第 2 段') >= 0, wrapped.slice(0, 120));
+
+    const broken = await setSem('模型这次没按约定输出 JSON');
+    ok('大意核对：无法解析时显式提示（不静默）', broken.indexOf('无法解析') >= 0, broken.slice(0, 120));
+
+    const noneTxt = await setSem('');
+    ok('无 sem_json 时整块不显示（热点链路 / 老图不受影响）', String(noneTxt).trim() === '', JSON.stringify(String(noneTxt).slice(0, 50)));
+
+    /* 行标记：被点名的段号必须给对应行加 sembad（直接渲染对齐视图，不依赖当前路由） */
+    const mark = await ev(`(function(){
+      state.live = { status:"done", licN:3, run:{ data:{ outputs:{
+        sem_json: JSON.stringify({levels:[{level:"B1",bad:[3],notes:["x"]}],bad_total:1,summary:""}),
+        articles_json: JSON.stringify({B2:"b2a\\n\\nb2b\\n\\nb2c", B1:"b1a\\n\\nb1b\\n\\nb1c", A2:"a2a\\n\\na2b\\n\\na2c", A1:"a1a\\n\\na1b\\n\\na1c"}),
+        paras_json: JSON.stringify({B2:["b2a","b2b","b2c"], B1:["b1a","b1b","b1c"], A2:["a2a","a2b","a2c"], A1:["a1a","a1b","a1c"]}),
+        levels_json: JSON.stringify(["B2","B1","A2","A1"]) } } } };
+      applyLive();
+      var d=document.createElement("div"); d.innerHTML = alignBodyHTML(false); document.body.appendChild(d);
+      var rows = d.querySelectorAll(".alignrow.sembad").length;
+      var all = d.querySelectorAll(".alignrow").length;
+      var ok1 = d.querySelectorAll(".alignrow.sembad .arow-no").length;
+      d.remove();
+      return JSON.stringify({ set: Object.keys(semBadSegs()), rows: rows, all: all, no: ok1 });
+    })()`);
+    const mj = JSON.parse(mark);
+    ok('行标记：semBadSegs 认出错位档位', mj.set.indexOf('B1') >= 0, mark);
+    ok('行标记：3 行段落、恰好 1 行被标 sembad', mj.all === 3 && mj.rows === 1, mark);
+    await ev(`(function(){ state.live={status:"idle"}; return 1; })()`);
+  }
+
+  // ---------- 12) 窄屏不塌 ----------
   for (const [w, h, tag] of [[1024, 800, '6_panel_1024'], [420, 820, '7_panel_420']]) {
     await ev(`(function(){ state.lic.prep = null; render(); return 1; })()`);
     await sleep(220);

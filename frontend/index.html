@@ -818,6 +818,10 @@ body{font-family:var(--font);color:var(--text);background:var(--bg);overflow:hid
 .alignwarn ul{margin:3px 0 0;padding-left:19px}
 .alignwarn li{margin:1px 0}
 .alignwarn .aw-fix{margin-top:5px;color:#B54708;opacity:.86}
+/* 逐段大意核对「全过」时的中性提示（2026-09-22 新增） */
+.semok{margin:0 0 14px;padding:10px 14px;border:1px dashed var(--border2);border-radius:10px;background:var(--bg);color:var(--sub);font-size:12.5px;line-height:1.7}
+/* 被逐段大意核对点名的段落行：编号块转暖色（行本身不动，避免看起来像「坏了」） */
+.alignrow.sembad .arow-no{background:#FFFAEB;border-color:#F79009;color:#B54708}
 .wrap.ro *{pointer-events:none!important;opacity:.62}
 .wrap.ro .ro-banner{pointer-events:auto!important;opacity:1}
 .wrap.ro .wfstrip{pointer-events:auto!important;opacity:1}
@@ -3772,8 +3776,11 @@ function bankPanelHTML(){
      · **不抽事实**，按骨架逐段改写（所以整条链路不经过 FACT 图）
      · **只向下生产，全出**：B2→B1+A2+A1-；B1→A2+A1-；母稿本身也入库
      · **默认逐字保留原文，只做分段**；勾「需要精简」才压缩。
-     · 段数**没有上限**：不勾精简时由内容决定（推荐 12，偏离只提示不拦）；
-       勾精简时按 12 段规格压（段数≠12 会判失败）。推荐段数 12 用于估算字数区间。
+     · 段数**两种模式共用 10–15 的常规区间**（2026-09-22 三次改口径）：
+       不勾精简 ⇒ 由内容决定（跑出区间**只提示、不拦**）；
+       勾精简 ⇒ **全文字数优先**（压进该档硬区间 323–437 / 468–632），段数按内容大意自然分，
+       跑出 10–15 才判失败。数学依据：B1 323–437 ÷ 每段 28–35 ⇒ 10–15 段都可行，
+       两端余量很窄（10 段时每段须 ≥32.3 词），真正宽松的落点是 11–13 段。
      · **全文字数区间 = 段数 × 每段词数区间**（随实际段数自动算）
      · 母稿本体（尤其不精简的原文）**不参与规格校验** —— 长度不由我们控制
     ⚠️ 每篇单独标档位、单独设段数（一次可导入多篇）。 */
@@ -3789,7 +3796,8 @@ const LIC_PER_PARA = { A1:[11,14], A2:[20,22], B1:[28,35], B2:[41,50] };
    ⇒ 下面两个常量只作 `licRange()` 的合法区间夹取用（防止脏值）。 */
 const LIC_REF_MIN = 6;
 const LIC_REF_MAX = 30;
-const LIC_DEF_SEG = 12;      /* 精简模式固定 12 段（也是 licRange 的默认段数） */
+const LIC_DEF_SEG = 12;      /* licRange() 的默认段数 —— **只用于展示估算**（“预计段数”那一行）。
+                                它不决定实际段数：两种模式的实际段数都由图 A 产出（10–15 段） */
 /* 母稿档位 → 要往下产的低档（顺序即产出顺序，也是「只向下」的体现） */
 const LIC_TARGETS = { B2:["B1","A2","A1"], B1:["A2","A1"] };
 let _licSeq = 0;             /* 条目稳定 id —— 不用下标定位（下标会随删除错位） */
@@ -3923,7 +3931,7 @@ function licensedPanelHTML(){
     /* 🔴 2026-09-22 改口径（用户拍板）：导入母稿时**每段词数是分段的唯一依据**，
        全文字数不参与决策。所以这里不再摆「推荐字数区间」，改成**预估段数**：
        正文词数 ÷ 每段中点 —— 只用来一眼看出这篇够不够长、会不会太长。
-       预估段数落在常规区间（8–15）之外才提示一句，且**不阻断**。 */
+       预估段数落在常规区间（10–15）之外才提示一句，且**不阻断**。 */
     const est = licEstSegs(a.level, wc);
     let calc;
     if(!bigOf(a.level)) calc = '<span style="color:#A32D2D">' + L("先选母稿档位，才能预估段数","Pick a master level to estimate paragraphs") + '</span>';
@@ -3949,14 +3957,14 @@ function licensedPanelHTML(){
         <div class="licf" title="${L("按「正文词数 ÷ 每段中点」估出来的段数，只作参考 —— 实际段数由预处理按每段词数切出来，不受这里影响（2026-09-22 起不再可改）。","Estimated as word count ÷ per-paragraph midpoint. The actual count is decided during preparation by the per-paragraph word target.")}"><span>${L("预计段数","Est. paragraphs")}</span>
           <b style="font-size:13px;color:${est ? "var(--ink)" : "var(--sub)"}">${bigOf(a.level) ? (est + " 段") : "—"}</b>
         </div>
-        <label class="licf licchk" title="${L("勾选 = 先砍次要信息、保住主线，压到该档 12 段规格内（精简稿即入库的母稿）；不勾 = 逐字保留原文，只做按内容分段。","Checked = cut secondary details and fit the 12-paragraph spec. Unchecked = keep the text verbatim and only segment it.")}">
+        <label class="licf licchk" title="${L("勾选 = 先砍次要信息、保住主线，压进该档字数区间（B1 323–437 / B2+ 468–632 词）；不勾 = 逐字保留原文，只做按内容分段。两种模式的段数都按内容大意分，常规 10–15 段。","Checked = cut secondary details and fit the level's word range (B1 323–437 / B2+ 468–632). Unchecked = keep the text verbatim and only segment it. Either way, paragraphs follow the content — typically 10–15.")}">
           <input type="checkbox"${a.simplify ? " checked" : ""} onchange="licSet(${a.id},'simplify',this.checked)"> ${L("需要精简","Condense")}
         </label>
       </div>
       <div class="liccalc${tooLong ? " warn" : ""}">
         ${calc}${tgts.length ? L("　·　将产出 ", "　·　will produce ") + tgts.map(function(k){ return '<b>' + nkDisp(k) + '</b>'; }).join(" + ") : ""}
-        ${tooLong ? '<br><span style="color:var(--sub)">' + L("正文偏长：会切成 <b>" + est + "</b> 段（常规 8–15 段）。<b>不勾精简</b> = 逐字保留原文，段数多、低档文章相应变长；想让母稿本身也短一些，就勾「需要精简」（压到 12 段规格内）。","Long: ~<b>" + est + "</b> paragraphs (usual range 8–15). <b>Without “Condense”</b> the text is kept verbatim, so more paragraphs means longer articles. Tick “Condense” to fit the 12-paragraph spec.") + "</span>" : ""}
-        ${tooShort ? '<br><span style="color:var(--sub)">' + L("正文偏短：预计只切成 <b>" + est + "</b> 段（常规 8–15 段）。低档文章也会相应短一些 —— 不必为了凑段数往里加内容。","Short: only ~<b>" + est + "</b> paragraphs (usual range 8–15). Articles will be shorter too — no need to pad the text.") + "</span>" : ""}
+        ${tooLong ? '<br><span style="color:var(--sub)">' + L("正文偏长：会切成约 <b>" + est + "</b> 段（常规 10–15 段）。<b>不勾精简</b> = 逐字保留原文，段数多、低档文章相应变长；想让母稿本身也落进该档字数区间，就勾「需要精简」。","Long: ~<b>" + est + "</b> paragraphs (usual 10–15). <b>Without “Condense”</b> the text is kept verbatim, so more paragraphs means longer articles. Tick “Condense” to bring the master into the level's word range.") + "</span>" : ""}
+        ${tooShort ? '<br><span style="color:var(--sub)">' + L("正文偏短：预计只切成约 <b>" + est + "</b> 段（常规 10–15 段）。低档文章也会相应短一些 —— 不必为了凑段数往里加内容。","Short: only ~<b>" + est + "</b> paragraphs (usual 10–15). Articles will be shorter too — no need to pad the text.") + "</span>" : ""}
       </div>
       <details class="licdet"><summary>${L("查看正文（前 600 字）","Preview (first 600 chars)")}</summary><pre>${esc(String(a.text || "").slice(0, 600))}${String(a.text || "").length > 600 ? "\n…" : ""}</pre></details>
     </div>`;
@@ -4103,13 +4111,14 @@ async function licPrepOne(){
                     simplified: !!a.simplify,
                     masterText: String(o.master_text || ""),
                     rawWordCount: parseInt(o.word_count, 10) || 0,
-                    /* seg_note：段数偏离 12 的**非阻断**提示（如「按内容分成 20 段（推荐 12 段）」）。
+                    /* seg_note：段数跑出常规区间 10–15 的**非阻断**提示。
                        不精简时段数由内容决定，所以它只是告知，不是错误。 */
                     segNote: String(o.seg_note || ""),
                     /* fallback：勾了精简但模型没按指令交稿 → 图 A 已自动回落为保留原文。
                        必须显式提示 —— 否则老师会以为拿到的是精简稿（静默失败）。 */
                     fallback: String(o.fallback || "") === "true",
-                    /* ok=false 只在**勾了精简**时才会出现（段数≠12 或词数越界）——
+                    /* ok=false 只在**勾了精简**时才会出现
+                       （段数跑出 10–15，或全文字数越该档硬区间）——
                        必须显式收下来：过去只读 warn，段数错误被静默放行。 */
                     ok: String(o.ok || "") === "true",
                     /* out_of_band：质检程序跑完后**仍有几段**落在合格带之外
@@ -4160,7 +4169,11 @@ function licEstSegs(levelKey, words){
   if(!per || !words) return 0;
   return Math.max(1, Math.round(words / ((per[0] + per[1]) / 2)));
 }
-const LIC_SEG_OK_LO = 8;    /* 段数常规区间下限（用户拍板：8–15 内不提示） */
+/* 段数常规区间 10–15（**两种模式共用**，必须与图 A 的 SEG_LO / SEG_HI 同值）。
+   2026-09-22 三次改口径：精简模式原先硬性「正好 12 段」，用户拍板改为
+   「全文字数优先（压进该档硬区间），段数按内容大意自然分，10–15 只作兜底判定区间」。
+   ⚠️ 改这里必须同步改 tools/build_graphA.py 的 SEG_LO / SEG_HI，否则前后端判定会打架。 */
+const LIC_SEG_OK_LO = 10;
 const LIC_SEG_OK_HI = 15;
 function licSetSeg(i, val){
   const st = licState(); if(!st.prep) return;
@@ -4243,7 +4256,7 @@ function licRunGen(){
         st.confirmed = true;
         /* 关键：把结果灌进 state.live.run —— 下游（段落校对 / 逐段审核 / 文章库 / 校验面板）
            读的都是它，走同一条路就不必为新链路再写一套展示逻辑。 */
-        /* licN：本轮运行的段数（授权链路 10–16 段，热点链路恒 12）。
+        /* licN：本轮运行的段数（授权链路 10–15 段，热点链路恒 12）。
            段落对齐护栏读它来定「期望段数」，不能写死 12 —— 见 expectedParaCount()。 */
         state.live = { status: "done", material: String(a.text || "").slice(0, 4800), label: String(a.title || ""), book: "", run: data, err: null, t0: Date.now(), elapsed: 0, licN: segs.length };
         state.liveSel = ""; state.liveCustom = "";
@@ -4304,12 +4317,13 @@ function licConfirmHTML(){
     </div>`;
   }).join("");
   /* 段数提示（**非阻断**，2026-09-22 用户拍板）：
-     不勾精简时段数由内容决定 —— 12 只是推荐值，偏离只提示、不拦。
-     旁边给一颗明确的「仍然继续生成」，底部原本那颗「确认，生成…」照旧可用。 */
+     段数按内容大意自然分 —— 10–15 是常规区间，**不勾精简时偏离只提示、不拦**；
+     勾了精简时它是硬指标（图 A 会判 ok=false），但仍给「仍然继续生成」让老师自己决定。
+     旁边那颗「仍然继续生成」与底部原本的「确认，生成…」都在，两边都不拦。 */
   const segBar = off ? `<div class="licneed" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px">
       <span style="flex:1;min-width:280px">${P.simplified
-        ? L("段数 <b>" + N + "</b>，简明起见要求正好 12 段。可以点上方「重新预处理」重跑，或就地合并后再生成。",
-            "<b>" + N + "</b> paragraphs — exactly 12 is required here. Re-prepare, or merge below.")
+        ? L("段数 <b>" + N + "</b>，超出常规区间 " + LIC_SEG_OK_LO + "–" + LIC_SEG_OK_HI + " 段。精简稿的目标是压进该档字数区间 —— 可以点上方「重新预处理」重跑，或就地合并几段后再生成。",
+            "<b>" + N + "</b> paragraphs — outside the usual " + LIC_SEG_OK_LO + "–" + LIC_SEG_OK_HI + ". A condensed master should fit the level's word range — re-prepare, or merge a few paragraphs below.")
         : L("切成 <b>" + N + "</b> 段，超出常规区间 " + LIC_SEG_OK_LO + "–" + LIC_SEG_OK_HI + " 段。按 " + nkDisp(P.level) + " 每段 " + r.per[0] + "–" + r.per[1] + " 词算，常规区间对应的正文约 " + (LIC_SEG_OK_LO * r.per[0]) + "–" + (LIC_SEG_OK_HI * r.per[1]) + " 词 —— 请确认原文长度与该档规格是否匹配。照实继续也能生成。",
             "Segmented into <b>" + N + "</b> paragraphs — outside the usual " + LIC_SEG_OK_LO + "–" + LIC_SEG_OK_HI + ". At " + r.per[0] + "–" + r.per[1] + " words each, that range covers roughly " + (LIC_SEG_OK_LO * r.per[0]) + "–" + (LIC_SEG_OK_HI * r.per[1]) + " words. Please check that the master length fits this level — you can still continue.")}</span>
       <button class="btn sec" style="padding:4px 14px;font-size:12px" onclick="licRunGen()">${L("仍然继续生成","Continue anyway")}</button>
@@ -5716,6 +5730,16 @@ function showVSum(){
       + L("母稿档 " + nkDisp(licLv) + " 不参与规格校验（长度不由我们控制），上面的分数只统计向下产出的低档。",
           "The master level " + nkDisp(licLv) + " is not spec-checked (its length is out of our control) — the score above covers the generated lower levels only.")
       + '</span>';
+    /* 逐段大意核对（图 B 的 nodeSemCheck，2026-09-22 新增）：
+       段数一致是结构性保证，但「第 i 段讲的是不是母稿第 i 段那件事」**代码验不了**
+       （gist_map 是模型自报的）⇒ 由这个 LLM 节点独立核对。
+       ⚠️ **报警性质、不判 fail**，所以它**不进 total_checks**（分母仍是 3 档 × 11 项），
+          只在这里提示 —— 界面上必须写清这一点，否则会被当成漏了一项。 */
+    const semH = semWarnHTML();
+    if(semH) txt += '<div style="margin-top:12px">' + semH
+      + '<br><span style="color:var(--sub)">' + L("（逐段大意核对不计入上面的分数 —— 它是提醒，不拦住入库。）",
+        "(The per-paragraph check is not part of the score above — it is advisory and does not block saving.)")
+      + '</span></div>';
   }
   s.innerHTML=`<div class="big">${big}</div><div class="txt">${txt}</div>`;
   s.style.animation="pop .5s both";
@@ -5937,6 +5961,73 @@ function setAlignMode(m){ state.alignMode = m; render(); }
    背景：热点链路四档都是 12 段（授权母稿链路为动态段数，见 expectedParaCount），
    切档时看到的行号是对齐的 —— 但若某档「拆段 → 末尾被截断」，
    界面看起来仍然整齐，实际内容已整体跳位。这是用户唯一能察觉的入口，必须显式告警。 */
+/* ══ 逐段大意核对（图 B · nodeSemCheck，2026-09-22 新增）════════════════
+   为什么单独有这一块：**段数一致是结构性保证**（各档都用同一个 seg_count，
+   nodeAgg 还会把多出的段截断并写进 map_warn），但「第 i 段讲的是不是母稿第 i 段
+   那件事」**代码验不了** —— 图 B 不抽事实、没有独立的事实轴可反查，
+   nodeValidate 的「段落对齐」项查的又只是「模型**自报**的 gist_map 格式」，
+   模型完全可以自报 [i] 而实际错位。⇒ 补了一个 LLM 节点做独立语义核对。
+   ⚠️ **报警性质**：不判 fail、不拦入库 —— 所以用「提醒」语气而不是「错误」。
+   ⚠️ 结果可能不是合法 JSON（模型输出）⇒ 解析失败必须说出来，不许静默。 */
+function semResult(){
+  const o = liveOut();
+  const raw = o ? String(o.sem_json || "").trim() : "";
+  if(!raw) return null;                       /* 老图 / 热点链路没有这个字段 ⇒ 不显示，不是错误 */
+  let j = null;
+  try {
+    const i = raw.indexOf("{"), k = raw.lastIndexOf("}");
+    if(i >= 0 && k > i) j = JSON.parse(raw.slice(i, k + 1));
+  } catch(e){ j = null; }
+  if(!j || !Array.isArray(j.levels)) return { parseFail: true, raw: raw.slice(0, 240) };
+  const levels = j.levels.map(function(x){
+    const lv = nkKey(String((x && x.level) || ""));
+    const bad = (((x && x.bad) || [])).map(function(n){ return parseInt(n, 10); })
+      .filter(function(n){ return n >= 1; });
+    return { level: lv, bad: bad.sort(function(a, b){ return a - b; }), notes: ((x && x.notes) || []).map(String) };
+  }).filter(function(x){ return !!LEVEL_BY_KEY[x.level]; });
+  const badTotal = levels.reduce(function(a, x){ return a + x.bad.length; }, 0);
+  return { levels: levels, badTotal: badTotal, summary: String(j.summary || "") };
+}
+/* 被点名错位的段号（按档）—— 供 alignBodyHTML 给对应行加标记 */
+function semBadSegs(){
+  const s = semResult(), out = {};
+  if(!s || s.parseFail) return out;
+  s.levels.forEach(function(x){ if(x.bad.length) out[x.level] = x.bad; });
+  return out;
+}
+function semWarnHTML(){
+  const s = semResult();
+  if(!s) return "";
+  if(s.parseFail){
+    return '<div class="alignwarn"><div class="aw-h"><span class="aw-ico">!</span>'
+      + L("逐段大意核对：结果无法解析","Per-paragraph check: unparsable result") + '</div><ul><li>'
+      + esc(s.raw) + '</li></ul><div class="aw-fix">'
+      + L("这表示核对节点没有按约定输出 JSON —— 不影响入库，但这次没有核对结果，请知悉。",
+          "The check node did not return the agreed JSON. Saving is unaffected, but this run has no check result.")
+      + '</div></div>';
+  }
+  if(!s.badTotal){
+    return '<div class="semok">' + L("逐段大意核对：各档均与母稿逐段对应，无错位。",
+      "Per-paragraph check: every level matches the master paragraph by paragraph.")
+      + (s.summary ? '　' + esc(s.summary) : "") + '</div>';
+  }
+  let h = '<div class="alignwarn"><div class="aw-h"><span class="aw-ico">!</span>'
+        + L("逐段大意核对：发现错位", "Per-paragraph check: mismatches found") + '</div><ul>';
+  s.levels.forEach(function(x){
+    if(!x.bad.length) return;
+    h += '<li><b>' + esc(nkDisp(x.level)) + '</b> '
+       + L("第 " + x.bad.join("、") + " 段与母稿同一段讲的事对不上",
+           "para " + x.bad.join(", ") + " do not match the master's same-numbered paragraph");
+    if(x.notes && x.notes.length) h += '：' + esc(x.notes.filter(function(t){ return t; }).join("；"));
+    h += '</li>';
+  });
+  h += '</ul><div class="aw-fix">'
+     + L("这只是提醒，<b>不影响入库</b>。可对相关档位重新生成；若反复出现，请人工校对被点名的段落。",
+         "Advisory only — saving is <b>not</b> blocked. Regenerate the affected level; if it recurs, proofread the flagged paragraphs.")
+     + '</div></div>';
+  return h;
+}
+
 function alignWarnHTML(){
   const g = state.alignGuard || null;
   const vj = liveVJ();
@@ -5981,8 +6072,11 @@ function alignBodyHTML(editable){
     for(let i=0;i<n;i++) h += paraCard(k, i, editable);
     return h + '</div>';
   }
+  /* 被「逐段大意核对」点名的行加一个暖色标（semBadSegs 只解析一次，别放进循环里） */
+  const semBad = semBadSegs(), flagged = {};
+  Object.keys(semBad).forEach(function(k){ semBad[k].forEach(function(n){ flagged[n] = true; }); });
   let h = '<div class="aligngrid">';
-  for(let i=0;i<maxP;i++){ h += '<div class="alignrow"><div class="arow-no">#'+(i+1)+'</div>' + lvls.map(function(k){ return paraCard(k,i,editable); }).join("") + '</div>'; }
+  for(let i=0;i<maxP;i++){ h += '<div class="alignrow'+(flagged[i+1]?' sembad':'')+'"><div class="arow-no">#'+(i+1)+'</div>' + lvls.map(function(k){ return paraCard(k,i,editable); }).join("") + '</div>'; }
   return h + '</div>';
 }
 /* 4 档对齐段落视图（切分/对齐/校对/审核环节复用）：全文完整展示，editable=false 只读 */
@@ -5994,6 +6088,7 @@ function alignedViewHTML(editable){
   let h=bigBarOnce();
   if(!has) return h+emptyGroupHTML();
   h+=alignWarnHTML();
+  h+=semWarnHTML();
   h+=alignModeBarHTML()+alignBodyHTML(editable);
   return h;
 }function s9(){
@@ -6004,6 +6099,7 @@ function alignedViewHTML(editable){
   html+=artWorkflowBar();
   html+=bigBarOnce();
   html+=alignWarnHTML();
+  html+=semWarnHTML();
   html+='<p class="lede">'+L("AI 已自动切分并对齐 4 档的段落，请在下方逐段校读并修正——点击任意段落文字即可编辑，改动会自动保存到本机，误刷新不会丢；写入文章库后才算定稿。","AI has auto-split and aligned the four levels of this group — click any paragraph text to edit. Edits auto-save to this browser, so an accidental refresh will not lose them; they are final only once saved to the article library.")+' <span id="draftStat" class="draftstat"></span></p>';
   /* B4：段数已并入 bigbar 计数徽标，不再另起一排纯展示 pill */
   html+=alignModeBarHTML();

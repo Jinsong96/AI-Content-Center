@@ -1,11 +1,11 @@
 // ReadPal · 图 A 质检程序（nodeClean）本地回归 —— 不需要线上、不需要 Chrome
 //
 // 覆盖 2026-09-22 用户拍板的口径：
-//   · 导入母稿时「每段词数是分段的唯一依据，全文字数不参与决策」
-//   · 合格带 = 该档每段规格 ±5 词（B1 23–40 / B2+ 36–55）
-//   · 段数由「全文词数 ÷ 每段目标」算出，落在 8–15 内不提示
-//   · 模型切不准时由**代码自动兜底**（补切/合并/借邻居重排），只移切分点、一个字不改
-//   · 精简模式（12 段硬契约）**不质检**
+//   · **保留原文**：每段词数是分段的唯一依据，合格带 = 该档每段规格 ±5（B1 23–40 / B2+ 36–55）；
+//     段数由「全文词数 ÷ 每段目标」算出，落在 10–15 内不提示；切不准时代码自动兜底
+//     （补切/合并/借邻居重排），只移切分点、一个字不改
+//   · **精简稿**：全文字数优先（落该档硬区间），段数按内容大意自然分，**10–15 只作兜底判定区间**；
+//     质检**只调段数不按长度重排**（重排会切坏大意）
 //
 // 用法：
 //   python3 tools/extract_graphA_code.py /tmp          # 先抽出 JS
@@ -75,8 +75,9 @@ for (const lv of ['B1', 'B2']) {
      ⚠️ 不能一律断言 8–15：同一篇按 B2+ 算本来就只该 6 段（原文 266 词偏短）。 */
   ok(`${lv}：段数与「词数 ÷ 每段中点」一致（±1）`, Math.abs(per.length - est) <= 1,
     `实际 ${per.length} / 预估 ${est}`);
-  if (lv === 'B1') ok('B1：段数落在常规区间 8–15（用户拍板的口径）',
-    per.length >= 8 && per.length <= 15, per.length + ' 段');
+  if (lv === 'B1') ok('B1：段数在常规区间 10–15 内，或已给出 seg_note（不许静默）',
+    (per.length >= 10 && per.length <= 15) || r.seg_note !== '',
+    per.length + ' 段 · seg_note="' + r.seg_note + '"');
   ok(`${lv}：逐字一致（只移切分点）`, same(segs.join(' '), FIXTURE.join('\n\n')));
   ok(`${lv}：无告警`, r.warn === '', '"' + r.warn + '"');
   ok(`${lv}：out_of_band = 0`, r.out_of_band === '0', r.out_of_band);
@@ -93,16 +94,55 @@ for (const lv of ['B1', 'B2']) {
   ok('二次 auto_fixed = 0', r2.auto_fixed === '0', 'auto_fixed=' + r2.auto_fixed);
 }
 
-/* ── 3) 精简模式：12 段硬契约，质检不得介入 ── */
+/* ── 3) 精简模式：段数 10–15 是兜底区间；质检**只调段数、不按长度重排** ── */
 {
   const w = n => Array(n).fill('word').join(' ');
-  const simp12 = Array.from({ length: 12 }, (_, i) => w(31) + ' p' + i + '.');
-  const r = run('B1', true, simp12, simp12.join('\n\n'));
-  console.log('\n【精简模式】' + r.seg_count + ' 段 · auto_fixed=' + r.auto_fixed);
-  ok('段数仍为 12', r.seg_count === '12', r.seg_count);
-  ok('质检未介入（auto_fixed = 0）', r.auto_fixed === '0');
-  ok('ok = true', r.ok === 'true');
-  ok('不报「无处可切」（精简模式压根没跑质检）', r.warn.indexOf('无处可切') < 0, '"' + r.warn + '"');
+  /* 每段造两句（句号后接大写词），才能被「按句边界补切」切开 —— 一整句话的段切不动。
+     ⚠️ 编号**不能用数字**（`s0a` 会被词数正则拆成 s + a 两个词，字数统计全错）。 */
+  const para = (a, b) => w(a) + ' Alpha. Then ' + w(b) + ' Beta.';
+  const simpP = (n, a, b) => Array.from({ length: n }, () => para(a, b));
+
+  /* 3a) 12 段 × ~33 词（396 词，B1 区间内）⇒ 段数在区间内，质检不得介入 */
+  const c12 = simpP(12, 15, 16);
+  const r12 = run('B1', true, c12, c12.join('\n\n'));
+  console.log('\n【精简 12 段】' + r12.seg_count + ' 段 · ' + r12.word_count + ' 词 · auto_fixed=' + r12.auto_fixed + ' · ok=' + r12.ok);
+  ok('精简 12 段：保持 12 段', r12.seg_count === '12', r12.seg_count);
+  ok('精简 12 段：质检不介入', r12.auto_fixed === '0', 'auto_fixed=' + r12.auto_fixed);
+  ok('精简 12 段：ok = true', r12.ok === 'true', '"' + r12.warn + '"');
+  ok('精简 12 段：无告警', r12.warn === '', '"' + r12.warn + '"');
+
+  /* 3b) 18 段 × ~22 词（396 词）⇒ 段数超上限，合并回 ≤15 */
+  const c18 = simpP(18, 10, 10);
+  const r18 = run('B1', true, c18, c18.join('\n\n'));
+  console.log('【精简 18 段】' + r18.seg_count + ' 段 · ' + r18.word_count + ' 词 · auto_fixed=' + r18.auto_fixed + ' · ok=' + r18.ok);
+  ok('精简 18 段：兜底后回到 ≤15 段', Number(r18.seg_count) <= 15, r18.seg_count);
+  ok('精简 18 段：确实兜底过', Number(r18.auto_fixed) > 0, 'auto_fixed=' + r18.auto_fixed);
+  ok('精简 18 段：ok 变 true（字数没动）', r18.ok === 'true', '"' + r18.warn + '"');
+  ok('精简 18 段：逐字一致（只合并、不改字）',
+    same(JSON.parse(r18.segments_json).join(' '), c18.join('\n\n')));
+
+  /* 3c) 6 段 × ~62 词（372 词）⇒ 段数低于下限，按句边界补切回 ≥10 */
+  const c6 = simpP(6, 30, 30);
+  const r6 = run('B1', true, c6, c6.join('\n\n'));
+  console.log('【精简 6 段】' + r6.seg_count + ' 段 · ' + r6.word_count + ' 词 · auto_fixed=' + r6.auto_fixed + ' · ok=' + r6.ok);
+  ok('精简 6 段：兜底后回到 ≥10 段', Number(r6.seg_count) >= 10, r6.seg_count);
+  ok('精简 6 段：确实兜底过', Number(r6.auto_fixed) > 0, 'auto_fixed=' + r6.auto_fixed);
+  ok('精简 6 段：ok 变 true', r6.ok === 'true', '"' + r6.warn + '"');
+
+  /* 3d) 🔴 精简模式**不做长度重排**：词数不匀的 12 段必须原样返回
+         （段边界是模型按内容大意切的，按长度重排会切坏大意 —— 用户 2026-09-22 明确） */
+  const cu = [36, 26, 36, 26, 31, 31, 31, 31, 31, 31, 31, 31].map(k => para(Math.floor(k / 2), k - Math.floor(k / 2)));
+  const ru = run('B1', true, cu, cu.join('\n\n'));
+  console.log('【精简·词数不匀】' + JSON.parse(ru.para_words).join('/') + ' · auto_fixed=' + ru.auto_fixed);
+  ok('精简模式不按长度重排（段落逐段原样）', JSON.stringify(cu) === JSON.stringify(JSON.parse(ru.segments_json)));
+  ok('精简·不匀：段数仍 12', ru.seg_count === '12', ru.seg_count);
+
+  /* 3e) 精简模式段数合格但字数越界 ⇒ 必须判失败并写明原因 */
+  const c41 = simpP(12, 8, 9);   /* 12 × 19 ≈ 228 词，低于 B1 下限 323 */
+  const r41 = run('B1', true, c41, c41.join('\n\n'));
+  console.log('【精简·字数偏低】' + r41.seg_count + ' 段 · ' + r41.word_count + ' 词 · ok=' + r41.ok + ' · warn="' + r41.warn + '"');
+  ok('精简·字数偏低：ok = false', r41.ok === 'false');
+  ok('精简·字数偏低：warn 写明低于下限', r41.warn.indexOf('下限') >= 0, '"' + r41.warn + '"');
 }
 
 /* ── 4) 一整句话超长 → 报出来，不许静默 ── */
