@@ -3997,8 +3997,6 @@ function licensedPanelHTML(){
       </div>
       <div class="liccalc${tooLong ? " warn" : ""}">
         ${calc}${tgts.length ? L("　·　将产出 ", "　·　will produce ") + tgts.map(function(k){ return '<b>' + nkDisp(k) + '</b>'; }).join(" + ") : ""}
-        ${tooLong ? '<br><span style="color:var(--sub)">' + L("正文偏长：会切成约 <b>" + est + "</b> 段（常规 10–15 段）。<b>不勾精简</b> = 逐字保留原文，段数多、低档文章相应变长；想让母稿本身也落进该档字数区间，就勾「需要精简」。","Long: ~<b>" + est + "</b> paragraphs (usual 10–15). <b>Without “Condense”</b> the text is kept verbatim, so more paragraphs means longer articles. Tick “Condense” to bring the master into the level's word range.") + "</span>" : ""}
-        ${tooShort ? '<br><span style="color:var(--sub)">' + L("正文偏短：预计只切成约 <b>" + est + "</b> 段（常规 10–15 段）。低档文章也会相应短一些 —— 不必为了凑段数往里加内容。","Short: only ~<b>" + est + "</b> paragraphs (usual 10–15). Articles will be shorter too — no need to pad the text.") + "</span>" : ""}
       </div>
       <details class="licdet"><summary>${L("查看正文（前 600 字）","Preview (first 600 chars)")}</summary><pre>${esc(String(a.text || "").slice(0, 600))}${String(a.text || "").length > 600 ? "\n…" : ""}</pre></details>
     </div>`;
@@ -4006,24 +4004,13 @@ function licensedPanelHTML(){
 
   const issues = licIssues();
   return `<div id="licPanel" style="background:#fff;border:1px solid var(--border2);border-radius:12px;padding:18px 20px">
-    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px">
-      <span style="font-size:20px"></span>
-      <b style="font-size:15px">${L("授权母稿 · 向下改写","Licensed master · down-level only")}</b>
-      <span class="tint" style="background:#FFF9F5;color:#D04418">${L("已解决版权","Licensed")}</span>
-      <span class="tint" style="background:#FFF0EB;color:#D04418">${L("只往下生产","Downward only")}</span>
-      <span class="tint" style="background:#FFF9F5;color:#D04418">${L("不抽事实","No fact extraction")}</span>
-    </div>
-    <p style="color:var(--sub);margin:0 0 14px;font-size:13px;line-height:1.7">
-      ${L("导入 B1 / B2 母稿，按现有分级标准<b>只往低档生产</b>：B2 → B1 + A2 + A1-，B1 → A2 + A1-，母稿本身也会入库。<b>默认逐字保留原文</b>，只按内容分段；勾了「需要精简」才压缩。工作流做完预处理后会<b>停下来让你确认分段</b>，确认后才开始逐段改写。",
-         "Import B1 / B2 master texts and generate <b>downward only</b>: B2 → B1 + A2 + A1-, B1 → A2 + A1-. The master itself is saved too. Text is <b>kept verbatim by default</b> and only segmented; tick “Condense” to shorten it. The workflow <b>pauses for you to confirm the segmentation</b> before rewriting paragraph by paragraph.")}
-    </p>
+    <b style="font-size:15px">${L("授权母稿 · 向下改写","Licensed master · down-level only")}</b>
 
-    <div class="licimp">
+    <div class="licimp" style="margin-top:14px">
       <div class="licimp-c">
         <div class="licimp-t">${L("粘贴正文","Paste text")}</div>
         <textarea id="licPaste" rows="6" spellcheck="false" placeholder="${L("把母稿正文整段粘进来（一篇一条，加一篇就点一次）","Paste one master text here (one article per click)")}" oninput="licState().paste=this.value">${esc(st.paste)}</textarea>
-        <div style="margin-top:8px"><button class="btn sec" onclick="licAddPaste()">${L("加入列表","Add to list")}</button>
-          <span class="licimp-n">${L("按空行/段落自动识别，不需要自己分段","Line breaks are read as-is — you don't need to segment it")}</span></div>
+        <div style="margin-top:8px"><button class="btn sec" onclick="licAddPaste()">${L("加入列表","Add to list")}</button></div>
       </div>
       <div class="licimp-c">
         <div class="licimp-t">${L("上传文件","Upload files")}</div>
@@ -4040,12 +4027,12 @@ function licensedPanelHTML(){
       ${A.length ? `<div class="licsum">
           <span>${L("已导入 <b>" + A.length + "</b> 篇 · 正文合计 <b>" + total + "</b> 词","Imported <b>" + A.length + "</b> · <b>" + total + "</b> words total")}</span>
           <button class="btn sec" style="padding:4px 12px;font-size:12px" onclick="licClearAll()">${L("全部清空","Clear all")}</button>
-        </div>${rows}` : '<div class="licempty">' + L("还没有母稿。粘贴正文或上传文件后，每篇会出现在这里，逐篇标档位。","No master text yet. Paste or upload, then set a level for each.") + "</div>"}
+        </div>${rows}` : '<div class="licempty">' + L("还没有母稿，粘贴正文或上传文件","No master text yet — paste or upload") + "</div>"}
     </div>
 
     ${issues.length
-      ? '<div class="licneed">' + L("开始前还需要：", "Before you can start: ") + issues.map(function(x){ return "<b>" + esc(x) + "</b>"; }).join("　·　") + "</div>"
-      : '<div class="licok">' + L("已就绪，可以开始预处理","Ready to prepare") + "</div>"}
+      ? '<div class="licneed">' + L("还差：", "Still needed: ") + issues.map(function(x){ return "<b>" + esc(x) + "</b>"; }).join("　·　") + "</div>"
+      : ""}
   </div>`;
 }
 /* 授权链路的运行/错误状态条。失败必须给出口（不是只报错）——
@@ -4066,9 +4053,7 @@ function licStatusHTML(){
 function licEmbarkBtn(){
   if(!licArts().length) return waitBtn(L("请先导入母稿","Import a master text first"));
   if(!licAllReady()) return waitBtn(L("请先补全母稿档位与正文","Fill in the master level and text for every item"));
-  return `<div class="nextbar" id="licBar"><button class="btn" onclick="licRunPrep()">${L("开始预处理（分段）","Prepare (segment)")} →</button>
-    <span class="hint">${L("默认<b>逐字保留原文</b>，只有勾了「需要精简」才会压缩；预处理后会停下来让你确认分段。",
-                         "By default the text is <b>kept verbatim</b> — only ticked “Condense” items get shortened. You'll confirm the segmentation next.")}</span></div>`;
+  return `<div class="nextbar" id="licBar"><button class="btn" onclick="licRunPrep()">${L("开始预处理（分段）","Prepare (segment)")} →</button></div>`;
 }
 
 /* ========== 授权链路：跑图 A（预处理）→ 人工确认 → 跑图 B（向下生成） ==========
