@@ -3271,20 +3271,14 @@ function s2LiveInner(){
    现在每张卡补一句「这个角色做什么」、标签换成能力短语。 */
 const ROLES = [
   {id:"source", color:"#E65425", name:"市场老师", nameEn:"Marketing",
-   duty:"找素材：扫热点、筛敏感、打标签、存素材库，不生成文章。",
-   dutyEn:"Finds material: scans trends, screens sensitivity, tags and files it. Does not generate articles.",
    caps:["热点搜集","敏感排查","选题打标","素材入库"],
    capsEn:["Trend scan","Sensitivity","Tagging","Filing"],
    scope:L1("素材创建 01–04 + 素材库", "Material creation 01–04 + Material library"), user:"market_zhang", pass:((window.WB_CFG && window.WB_CFG.DEMO_PASS)||""), entry:0},
   {id:"produce", color:"#E65425", name:"教研老师", nameEn:"Curriculum",
-   duty:"做文章：抽事实卡、定分级标准、生成 4 档文章、校对正文与题目。",
-   dutyEn:"Produces articles: extracts fact cards, sets level specs, generates 4 graded versions, proofreads text and quizzes.",
    caps:["事实分段","分级标准","4 档生成","段落校对"],
    capsEn:["Fact segmentation","Level specs","4-level generation","Proofreading"],
    scope:L1("素材创建 + 文章生产 + 文章库", "Material creation + Article production + Article library"), user:"curriculum_li", pass:((window.WB_CFG && window.WB_CFG.DEMO_PASS)||""), entry:0},
   {id:"review", color:"#E65425", name:"审核老师", nameEn:"Reviewer",
-   duty:"把关：逐段审核 4 档文章，通过或驳回并留痕；可用全部 12 步。",
-   dutyEn:"Reviews: checks each paragraph across levels, approves or rejects with a record. All 12 steps available.",
    caps:["逐段审核","通过 / 驳回","审核留痕","文章库管理"],
    capsEn:["Paragraph review","Approve / reject","Audit trail","Library management"],
    scope:L1("全部权限 · 全流程", "Full access · whole flow"), user:"review_wang", pass:((window.WB_CFG && window.WB_CFG.DEMO_PASS)||""), entry:0},
@@ -3421,7 +3415,6 @@ function renderLogin(){
     <div class="lroles">
       ${ROLES.map((r,idx)=>`<div class="lrole" id="lr-${r.id}" style="animation-delay:${idx*.07}s" onclick="openLogin('${r.id}')">
         <h4>${L(r.name,r.nameEn)}</h4>
-        <p class="rduty">${L(r.duty, r.dutyEn)}</p>
         <div class="rmods">${(r.caps||[]).map((s,si)=>`<span>${L(s, (r.capsEn||[])[si] || s)}</span>`).join("")}</div>
         <button class="rbtn">${L("登录","Log in")}</button>
         <div class="lform" onclick="event.stopPropagation()">
