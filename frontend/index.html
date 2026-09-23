@@ -4563,6 +4563,9 @@ function pickRoute(id){
     state.extracted = false; state.validated = false; state.reviewed = false;
     state.topicSel = null;   /* 重置选题多选，让新素材重新智能匹配 */ resetTags();
     GEN = {};
+    /* 授权母稿入口：点进来就是「全新一篇」——清空上次的母稿列表/分段/生成状态，
+       否则 s0 会因 prep 残留直接跳去「确认分段」页，而不是让用户重新导入母稿。 */
+    if(id === "licensed") state.lic = null;
   }
   $$(".rstep").forEach((r,j)=>r.classList.toggle("skipped", isSkipped(j) || ((id==="owned"||id==="public"||id==="licensed") && j===1)));
   render();
