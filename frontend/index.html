@@ -6210,8 +6210,6 @@ function s6(){
         return head("08", L("内容生成","Graded Generation")) +
           artWorkflowBar() +
           `<div class="note" style="padding:40px;text-align:center;margin:16px 0">
-            <p style="margin:0 0 14px">${L("母稿已就绪（<b>" + _wc + "</b> 词）—— 即将用轻量提示词生成 A1- / A2 两档与 9 道题。<b>本链路不做分段确认、不做质量校验</b>，产出即模型原样结果。",
-              "Master ready (<b>" + _wc + "</b> words) — about to generate A1- / A2 and 9 exercises from the lite prompt. <b>No segmentation confirm and no validation</b> — the output is exactly what the model produced.")}</p>
             <button class="btn" onclick="liteRun()">${L("生成文章","Generate articles")}</button>
           </div>` + wfStrip();
       }
