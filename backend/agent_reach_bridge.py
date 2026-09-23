@@ -21,6 +21,7 @@ import concurrent.futures
 import urllib.request
 import urllib.error
 import gzip
+import math
 import socket
 # ⚠️ 必须用别名：本文件里 `html` 是**局部变量名**（`fetch_article()` 的 `html = data.decode(...)`、
 # `extract_main_text(html)` / `extract_title(html)` 的形参）—— 直接 `import html` 会在这些函数里
@@ -1742,7 +1743,7 @@ def fetch_toutiao(limit=15, want_fulltext=True):
     titles = [t for t in titles if t]
     # 仅用于「标题英译」——翻译真实标题是合法的，编造正文不是
     enriched = enrich_zh_titles(titles)
-    out = []
+    rows = []
     for i, it in enumerate(arr):
         title = (it.get("Title") or "").strip()
         if not title:
@@ -1753,19 +1754,39 @@ def fetch_toutiao(limit=15, want_fulltext=True):
         except Exception:
             hot_num = 0
         en_title = (enriched.get(title, ("", "")) or ("", ""))[0]
-        row = {"topic": en_title or title, "cn": title, "source": "今日头条热搜",
-               "url": it.get("Url") or "", "summary": "", "fulltext": "",
-               "fulltext_status": "no_source", "fulltext_len": 0, "fulltext_err": "",
-               "date": time.strftime("%Y-%m-%d"), "ts": time.time(),
-               "hot": hot_num, "heat": max(50, 98 - i), "srcs": 1, "lang": "zh"}
+        rows.append({"topic": en_title or title, "cn": title, "source": "今日头条热搜",
+                     "url": it.get("Url") or "", "summary": "", "fulltext": "",
+                     "fulltext_status": "no_source", "fulltext_len": 0, "fulltext_err": "",
+                     "date": time.strftime("%Y-%m-%d"), "ts": time.time(),
+                     "hot": hot_num, "heat": max(50, 98 - i), "srcs": 1, "lang": "zh"})
+    if want_fulltext and rows:
+        # 正文抓取分两步，因为两条链路的并发特性完全不同：
+        #   ① A1(文章 JSON) / A2a(话题页 SSR) 是纯 HTTP。50 条串行实测 48s，是整榜耗时的大头，必须并发。
+        #   ② A2b(无头渲染) 每调一次要拉起一个 Chrome 进程，**并发会同时起十几个**，
+        #      所以并发只用于 ①；② 留给「排名靠前、纯 HTTP 没拿到正文」的少数条目串行兜底。
+        def _one(r):
+            _fill_toutiao_fulltext(r, r.get("cn") or "", allow_render=False)
+        with concurrent.futures.ThreadPoolExecutor(max_workers=TOUTIAO_FETCH_WORKERS) as ex:
+            list(ex.map(_one, rows))
+        # 渲染兜底：线上容器没有 Chrome（render_dom_with_chrome 直接返回 None），这段等于空转 —— 与原设计一致。
+        for r in rows[:TOUTIAO_RENDER_LIMIT]:
+            if (r.get("fulltext_len") or 0) >= MIN_USABLE_TEXT:
+                continue
+            if r.get("fulltext_status") == "video_dropped":
+                continue
+            if not _TT_TREND_RE.search(r.get("url") or ""):
+                continue
+            _fill_toutiao_fulltext(r, r.get("cn") or "", allow_render=True)
+    out = []
+    for row in rows:
         if want_fulltext:
-            _fill_toutiao_fulltext(row, title, allow_render=(i < TOUTIAO_RENDER_LIMIT))
             _st = row.get("fulltext_status") or "failed"
             # 视频型已按规则拦截：整条不进结果列表（列表变短是预期行为，不是抓取失败）。
             # 拦截条目不进 _health_record —— 源成功率要反映「交付出去的内容质量」，
             # 被主动筛掉的条目不该把成功率拉低；它另由 filtered_video 台账回传。
             if _st == "video_dropped":
-                _TT_DROPPED_VIDEO.append({"title": title, "url": row.get("url") or ""})
+                _TT_DROPPED_VIDEO.append({"title": row.get("cn") or "",
+                                          "url": row.get("url") or ""})
                 continue
             _health_record("今日头条热搜", _st, 0)
         out.append(row)
@@ -1918,8 +1939,36 @@ def fetch_one(source_url):
         return []
 
 
-# 信源编辑加权：CGTN 是主力中国源，适度加权避免被西方源按纯时间排序淹没
-SOURCE_BOOST = {"CGTN": 10}
+# ==================== 交付配比（2026-09-23 Bryan 指定）====================
+# 今日头条 50% / CGTN 30% / 其余 20%。
+# ⚠️ 「50%」是**目标配额**，不是保证值 —— 今日头条热榜总共只有 50 条，实测能拿到可用正文的
+#    上限约 32 条，120 条里的 50%（= 60 条）它给不出来。头条拿不满时，缺口**全部由「其余」补**：
+#    绝不用别的源冒充头条，也不为了让比例好看把列表截短 —— 那是拿假供给骗人。
+# 分组判据是**信源**（source 前缀），不是内容类别：一篇文章讲什么，跟它由谁发布无关。
+TRENDS_QUOTA = {"toutiao": 0.50, "cgtn": 0.30}
+# 三组在最终列表里的块顺序。后端返回什么顺序，前端就按什么顺序渲染（只做 filter，不重排），
+# 所以这个顺序 = 老师在界面上看到的顺序：头条永远在最上面。
+TRENDS_QUOTA_ORDER = ("toutiao", "cgtn", "rest")
+
+# 头条热榜一次取多少条。原先在 fetch_trends 里是**无参调用**（默认 15 条），
+# 实测那 15 条里只有 8 条能拿到正文 ⇒ 头条在最终列表里只占 7%，与「主力源」定位完全不符。
+# 热榜本身总共 50 条，全量取回才谈得上 32 条可用。
+TOUTIAO_HOTBOARD_LIMIT = 50
+# 头条正文抓取的并发度：A1(文章 JSON) / A2a(话题页 SSR) 都是纯 HTTP，50 条串行实测 48s，
+# 是整个 /api/trends 的耗时大头。实测 5 线程 → 16.3s，8 线程 → 更快；
+# 再往上收益递减且容易触发风控，8 是「够快」与「别把头条惹毛」之间的折中。
+TOUTIAO_FETCH_WORKERS = 8
+
+# CGTN 的按源上限单独放宽。PER_SOURCE_LIMIT=4 是为 40+ 个来源做的多样性保护，
+# 但 CGTN 只有 5 个栏目源，4 条上限把它压死在最多 20 条，够不到 30% 配额（120 条时 = 36 条）。
+# 实测 CGTN 正文可交付率 92%（55/60），放宽到 12 条/源是安全的（5×12 = 60 条候选）。
+CGTN_PER_SOURCE_LIMIT = 12
+# 候选池相对配额的放大系数：补正文之后还会筛掉一批「无可用正文」的条目，
+# 不留冗余就会在最后一步凑不满 limit —— 表现是列表莫名变短，最容易被当成抓取故障。
+# 取 1.35 而不是更大：候选池每多一条都要真金白银地抓正文 + 翻译，实测 1.5 时
+# 首次耗时逼近 100s（超出前端「约 50–90 秒」的预估文案）；实测 1.35 的冗余仍然够用
+# （CGTN 可交付率 92%、其余组实测用 52 条 / 池 71 条）。
+QUOTA_POOL_FACTOR = 1.35
 
 
 # 渲染器（headless Chrome / CDP）不可用只是「次要路径失效」：
@@ -1946,6 +1995,74 @@ def _is_real_degradation(errs):
     return False
 
 
+def trend_group(it):
+    """交付配比分组：toutiao / cgtn / rest。判据是信源前缀，不是内容类别。"""
+    src = it.get("source") or ""
+    if src.startswith("今日头条"):
+        return "toutiao"
+    if src.startswith("CGTN"):
+        return "cgtn"
+    return "rest"
+
+
+def _quota_targets(limit):
+    """按配比算出三组的目标条数：(头条, CGTN, 其余)。"""
+    tt = int(round(limit * TRENDS_QUOTA["toutiao"]))
+    cg = int(round(limit * TRENDS_QUOTA["cgtn"]))
+    return tt, cg, max(0, limit - tt - cg)
+
+
+def _round_robin(rows, n):
+    """按信源轮转取前 n 条。
+
+    CGTN 有 5 个栏目源，纯按热度排会让同一个栏目连排十几条；轮转让 5 个栏目交替出现。
+    信源内部的相对顺序仍保持热度降序。"""
+    piles = {}
+    for r in rows:
+        piles.setdefault(r.get("source") or "?", []).append(r)
+    out, i = [], 0
+    while len(out) < n:
+        added = False
+        for p in piles.values():
+            if i < len(p):
+                out.append(p[i])
+                added = True
+                if len(out) >= n:
+                    break
+        if not added:
+            break
+        i += 1
+    return out
+
+
+def _pick_by_quota(pool, limit):
+    """从**已确认有可用正文**的候选池里，按交付配比选出最终列表。
+
+    块顺序固定为 头条 → CGTN → 其余（头条是主力源，永远排最前）。
+    头条 / CGTN 拿不满各自的配额时，缺口全部由「其余」补 —— 而不是把列表截短。
+    配额只在这里施加，不能提前到「截断」那一步：那时还没有补正文，
+    条目后面被无正文闸门筛掉多少是未知的，提前按配额选会让最终比例漂掉。"""
+    tgt_tt, tgt_cg, _ = _quota_targets(limit)
+    groups = {g: [] for g in TRENDS_QUOTA_ORDER}
+    for it in pool:
+        groups[trend_group(it)].append(it)
+    picked = list(groups["toutiao"][:tgt_tt])
+    picked += _round_robin(groups["cgtn"], tgt_cg)
+    need = limit - len(picked)
+    if need > 0:
+        picked += groups["rest"][:need]
+    if len(picked) < limit:
+        # 「其余」也不够（极罕见）：按热度从落选池补齐，绝不空手而归。
+        used = set(id(x) for x in picked)
+        for it in pool:
+            if len(picked) >= limit:
+                break
+            if id(it) not in used:
+                picked.append(it)
+                used.add(id(it))
+    return picked[:limit]
+
+
 def fetch_trends(theme="all", sub=None, limit=30):
     """合并真实热点：今日头条热搜(中文全网) + Hacker News(英文科技) + RSS(英文最新)。
     不做「讲好中国故事」内容过滤；主题仅用于分类标签与可选筛选。"""
@@ -1959,8 +2076,8 @@ def fetch_trends(theme="all", sub=None, limit=30):
         it["sub"] = ""
         return it
 
-    # 1) 中文全网热搜
-    for it in fetch_toutiao():
+    # 1) 中文全网热搜（全量取回：它是配比里的主力源，默认 15 条根本不够分）
+    for it in fetch_toutiao(limit=TOUTIAO_HOTBOARD_LIMIT):
         items.append(tag(it))
     # 2) 英文最新新闻（RSS，按类别取源，避免政治源污染分类）
     #    ⚠️ 已移除 Hacker News：该源只返回标题、无正文/摘要，无法支撑后续生成链路与标签提取
@@ -1992,12 +2109,17 @@ def fetch_trends(theme="all", sub=None, limit=30):
                 it["lang"] = "zh"
                 it["cn"] = it.get("topic", "")
             items.extend(got)
-    # 每个信源最多保留 PER_SOURCE_LIMIT 条，保证源多样性（国际源不被单一源挤掉）
+    # 每个信源最多保留若干条，保证源多样性（国际源不被单一源挤掉）。
+    # ⚠️ 上限必须按**交付分组**给：头条 / CGTN 是配比里的主力，一并套用 4 条会把它们自己的配额
+    #    当场卡死（实测头条被压到 8 条、CGTN 压到 20 条 —— 配比改成多少都落不了地）。
     PER_SOURCE_LIMIT = 4
+    _SRC_CAP = {"toutiao": TOUTIAO_HOTBOARD_LIMIT,
+                "cgtn": CGTN_PER_SOURCE_LIMIT,
+                "rest": PER_SOURCE_LIMIT}
     by_src = {}
     for it in items:
         src = it.get("source", "?")
-        if len(by_src.setdefault(src, [])) < PER_SOURCE_LIMIT:
+        if len(by_src.setdefault(src, [])) < _SRC_CAP[trend_group(it)]:
             by_src[src].append(it)
     items = [x for v in by_src.values() for x in v]
     # 统一补 heat / theme / sub / srcs
@@ -2005,11 +2127,8 @@ def fetch_trends(theme="all", sub=None, limit=30):
         if "heat" not in it:
             recency = max(0.0, 1.0 - (now - it.get("ts", 0)) / (7 * 86400)) if it.get("ts") else 0.5
             it["heat"] = int(min(98, 50 + recency * 40))
-        # 信源编辑加权：CGTN 是「讲好中国故事」的主力中国源，适度加权，
-        # 避免被同刻度的西方娱乐/新闻（Billboard/Variety/NPR）按纯时间排序淹没。
-        for prefix, boost in SOURCE_BOOST.items():
-            if (it.get("source") or "").startswith(prefix):
-                it["heat"] = min(98, it.get("heat", 0) + boost)
+        # 旧的信源加权（SOURCE_BOOST）已随配额制一起撤掉：CGTN 的份额不再靠 heat 加权去争，
+        # 而是由 _pick_by_quota 按配比直接留位 —— 加权在硬配额下只会影响组内顺序，等于失效。
         if not it.get("theme"):
             it["theme"] = classify_theme(it.get("topic", "") + " " + it.get("summary", ""))
         if not it.get("sub"):
@@ -2051,7 +2170,21 @@ def fetch_trends(theme="all", sub=None, limit=30):
         seen.add(u)
         ranked.append(it)
     ranked.sort(key=lambda x: (-x.get("heat", 0), -x.get("ts", 0)))
-    ranked = ranked[:limit]
+    # 截断：按配额把候选池**放大**取回（补正文还会筛掉一批），
+    # 等确认有正文之后才在最后一步按配额精确选最终 limit 条。
+    # 顺序不能颠倒 —— 提前按配额选，会让后面被无正文闸门筛掉的份额凭空消失。
+    _tgt_tt, _tgt_cg, _tgt_rest = _quota_targets(limit)
+    _by_group = {g: [] for g in TRENDS_QUOTA_ORDER}
+    for it in ranked:
+        _by_group[trend_group(it)].append(it)
+    # 头条 / CGTN 的实际供给 ≤ 配额（热榜总共 50 条，实测可用 ~32 条），
+    # 缺掉的份额由「其余」顶上，所以「其余」的候选量要按**补位后的需求**估，而不是它自己的 20%。
+    _rest_need = max(_tgt_rest,
+                     limit - min(len(_by_group["toutiao"]), _tgt_tt)
+                           - min(len(_by_group["cgtn"]), _tgt_cg))
+    ranked = (_by_group["toutiao"][:_tgt_tt]
+              + _by_group["cgtn"][:int(math.ceil(_tgt_cg * QUOTA_POOL_FACTOR))]
+              + _by_group["rest"][:int(math.ceil(_rest_need * QUOTA_POOL_FACTOR))])
     # 第一层：为英文/中文 RSS 条目补齐原文（头条条目已在 fetch_toutiao 里按 A→B→C 处理过）
     try:
         enrich_fulltext(ranked, workers=8)
@@ -2080,7 +2213,9 @@ def fetch_trends(theme="all", sub=None, limit=30):
             })
             continue
         _kept.append(it)
-    ranked = _kept
+    # 最后一步才按交付配比精挑：到这里的条目都已经确认有可用正文，
+    # 配额落在这个位置上才不会被后面的筛选吃掉。
+    ranked = _pick_by_quota(_kept, limit)
     # 为英文热点补中文翻译，实现"所有热点统一英文 + 中文"双语格式
     try:
         en_titles = [it.get("topic", "") for it in ranked if it.get("lang") != "zh" and it.get("topic")]
