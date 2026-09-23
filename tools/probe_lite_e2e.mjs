@@ -197,14 +197,22 @@ const SETUP = `(async()=>{
 })()`;
 
 async function main() {
-  // 前置检查：静态服务必须活着，否则 Chrome 打开的是错误页，所有断言都无意义
-  try {
-    const r = await fetch(URL_);
-    if (!r.ok) throw new Error('HTTP ' + r.status);
-  } catch (e) {
-    console.error(`✗ 打不开 ${URL_}（${e.message}）——先在 frontend/ 下起静态服务：\n` +
-      `  python3 -m http.server 8899 --bind 127.0.0.1`);
-    process.exit(1);
+  // 前置检查：静态服务必须活着，否则 Chrome 打开的是错误页，所有断言都无意义。
+  // ⚠️ 只有本地 URL 才在 node 侧 fetch —— 沙箱直连 Railway 恒 000（不是站点挂了），
+  //    线上跑法：URL_=https://web-production-2a16e.up.railway.app/ node tools/probe_lite_e2e.mjs
+  //    远端交给自己这一侧（Chrome 走系统网络 + 下面第 231 行的密钥检查）兜住。
+  const isLocal = /^https?:\/\/(127\.0\.0\.1|localhost)(:|\/)/.test(URL_);
+  if (isLocal) {
+    try {
+      const r = await fetch(URL_);
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+    } catch (e) {
+      console.error(`✗ 打不开 ${URL_}（${e.message}）——先在 frontend/ 下起静态服务：\n` +
+        `  python3 -m http.server 8899 --bind 127.0.0.1`);
+      process.exit(1);
+    }
+  } else {
+    console.log(`[前置] 远端 URL，跳过 node 侧联网检查（沙箱到 Railway 恒 000，非站点故障）`);
   }
 
   const chrome = await ensureChrome();

@@ -41,12 +41,27 @@ ws.addEventListener('message', (e) => {
   if (m.id && pending.has(m.id)) { pending.get(m.id)(m); pending.delete(m.id); }
 });
 await new Promise(r => ws.addEventListener('open', r));
+const rawCall = (method, params) => new Promise(res => { const i = ++id; pending.set(i, res); ws.send(JSON.stringify({ id: i, method, params })); });
 const evaluate = async (expr) => {
-  const i = ++id;
-  const r = await new Promise(res => { pending.set(i, res); ws.send(JSON.stringify({ id: i, method: 'Runtime.evaluate', params: { expression: expr, returnByValue: true } })); });
+  const r = await rawCall('Runtime.evaluate', { expression: expr, returnByValue: true });
   const res = (r.result || {}).result;
   return res ? res.value : null;
 };
+
+/* 🔴 必须先刷新：window.WB_CONFIG 是**页面加载那一刻**后端注入的，页签若在改变量前就开着，
+   留在 DOM 里的是旧配置 —— 会得出「改了变量还是空」的错误结论（2026-09-23 踩过）。
+   NO_RELOAD=1 可跳过（想在页面里做别的检查时用）。 */
+if (process.env.NO_RELOAD !== '1') {
+  await rawCall('Network.setCacheDisabled', { cacheDisabled: true }).catch(() => {});
+  await rawCall('Page.enable', {}).catch(() => {});
+  await new Promise(r => {
+    const t = setTimeout(r, 12000);
+    const h = (e) => { const m = JSON.parse(e.data); if (m.method === 'Page.loadEventFired') { clearTimeout(t); ws.removeEventListener('message', h); r(); } };
+    ws.addEventListener('message', h);
+    rawCall('Page.reload', { ignoreCache: true });
+  });
+  await new Promise(r => setTimeout(r, 1200));   // 等注入脚本跑完
+}
 
 const raw = await evaluate(`(function(){
   var c = window.WB_CONFIG;
