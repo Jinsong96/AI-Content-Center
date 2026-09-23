@@ -1133,6 +1133,11 @@ body{font-family:var(--font);color:var(--text);background:var(--bg);overflow:hid
 .licneed.bad{background:#FEF2F2;border-color:#F0B0B0;color:#B42318}
 .licneed.bad b{font-weight:600}
 .licok{margin-top:14px;padding:11px 15px;background:var(--bg);border:1px dashed var(--border2);border-radius:10px;font-size:12.5px;color:var(--sub)}
+/* 分段/生成进行中的不确定进度条：转圈 + 无穷滑动条，让用户知道在跑、不是卡死 */
+.licbusy{display:flex;align-items:center;gap:12px;margin-top:14px;padding:12px 15px;background:var(--bg);border:1px solid var(--border2);border-radius:10px;font-size:12.5px;color:var(--text)}
+.licbusy .lic-bar{flex:1;height:6px;background:var(--bg);border:1px solid var(--border);border-radius:4px;overflow:hidden;position:relative}
+.licbusy .lic-bar i{position:absolute;top:0;bottom:0;left:0;width:40%;background:linear-gradient(90deg,#E65425,#F79009);border-radius:4px;animation:licslide 1.2s ease-in-out infinite}
+@keyframes licslide{0%{left:-40%}100%{left:100%}}
 /* 分段确认页（图 A 跑完后的人工确认环节） */
 .licseg{border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:9px;background:#fff}
 .licsegh{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:7px}
@@ -4018,7 +4023,9 @@ function licensedPanelHTML(){
 function licStatusHTML(){
   const st = licState();
   let h = "";
-  if(st.busy) h += `<div class="licneed" style="background:var(--bg);color:var(--sub);border-style:solid;border-color:var(--border2)">${esc(st.busy)}</div>`;
+  if(st.busy) h += `<div class="licbusy"><span class="spin" style="width:22px;height:22px;border-width:2px"></span>
+      <span style="flex-shrink:0">${esc(st.busy)}</span>
+      <span class="lic-bar"><i></i></span></div>`;
   if(st.err){
     const retry = (st.errStage === "gen")
       ? `<button class="btn sec" style="margin-left:10px;padding:3px 12px;font-size:12px" onclick="licRunGen()">${L("重试生成","Retry generation")}</button>`
