@@ -4023,9 +4023,7 @@ function licensedPanelHTML(){
 function licStatusHTML(){
   const st = licState();
   let h = "";
-  if(st.busy) h += `<div class="licbusy"><span class="spin" style="width:22px;height:22px;border-width:2px"></span>
-      <span style="flex-shrink:0">${esc(st.busy)}</span>
-      <span class="lic-bar"><i></i></span></div>`;
+  /* busy 态的进度条已挪到「开始分段」按钮处（licEmbarkBtn），这里不再重复显示文字条。 */
   if(st.err){
     const retry = (st.errStage === "gen")
       ? `<button class="btn sec" style="margin-left:10px;padding:3px 12px;font-size:12px" onclick="licRunGen()">${L("重试生成","Retry generation")}</button>`
@@ -4038,6 +4036,11 @@ function licStatusHTML(){
 function licEmbarkBtn(){
   if(!licArts().length) return waitBtn(L("请先导入母稿","Import a master text first"));
   if(!licAllReady()) return waitBtn(L("请先补全母稿档位与正文","Fill in the master level and text for every item"));
+  const st = licState();
+  /* 正在分段：把「开始分段」按钮换成进度条（转圈+文字+滑动条），就显示在按钮本来的位置 */
+  if(st.busy) return `<div class="licbusy"><span class="spin" style="width:22px;height:22px;border-width:2px"></span>
+      <span style="flex-shrink:0">${esc(st.busy)}</span>
+      <span class="lic-bar"><i></i></span></div>`;
   return `<div class="nextbar" id="licBar"><button class="btn" onclick="licRunPrep()">${L("开始分段","Segment")} →</button></div>`;
 }
 
@@ -4428,11 +4431,6 @@ function licConfirmHTML(){
   const P = st.prep;
   const r = licSegRange(), tgts = LIC_TARGETS[P.level] || [];
   const n = (st.queue || []).length, done = (st.doneIds || []).length;
-  const N = P.segs.length;
-  /* 段数提示口径（2026-09-22 用户拍板）：**8–15 段内一律不提示**。
-     段数现在由「全文词数 ÷ 每段目标」算出来（这篇 B1 → 10–11 段），
-     再喊「推荐 12 段」就是噪音。只有跑出常规区间才说一句，且**不拦截**。 */
-  const off = N < LIC_SEG_OK_LO || N > LIC_SEG_OK_HI;
   const band = licBand(r);
   const rows = P.segs.map(function(p, i){
     const k = licWordCount(p), bad = licSegBad(k, r);
@@ -4447,18 +4445,6 @@ function licConfirmHTML(){
       <textarea rows="3" spellcheck="false" oninput="licSetSeg(${i},this.value)">${esc(p)}</textarea>
     </div>`;
   }).join("");
-  /* 段数提示（**非阻断**，2026-09-22 用户拍板）：
-     段数按内容大意自然分 —— 10–15 是常规区间，**不勾精简时偏离只提示、不拦**；
-     勾了精简时它是硬指标（图 A 会判 ok=false），但仍给「仍然继续生成」让老师自己决定。
-     旁边那颗「仍然继续生成」与底部原本的「确认，生成…」都在，两边都不拦。 */
-  const segBar = off ? `<div class="licneed" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px">
-      <span style="flex:1;min-width:280px">${P.simplified
-        ? L("段数 <b>" + N + "</b>，超出常规区间 " + LIC_SEG_OK_LO + "–" + LIC_SEG_OK_HI + " 段。精简稿的目标是压进该档字数区间 —— 可以点上方「重新预处理」重跑，或就地合并几段后再生成。",
-            "<b>" + N + "</b> paragraphs — outside the usual " + LIC_SEG_OK_LO + "–" + LIC_SEG_OK_HI + ". A condensed master should fit the level's word range — re-prepare, or merge a few paragraphs below.")
-        : L("切成 <b>" + N + "</b> 段，超出常规区间 " + LIC_SEG_OK_LO + "–" + LIC_SEG_OK_HI + " 段。按 " + nkDisp(P.level) + " 每段 " + r.per[0] + "–" + r.per[1] + " 词算，常规区间对应的正文约 " + (LIC_SEG_OK_LO * r.per[0]) + "–" + (LIC_SEG_OK_HI * r.per[1]) + " 词 —— 请确认原文长度与该档规格是否匹配。照实继续也能生成。",
-            "Segmented into <b>" + N + "</b> paragraphs — outside the usual " + LIC_SEG_OK_LO + "–" + LIC_SEG_OK_HI + ". At " + r.per[0] + "–" + r.per[1] + " words each, that range covers roughly " + (LIC_SEG_OK_LO * r.per[0]) + "–" + (LIC_SEG_OK_HI * r.per[1]) + " words. Please check that the master length fits this level — you can still continue.")}</span>
-      <button class="btn sec" style="padding:4px 14px;font-size:12px" onclick="licRunGen()">${L("仍然继续生成","Continue anyway")}</button>
-    </div>` : "";
   return `<div id="licConfirm" style="background:#fff;border:1px solid var(--border2);border-radius:12px;padding:18px 20px">
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px">
       <b style="font-size:15px">${P.simplified ? L("确认分段与精简稿","Confirm segmentation & condensed text") : L("确认分段（保留原文）","Confirm segmentation (text kept as-is)")}</b>
@@ -4481,7 +4467,6 @@ function licConfirmHTML(){
         + L("模型这次没交出精简稿，系统已自动<b>保留原文</b>（不会产出空正文）。可以点「重新预处理」再试一次。",
             "The model returned no condensed text this time, so the original was kept (never an empty body). Try “Re-prepare” again.")
         + "</div>" : ""}
-    ${segBar}
     <div style="font-size:12.5px;color:var(--sub);margin-bottom:12px;line-height:1.9" id="licSegTot">${licTotalHTML()}</div>
     ${st.prep.warn ? '<div class="licneed' + (st.prep.ok ? "" : " bad") + '">'
         + (st.prep.ok ? "" : "<b>" + L("预处理结果未达标　","Result out of spec　") + "</b>")
