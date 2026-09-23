@@ -15,7 +15,10 @@
 //   ⑥ 至少保留 1 张卡（删到只剩 1 张再删无效）
 //   ⑦ 已产出文章后改卡：置脏 + 清掉按编号的 fact_map（否则校对页按旧编号标「被引用 P1」）
 //   ⑧ 编辑层与 live 同源：state.live 清空（换素材 / 切入口）后，编辑层不得冒充当前素材的卡
-//   ⑨ 全程无 JS 异常
+//   ⑨ 新增事实卡（2026-09-23 · Bryan：把过长的事实拆成两条）：
+//      点「＋新增」在**原卡后面**插一张并继承 gist；空卡不许进 facts_text；
+//      保存后三处入参同步 +1；不填就取消则不留空卡、不污染入参
+//   ⑩ 全程无 JS 异常
 //
 // 负向对照（证明 ②⑤ 的检测器不是摆设）：把 factsSyncToCache() 的两处调用去掉再跑同一探针，
 // ② 的「入参那两项」必须失败 —— 那正是「只在渲染层叠加」的 bug 形态。
@@ -66,6 +69,8 @@ const FACTS = [
   { en: 'Sales reached nearly three million yuan in the first half of the year.', zh: '上半年销售额接近三百万元。', gist: 2 },
 ];
 const EDITED = 'A Li brocade workshop now sells to buyers in eighteen countries.';
+/* 用来测「新增事实卡」：把一条长事实拆成两条时，新卡该填的内容 */
+const SPLIT = 'Most of those weavers learned the craft from their mothers.';
 
 const SETUP = `(async()=>{
   const sleep=(ms)=>new Promise(r=>setTimeout(r,ms));
@@ -159,6 +164,59 @@ const SETUP = `(async()=>{
   out.floor.after = cards().length;
   out.floor.editLen = (state.factsEdit||[]).length;
 
+  /* ⑦b 新增事实卡 —— 用来把一条过长的事实拆成两条（Bryan 2026-09-23 提的需求） */
+  const addBtnOf = function(k){
+    var b = cards()[k].querySelectorAll(".fop");
+    for(var i=0;i<b.length;i++){ if(b[i].textContent.indexOf("新增")>=0) return b[i]; }
+    return null;
+  };
+  out.addInit = { n: cards().length,
+                  fops: cards().map(function(c){ return c.querySelectorAll(".fop").length; }) };
+
+  /* 点第 1 张开「＋ 新增」—— 新卡必须紧跟它，且立刻展开编辑框 */
+  const ab0 = addBtnOf(0);
+  out.addHasBtn = !!ab0;
+  if(ab0) ab0.click();
+  var cA = cache();
+  out.afterAddOpen = {
+    n: cards().length,
+    atIdx: (function(){ var cs=cards(); for(var i=0;i<cs.length;i++){ if(cs[i].querySelector(".fedit")) return i; } return -1; })(),
+    boxes: document.querySelectorAll("#factlist .fedit").length,
+    en: ta(0) ? ta(0).value : null,
+    /* 空卡不许进 facts_text：行数应仍等于「有内容的卡数」 */
+    lines: cA.text.split("\\n").filter(Boolean).length
+  };
+
+  /* 填好保存 */
+  ta(0).value = ${JSON.stringify(SPLIT)};
+  ta(0).dispatchEvent(new Event("input", {bubbles:true}));
+  ta(1).value = "多数织工的手艺是从母亲那里学的。";
+  ta(1).dispatchEvent(new Event("input", {bubbles:true}));
+  saveBtn().click();
+  var cB = cache();
+  out.afterAddSave = {
+    n: cards().length,
+    lines: cB.text.split("\\n").filter(Boolean).length,
+    rawLen: cB.rawFacts.length,
+    raw0: cB.rawFacts[0],                    /* 原卡 */
+    raw1: cB.rawFacts[1],                    /* 新卡 */
+    addedBadge: (cards()[1].innerText||"").indexOf("人工新增") >= 0,
+    stmt1: (cards()[1].querySelector(".stmt")||{}).textContent || ""
+  };
+
+  /* 再新增一张，这次**不填就取消** —— 不许残留在界面/编辑层/入参里 */
+  const ab1 = addBtnOf(0);
+  if(ab1) ab1.click();
+  out.afterAddOpen2 = { n: cards().length, boxes: document.querySelectorAll("#factlist .fedit").length };
+  cancelBtn().click();
+  var cC = cache();
+  out.afterAddCancel = {
+    n: cards().length,
+    editLen: (state.factsEdit||[]).length,
+    lines: cC.text.split("\\n").filter(Boolean).length,
+    fops: document.querySelectorAll("#factlist .fop").length
+  };
+
   /* ⑧ 编辑层与 live 同源：state.live 清空（≈换素材 / 切入口）后不得冒充当前素材 */
   state.live = { status:"idle", material:"", label:"", book:"", run:null, err:null, t0:0, elapsed:0 };
   render();
@@ -203,7 +261,7 @@ async function main() {
 
   const init = r.init || {};
   ok('抽完卡后渲染出 4 张事实卡', init.n === 4, `n=${init.n}`);
-  ok('每张卡都带「编辑 + 删除」两个入口', Array.isArray(init.fops) && init.fops.length === 4 && init.fops.every(n => n === 2),
+  ok('每张卡都带「编辑 + ＋新增 + 删除」三个入口', Array.isArray(init.fops) && init.fops.length === 4 && init.fops.every(n => n === 3),
      JSON.stringify(init.fops));
 
   const eo = r.editOpen || {}, ae = r.afterEdit || {};
@@ -239,6 +297,30 @@ async function main() {
   const fl = r.floor || {};
   ok('至少保留 1 张卡：删到剩 1 张后再删无效', fl.before === 1 && fl.after === 1 && fl.editLen === 1,
      `before=${fl.before} after=${fl.after} len=${fl.editLen}`);
+
+  const ai = r.addInit || {}, ao = r.afterAddOpen || {}, as = r.afterAddSave || {}, acd = r.afterAddCancel || {};
+  ok('「＋ 新增」入口存在于每张卡上', ai.fops && ai.fops.length >= 1 && ai.fops.every(n => n === 3), JSON.stringify(ai.fops));
+  ok('点「＋ 新增」：卡片数 +1，且新卡插在原卡**后面**（不是追加到末尾）',
+     r.addHasBtn === true && ao.n === (ai.n + 1) && ao.atIdx === 1, JSON.stringify(ao).slice(0, 140));
+  ok('新卡直接展开空格子（可立刻填）', ao.boxes === 2 && ao.en === '', JSON.stringify(ao).slice(0, 140));
+  ok('🔴 没填内容的卡不进 facts_text（否则多出一条空事实，后面编号全部错位）',
+     ao.lines === ai.n, `lines=${ao.lines} expect=${ai.n}`);
+  ok('保存新卡：卡片数与 facts_text 行数同步 +1',
+     as.n === (ai.n + 1) && as.lines === (ai.n + 1), JSON.stringify(as).slice(0, 140));
+  ok('🔴 保存新卡：回写 facts_raw.facts，且插在原卡后面',
+     as.rawLen === (ai.n + 1) && (as.raw1 || {}).en === SPLIT, JSON.stringify(as.raw1).slice(0, 90));
+  ok('🔴 新卡继承原卡的 gist 归属号（不继承 ⇒ GEN 拿到 NaN ⇒ 这张卡被静默丢弃）',
+     (as.raw1 || {}).gi !== undefined && (as.raw1 || {}).gi === (as.raw0 || {}).gi,
+     `new=${JSON.stringify(as.raw1)} orig=${JSON.stringify(as.raw0)}`);
+  ok('新卡标「人工新增」（不是 AI 的 AUTO）', as.addedBadge === true, `badge=${as.addedBadge}`);
+  /* 🔴 基准要看清：第一次新增已经**保存**了（卡数 +1），所以取消第二次之后应回到 ai.n + 1，
+     不是 ai.n —— 这里先前写错过一次，代码没问题、是断言口径算错。 */
+  ok('第二次点「＋ 新增」仍能插入（不是只能加一次）',
+     (r.afterAddOpen2 || {}).n === ai.n + 2, JSON.stringify(r.afterAddOpen2 || {}));
+  ok('新增后不填就取消：界面与编辑层都不留空卡（回到「只多了已保存的那张」）',
+     acd.n === ai.n + 1 && acd.editLen === ai.n + 1, JSON.stringify(acd).slice(0, 140));
+  ok('取消新增：facts_text 未被污染（空卡没进去，行数 = 已保存的卡数）',
+     acd.lines === ai.n + 1, `lines=${acd.lines} expect=${ai.n + 1}`);
 
   const lc = r.afterLiveCleared || {};
   ok('🔴 state.live 清空后编辑层不冒充当前素材（不泄漏上一批的卡）', lc.leakedEdit === false, JSON.stringify(lc).slice(0, 120));

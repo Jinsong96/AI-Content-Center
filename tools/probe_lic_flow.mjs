@@ -134,12 +134,19 @@ async function main() {
   await ev(`(function(){ licSet(licArts()[0].id,"level","B1"); render(); return 1; })()`);
   await sleep(220);
   const shortCalc = await ev(`(document.querySelectorAll("#licPanel .liccalc")[0]||{}).textContent||""`);
-  ok('正文偏短：提示预估段数与常规区间', shortCalc.indexOf('偏短') >= 0 && shortCalc.indexOf('10–15') >= 0, shortCalc.slice(0, 130));
+  /* 2026-09-23 口径变更（Bryan 拍板「保持静默」）：面板里的「偏短 / 偏长 / 常规区间」
+     提示文字已按轻量化要求删除，这里从「应该出现」反转成「不该出现」。 */
+  ok('正文偏短：不再出现「偏短 / 常规区间」提示文字',
+     shortCalc.indexOf('偏短') < 0 && shortCalc.indexOf('常规区间') < 0 && shortCalc.indexOf('10–15') < 0,
+     shortCalc.slice(0, 130));
 
   await ev(`(function(){ licArts()[0].text = ${JSON.stringify(ART.repeat(12))}; render(); return 1; })()`);
   await sleep(220);
   const longCalc = await ev(`(document.querySelectorAll("#licPanel .liccalc")[0]||{}).textContent||""`);
-  ok('正文偏长：提示预估段数超出常规区间', longCalc.indexOf('偏长') >= 0 && longCalc.indexOf(String(ests.b1vlong)) >= 0, longCalc.slice(0, 130));
+  const longCls = await ev(`(document.querySelectorAll("#licPanel .liccalc")[0]||{}).className||""`);
+  ok('正文偏长：不再出现提示文字，但黄底警示 class 仍在（静默 ≠ 无标记）',
+     longCalc.indexOf('偏长') < 0 && longCalc.indexOf('常规区间') < 0 && longCls.indexOf('warn') >= 0,
+     longCalc.slice(0, 130) + ' | cls=' + longCls);
 
   await ev(`(function(){ licArts()[0].text = ${JSON.stringify(ART)}; licSet(licArts()[0].id,"level","B2"); render(); return 1; })()`);
   await sleep(220);
@@ -157,8 +164,8 @@ async function main() {
              btn: !!document.querySelector(".nextbar button"),
              foot: (document.querySelector(".nextbar")||{}).textContent || "" };
   })()`);
-  ok('未选档位：红条点名「第 01 篇还没选母稿档位」且底部没有可点的 button（waitBtn）',
-     gate0.need.indexOf('第 01 篇还没选母稿档位') >= 0 && gate0.btn === false &&
+  ok('未选档位：不再出红条；底部是不可点按钮且写明「请先补全」',
+     gate0.need === '' && gate0.btn === false &&
      gate0.foot.indexOf('请先补全') >= 0, JSON.stringify(gate0).slice(0, 140));
 
   const sel = await ev(`(function(){
@@ -178,12 +185,12 @@ async function main() {
   })()`);
   ok('选完档位（真实 change 事件）：状态写入 B1', sel === 'dispatched' && gate1.level === 'B1',
      sel + ' level=' + gate1.level);
-  ok('选完档位：红条立刻消失、换成「已就绪，可以开始预处理」',
-     gate1.need === '' && gate1.okbar.indexOf('已就绪') >= 0, JSON.stringify([gate1.need, gate1.okbar]));
+  ok('选完档位：红条与就绪条都不出现（改由底部按钮状态表达）',
+     gate1.need === '' && gate1.okbar.indexOf('已就绪') < 0, JSON.stringify([gate1.need, gate1.okbar]));
   ok('选完档位：行内「先选母稿档位，才能预估段数」立刻换成预估结果',
      gate1.calc.indexOf('先选母稿档位') < 0 && gate1.calc.indexOf('预计切成') >= 0, gate1.calc.slice(0, 90));
-  ok('选完档位：底部换成真正可点的启动按钮（licRunPrep）且就绪判定为空',
-     gate1.btn.indexOf('开始预处理') >= 0 && gate1.onclick.indexOf('licRunPrep') >= 0 && gate1.issues === 0,
+  ok('选完档位：底部换成真正可点的「开始分段」按钮（licRunPrep）且就绪判定为空',
+     gate1.btn.indexOf('开始分段') >= 0 && gate1.onclick.indexOf('licRunPrep') >= 0 && gate1.issues === 0,
      JSON.stringify([gate1.btn, gate1.onclick, gate1.issues]));
 
   await ev(`(function(){ var c = document.querySelector("#licPanel input[type=checkbox]");
@@ -221,9 +228,9 @@ async function main() {
              btn: !!document.querySelector(".nextbar button"),
              foot: (document.querySelector(".nextbar")||document.body).textContent || "" };
   })()`);
-  ok('点「加入列表」：列表 +1、输入框清空、红条点名第 02 篇缺档位、底部回落到不可点',
+  ok('点「加入列表」：列表 +1、输入框清空、无红条、底部回落到不可点',
      addClick === 'clicked' && afterAdd.n === 2 && afterAdd.ta === '' &&
-     afterAdd.need.indexOf('第 02 篇还没选母稿档位') >= 0 &&
+     afterAdd.need === '' &&
      afterAdd.btn === false && afterAdd.foot.indexOf('请先补全') >= 0,
      JSON.stringify(afterAdd).slice(0, 160));
 
@@ -239,9 +246,9 @@ async function main() {
              okbar: (document.querySelector("#licPanel .licok")||{}).textContent || "",
              btn: (document.querySelector(".nextbar button")||{}).textContent || "" };
   })()`);
-  ok('点「移除」：列表 −1、红条消失、就绪条回归、底部换成可点的「开始预处理」',
+  ok('点「移除」：列表 −1、无红条无就绪条、底部换成可点的「开始分段」',
      delClick === 'clicked' && afterDel.n === 1 && afterDel.need === '' &&
-     afterDel.okbar.indexOf('已就绪') >= 0 && afterDel.btn.indexOf('开始预处理') >= 0,
+     afterDel.okbar === '' && afterDel.btn.indexOf('开始分段') >= 0,
      JSON.stringify(afterDel).slice(0, 160));
 
   /* 还原成后面各组期望的状态：一篇 ART、档位 B2、不精简 */
@@ -296,14 +303,17 @@ async function main() {
   await prepSet(false, seg20, { segNote: '切出 20 段，超出常规区间 10–15 段' }, 'B2');
   await sleep(350);
   const bar = await ev(`(document.querySelector("#licConfirm .licneed")||{}).textContent||""`);
-  ok('20 段：出现段数提示（写明实际段数与常规区间）',
-     bar.indexOf('20') >= 0 && bar.indexOf('10–15') >= 0, bar.slice(0, 140));
+  /* 2026-09-23 Bryan 拍板：段数跑出常规区间**保持静默**（不再出提示、也不再给确认按钮）。
+     这条因此反转成「不该出现」——但仍要证明它没被阻断（见下一条）。 */
+  ok('20 段：不再出段数提示（保持静默）', bar === '', JSON.stringify(bar.slice(0, 140)));
   const contBtn = await ev(`(function(){
     var b=document.querySelectorAll("#licConfirm .licneed button"); for(var i=0;i<b.length;i++){ if(b[i].textContent.indexOf("继续生成")>=0) return b[i].getAttribute("onclick")||""; } return "";
   })()`);
-  ok('提示旁有「仍然继续生成」按钮（指向 licRunGen）', contBtn.indexOf('licRunGen') >= 0, contBtn);
-  ok('20 段：主生成按钮仍然可用（不阻断）',
-     (await ev(`(document.querySelector("#licConfirm .nextbar button")||{}).textContent||""`)).indexOf('B1') >= 0);
+  ok('不再有「仍然继续生成」按钮（已不阻断，无所谓人工确认）', contBtn === '', JSON.stringify(contBtn));
+  const mainBtn = await ev(`(function(){ var b = document.querySelector("#licConfirm .nextbar button");
+    return b ? (b.textContent.trim() + "|" + (b.getAttribute("onclick")||"")) : ""; })()`);
+  ok('20 段：主生成按钮仍然可用（不阻断）· 文案为「确认，进入下一步」',
+     mainBtn.indexOf('确认，进入下一步') >= 0 && mainBtn.indexOf('licGoGen') >= 0, mainBtn);
   ok('段数上限拦截已移除（源码里不再有 LIC_MAX_SEG）',
      (await ev(`typeof LIC_MAX_SEG === "undefined" && licRunGen.toString().indexOf("LIC_MAX_SEG") < 0 && licRunGen.toString().indexOf("段数超过上限") < 0`)));
   await shot(1440, 900, '3_confirm_plain20');
@@ -415,7 +425,8 @@ async function main() {
     })()`);
 
     const allOk = await setSem(JSON.stringify({ levels:[{level:"B1",bad:[],notes:[]},{level:"A2",bad:[],notes:[]}], bad_total:0, summary:"2 档逐段对齐，无错位" }));
-    ok('大意核对全过：出中性提示、不报警', allOk.indexOf('无错位') >= 0 && allOk.indexOf('发现错位') < 0, allOk.slice(0, 110));
+    ok('大意核对全过：整块不显示（中性提示已撤）+ 不报警',
+       String(allOk).trim() === '' && allOk.indexOf('发现错位') < 0, JSON.stringify(String(allOk).slice(0, 110)));
 
     const badTxt = await setSem(JSON.stringify({ levels:[{level:"B1",bad:[3,7],notes:["第3段讲的是成本","第7段讲的是师资"]},{level:"A2",bad:[],notes:[]}], bad_total:2, summary:"B1 有 2 段错位" }));
     ok('大意核对有错位：报警 + 点名档位与段号',

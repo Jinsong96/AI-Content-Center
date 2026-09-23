@@ -2168,7 +2168,8 @@ function curFacts(){
        改过的卡由调用方按 rev==="edited" 换成「人工修订」徽标。 */
     return lf.map((f, i) => ({
       type: guessFactType(f.en || f.zh), stmt: f.en || f.zh, zh: f.zh || "",
-      conf: factIsEdited(i) ? 1 : 0.92, rev: factIsEdited(i) ? "edited" : "auto",
+      conf: (factIsEdited(i) || factIsNew(i)) ? 1 : 0.92,
+      rev: factIsNew(i) ? "new" : (factIsEdited(i) ? "edited" : "auto"),
       cross: "single-source", anchor: "AI · F" + (i+1),
     }));
   }
@@ -2585,15 +2586,18 @@ function factIsEdited(i){
   if(!o) return false;
   return String(ed[i].en || "") !== String(o.en || "") || String(ed[i].zh || "") !== String(o.zh || "");
 }
-/* 回写 factsCache —— GEN 的入参就是这里的东西，不回写则「文章还是按旧事实卡写的」 */
+/* 回写 factsCache —— GEN 的入参就是这里的东西，不回写则「文章还是按旧事实卡写的」。
+   🔴 只回写**有内容**的卡：新增卡在填完之前是空的，让它进 facts_text / facts_raw 会多出一条
+   空事实（"3. "）并让后面所有编号整体错位 —— 入参编号必须与界面上「有内容的卡」逐位对应。 */
 function factsSyncToCache(){
   const ed = state.factsEdit, fc = state.factsCache;
   if(!ed || !fc) return;
-  fc.facts_text = ed.length ? ed.map((f, i) => (i + 1) + ". " + (f.en || f.zh)).join("\n") : "（无）";
+  const keep = ed.filter(f => String(f.en || "").trim() || String(f.zh || "").trim());
+  fc.facts_text = keep.length ? keep.map((f, i) => (i + 1) + ". " + (f.en || f.zh)).join("\n") : "（无）";
   try {
     const raw = JSON.parse(fc.facts_raw || "{}");
     if(raw && typeof raw === "object" && !Array.isArray(raw)){
-      raw.facts = ed.map(f => {
+      raw.facts = keep.map(f => {
         const o = { en: f.en || "", zh: f.zh || "" };
         if(f.gi !== undefined && f.gi !== null && f.gi !== "") o.gist = f.gi;
         return o;
@@ -2606,12 +2610,36 @@ function factsSyncToCache(){
 function hasGenAny(){
   try { return allKeys().some(k => GEN[k] && GEN[k].paras && GEN[k].paras.length); } catch(e){ return false; }
 }
+/* 这张卡是不是「人工新增」的（区别于「改过 AI 抽出来的卡」）——
+   新增卡没有 AI 原稿，所以 factIsEdited() 按 oid 认身份时认不出它，必须单独标。 */
+function factIsNew(i){
+  const ed = state.factsEdit;
+  return !!(ed && ed[i] && ed[i].isNew);
+}
+/* 收掉当前编辑态。若正在编辑的是一张**还没填内容的新卡**，顺手把它摘掉 ——
+   空卡留在编辑层会让「界面编号」与「入参编号」对不上（见 factsSyncToCache）。 */
+function _factCloseEditing(){
+  const i = state.factEditIdx, ed = state.factsEdit;
+  if(i >= 0 && ed && ed[i] && ed[i].isNew){
+    const f = ed[i];
+    if(!String(f.en || "").trim() && !String(f.zh || "").trim()){
+      ed.splice(i, 1);
+      state.factMap = null; state.unusedFacts = [];
+    }
+  }
+  state.factEditIdx = -1; state.factEditDraft = null;
+}
 function factEditStart(i){
-  const ed = factsEditInit(); if(!ed || !ed[i]) return;
-  state.factEditIdx = i; state.factEditDraft = { en: ed[i].en, zh: ed[i].zh };
+  const ed0 = factsEditInit(); if(!ed0 || !ed0[i]) return;
+  /* 先抓引用再收编辑态：_factCloseEditing() 可能摘掉一张空卡，下标会整体前移 */
+  const target = ed0[i];
+  _factCloseEditing();
+  const j = ed0.indexOf(target);
+  if(j < 0) return;
+  state.factEditIdx = j; state.factEditDraft = { en: ed0[j].en, zh: ed0[j].zh };
   render();
 }
-function factEditCancel(){ state.factEditIdx = -1; state.factEditDraft = null; render(); }
+function factEditCancel(){ _factCloseEditing(); render(); }
 function factEditInput(k, v){ if(state.factEditDraft) state.factEditDraft[k] = v; }
 function factEditSave(i){
   const ed = factsEditInit(), d = state.factEditDraft;
@@ -2621,26 +2649,52 @@ function factEditSave(i){
     toast(L("英文与中文不能同时留空；要移除这张卡请点「删除」","English and Chinese can't both be empty — use Delete to remove the card"));
     return;
   }
-  if(en === ed[i].en && zh === ed[i].zh){ state.factEditIdx = -1; state.factEditDraft = null; render(); return; }
+  if(en === ed[i].en && zh === ed[i].zh){ _factCloseEditing(); render(); return; }
+  const wasNew = !!ed[i].isNew;
   ed[i].en = en; ed[i].zh = zh;
   state.factEditIdx = -1; state.factEditDraft = null;
   factsSyncToCache();
+  /* 新增卡是插在中间 —— 它后面所有编号整体 +1，旧的段落↔事实卡绑定必然失准，必须作废
+     （改既有卡不改变编号，所以不需要在这里清）。 */
+  if(wasNew){ state.factMap = null; state.unusedFacts = []; }
   if(hasGenAny()) state.factsDirty = true;
   toast(L("事实卡 " + (i + 1) + " 已更新；生成文章时用的是这一版","Fact card " + (i + 1) + " updated — generation will use this version"));
   render();
 }
 function factDelete(i){
-  const ed = factsEditInit(); if(!ed || !ed[i]) return;
+  const ed0 = factsEditInit(); if(!ed0 || !ed0[i]) return;
+  /* 先抓引用再收编辑态：收的同时可能摘掉一张空卡，下标会前移，得重新定位 */
+  const target = ed0[i];
+  _factCloseEditing();
+  const ed = ed0, k = ed.indexOf(target);
+  if(k < 0) return;
   /* 卡全删光 = 素材没了，GEN 只剩大意骨架能写低档、高档无米下锅。拦在源头并说清原因，
      不做「删光了再静默产出残次文章」。 */
   if(ed.length <= 1){ toast(L("至少要保留 1 张事实卡，否则没有内容可写","Keep at least 1 fact card — otherwise there's nothing to write from")); return; }
-  ed.splice(i, 1);
+  ed.splice(k, 1);
   state.factEditIdx = -1; state.factEditDraft = null;
   factsSyncToCache();
   /* 编号整体前移 → 旧的段落↔事实卡绑定（fact_map / unused_facts）已失准，必须作废 */
   state.factMap = null; state.unusedFacts = [];
   state.factsDirty = true;
-  toast(L("已删除事实卡 " + (i + 1) + "，剩 " + ed.length + " 张","Deleted fact card " + (i + 1) + " — " + ed.length + " left"));
+  toast(L("已删除事实卡 " + (k + 1) + "，剩 " + ed.length + " 张","Deleted fact card " + (k + 1) + " — " + ed.length + " left"));
+  render();
+}
+/* 「新增事实卡」＝ 在这张卡**后面**插一张，并继承它的 gist 归属号。
+   🔴 两件事都不能省，否则新卡会「看着加上了、其实没进文章」：
+   ① 位置必须紧跟原卡 —— 这个功能就是为了把一条过长的事实拆成两条，拆出来的两半属于同一段大意。
+   ② gist 必须继承 —— GEN（gen 图 nodeClean.buildGistSkeleton）用 parseInt(facts_raw.facts[].gist)
+      把每张卡挂到第 N 条大意下；NaN 不匹配任何大意 ⇒ 该卡既不进 gist_fact_map、也不进高档细节池，
+      等于**被静默丢弃**。插在末尾而不继承，就会生成一张「看得见但用不上」的卡。 */
+function factInsertAfter(i){
+  const ed0 = factsEditInit(); if(!ed0 || !ed0[i]) return;
+  const target = ed0[i];
+  _factCloseEditing();
+  const j = ed0.indexOf(target);
+  if(j < 0) return;
+  ed0.splice(j + 1, 0, { oid: undefined, en: "", zh: "", gi: target.gi, isNew: true });
+  state.factEditIdx = j + 1;
+  state.factEditDraft = { en: "", zh: "" };
   render();
 }
 /* 事实卡改过、但文章还是改动前那一版 —— 必须说出来，不能让人以为文章跟着变了 */
@@ -4095,8 +4149,10 @@ function licensedPanelHTML(){
     else if(r) calc = L("预计切成 <b>" + est + "</b> 段（每段 " + r.per[0] + "–" + r.per[1] + " 词，可浮动 ±5）",
                         "Expect ~<b>" + est + "</b> paragraphs (" + r.per[0] + "–" + r.per[1] + " words each, ±5)") +
                 (wc ? L("　·　当前正文 <b>" + wc + "</b> 词", "　·　current <b>" + wc + "</b> words") : "");
+    /* 2026-09-23 Bryan 拍板：段数跑出常规区间**保持静默** —— 只留黄底警示色，不再写文字提示。
+       原先的 tooShort 变量算了却从没用过（偏短根本没提示），一并删掉：
+       留着会让人以为「偏短有提示」，是误导后人的假线索。 */
     const tooLong = (wc > 0 && est > LIC_SEG_OK_HI);
-    const tooShort = (wc > 0 && est > 0 && est < LIC_SEG_OK_LO);
     return `<div class="licrow">
       <div class="lich">
         <span class="licno">${no}</span>
@@ -5744,19 +5800,20 @@ function s4(){
     /* 生成后回填：该卡被哪些段落引用；绑定存在却未被引用 → 标黄提示 */
     const cb = hasLive ? factCitedBy(i+1) : "";
     const uncited = hasLive && !!liveFactMap() && !cb;
-    const isEd = f.rev === "edited";
+    const isNew = f.rev === "new";
+    const isEd = f.rev === "edited" || isNew;
     const editing = canEdit && state.factEditIdx === i && !!state.factEditDraft;
     const d = state.factEditDraft || { en: "", zh: "" };
     return `<div class="fcard${uncited ? " uncited" : ""}${editing ? " editing" : ""}">
-      <div class="top"><span class="tint ${tcolor}">${f.type}</span><span class="fid" title="${L("事实卡内部编号","internal fact-card id")}">${L("事实卡 ","Fact ")}${i+1}</span>${isEd?`<span class="tint ok">${L("人工修订","EDITED")}</span>`:""}${uncited?`<span class="tint warn">${L("未被引用","UNCITED")}</span>`:""}
-      ${canEdit && !editing ? `<span class="fops"><button class="fop" onclick="factEditStart(${i})">${L("编辑","Edit")}</button><button class="fop del" onclick="factDelete(${i})">${L("删除","Delete")}</button></span>` : ""}</div>
+      <div class="top"><span class="tint ${tcolor}">${f.type}</span><span class="fid" title="${L("事实卡内部编号","internal fact-card id")}">${L("事实卡 ","Fact ")}${i+1}</span>${isEd?`<span class="tint ok">${L(isNew?"人工新增":"人工修订", isNew?"ADDED":"EDITED")}</span>`:""}${uncited?`<span class="tint warn">${L("未被引用","UNCITED")}</span>`:""}
+      ${canEdit && !editing ? `<span class="fops"><button class="fop" onclick="factEditStart(${i})">${L("编辑","Edit")}</button><button class="fop" onclick="factInsertAfter(${i})" title="${L("在这张卡后面插入一张新卡，用来把过长的事实拆成两条","Insert a new card after this one — for splitting an over-long fact into two")}">${L("＋ 新增","+ Add")}</button><button class="fop del" onclick="factDelete(${i})">${L("删除","Delete")}</button></span>` : ""}</div>
       ${editing ? `<textarea class="fedit" placeholder="${L("英文事实（生成文章时用这一版）","English fact (this version is used for generation)")}" oninput="factEditInput('en', this.value)">${esc(d.en)}</textarea>
       <textarea class="fedit zh" placeholder="${L("中文对照（可留空）","Chinese gloss (optional)")}" oninput="factEditInput('zh', this.value)">${esc(d.zh)}</textarea>
       <div class="fedit-bar"><button class="btn mini" onclick="factEditSave(${i})">${L("保存","Save")}</button><button class="btn mini sec" onclick="factEditCancel()">${L("取消","Cancel")}</button></div>`
-      : `<div class="stmt">${esc(f.stmt)}</div>
+      : `<div class="stmt">${f.stmt ? esc(f.stmt) : `<span style="color:var(--sub)">${L("（还没填内容）","(empty — fill it in)")}</span>`}</div>
       ${f.zh ? `<div class="zh">${esc(f.zh)}</div>` : ""}`}
       ${editing ? "" : (isEd
-        ? `<div class="meta"><span>${L("已人工修订 · 生成文章时以本版本为准","edited by hand — generation uses this version")}</span></div>`
+        ? `<div class="meta"><span>${L(isNew?"人工新增 · 生成文章时会用这张卡":"已人工修订 · 生成文章时以本版本为准", isNew?"added by hand — generation will use this card":"edited by hand — generation uses this version")}</span></div>`
         : `<div class="meta"><span>${L("置信","confidence")}</span><div class="confbar ${conf<0.9?"low":""}"><i style="width:${(conf*100).toFixed(0)}%"></i></div><b>${conf.toFixed(2)}</b>
       <span class="tint ${f.rev==="auto"?"ok":"warn"}">${f.rev==="auto"?"AUTO":L("复核","REVIEW")}</span></div>
       <div class="senref"> ${esc(f.anchor)} · ${L("交叉验证","cross-check")}: ${esc(f.cross)}</div>`)}
