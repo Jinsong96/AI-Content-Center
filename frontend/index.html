@@ -3835,9 +3835,12 @@ function licAddPaste(){
   const st = licState();
   const t = String(st.paste || "").trim();
   if(!t){ toast(L("请先粘贴正文","Paste the text first")); return; }
-  licPush(L("粘贴的母稿","Pasted master"), t);
+  const ti = $("#licTitle");
+  const title = (ti ? String(ti.value || "").trim() : "").slice(0, 120);
+  licPush(title || L("粘贴的母稿","Pasted master"), t);
   st.paste = "";
   const ta = $("#licPaste"); if(ta) ta.value = "";
+  if(ti) ti.value = "";
   render();
   toast(L("已加入 1 篇（共 " + licArts().length + " 篇）","Added 1 (total " + licArts().length + ")"));
 }
@@ -3979,7 +3982,9 @@ function licensedPanelHTML(){
   return `<div id="licPanel" style="background:#fff;border:1px solid var(--border2);border-radius:12px;padding:18px 20px">
     <div class="licimp">
       <div class="licimp-c">
-        <div class="licimp-t">${L("粘贴正文","Paste text")}</div>
+        <div class="licimp-t">${L("母稿标题","Master title")}</div>
+        <input id="licTitle" type="text" placeholder="${L("粘贴母稿标题（导出时放在正文最前面）","Paste the master title (appears before the text on export)")}" style="width:100%;box-sizing:border-box;border:1px solid var(--border2);border-radius:9px;padding:10px 12px;font-size:13px;font-family:inherit;background:#fff;color:var(--text);outline:none">
+        <div class="licimp-t" style="margin-top:12px">${L("粘贴正文","Paste text")}</div>
         <textarea id="licPaste" rows="6" spellcheck="false" placeholder="${L("把母稿正文整段粘进来（一篇一条，加一篇就点一次）","Paste one master text here (one article per click)")}" oninput="licState().paste=this.value">${esc(st.paste)}</textarea>
         <div style="margin-top:8px"><button class="btn sec" onclick="licAddPaste()">${L("加入列表","Add to list")}</button></div>
       </div>
