@@ -4431,6 +4431,7 @@ function licConfirmHTML(){
   const P = st.prep;
   const r = licSegRange(), tgts = LIC_TARGETS[P.level] || [];
   const n = (st.queue || []).length, done = (st.doneIds || []).length;
+  const N = P.segs.length;
   const band = licBand(r);
   const rows = P.segs.map(function(p, i){
     const k = licWordCount(p), bad = licSegBad(k, r);
