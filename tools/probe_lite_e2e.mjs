@@ -154,11 +154,22 @@ const SETUP = `(async()=>{
     return { idx:idx, len:t.length, head:t.slice(0,70) };
   };
   out.page7=await probePage(7);
-  out.page8=await probePage(8);
+  /* 2026-09-23 Bryan：AI 校验页连同「本链路不做质量校验」说明一起删掉。
+     lite 下 go(8) 必须被改送到 9（不可达、且不再有那段说明），而不是渲染成空白页。 */
+  go(8); await sleep(400);
+  out.page8RedirectTo=cur;
+  { const w=document.querySelector("#stage .wrap");
+    const t=w?w.textContent.replace(/\\s+/g," ").trim():"";
+    out.page8LandedLen=t.length; out.page8HasOldNote=t.indexOf("不做质量校验")>=0; }
   out.page9=await probePage(9);
   out.page10=await probePage(10);
   out.page11=await probePage(11);
-  out.page8Note = out.page8.head.indexOf("不做质量校验")>=0 || out.page8.head.indexOf("本链路")>=0;
+  /* 顶部步骤条（artWorkflowBar）：lite 应为 4 步且不含「AI 校验」 */
+  go(7); await sleep(400);
+  out.page7Steps=Array.prototype.slice.call(document.querySelectorAll("#stage .mfs")).map(function(n){
+    const el=n.querySelector(".mfs-t"); return el?el.textContent.trim():""; });
+  out.page7StripHasAi=Array.prototype.slice.call(document.querySelectorAll(".wfstrip .wfnode")).some(function(n){
+    return n.textContent.trim()==="AI 校验"; });
 
   /* ⑦ 产线约束不得泄漏进 lite（Bryan 2026-09-23：极简版「分级标准 / 检验标准 / 字数约束都不需要有」）。
      判据全部落在 **真实渲染出来的 DOM** 上 —— 不读代码、不读内存标记，避免「代码看着对、页面还是错」。 */
@@ -177,7 +188,7 @@ const SETUP = `(async()=>{
     };
   };
   /* ⚠️ 页面索引与步骤号不同名（fns=[s0,s1,s2,s3,sMaterialBank,s4,s5,s6,s7,s9,s12,sArticleBank]）：
-     内容生成 = 7，AI 校验 = 8，段落校对 = 9，逐段审核 = 10，文章库 = 11。
+     内容生成 = 7，AI 校验 = 8（**lite 下已删除，go(8) 会落到 9**），段落校对 = 9，逐段审核 = 10，文章库 = 11。
      第一版把「审核」当成 11、又在内容生成页找档位条（那页只有 .gentab），两条断言取错了页面。 */
   out.pg7=await domOn(7, 3400);   /* 第 1 格指标由打字机在渲染后 1–3s 才填，等足 */
   out.pg9=await domOn(9);
@@ -291,8 +302,11 @@ async function main() {
 
   console.log('\n[4] 后续页面非空白');
   ok('idx 7 内容生成页有内容', o.page7.len > 200, `len=${o.page7.len}`);
-  ok('idx 8 校验页有内容', o.page8.len > 80, `len=${o.page8.len}`);
-  ok('idx 8 明确写了「本链路不做质量校验」', o.page8Note, o.page8.head);
+  ok('idx 8 AI 校验页已删除：go(8) 改送到 9', o.page8RedirectTo === 9, `落到 ${o.page8RedirectTo}`);
+  ok('落到的页面不含旧说明「不做质量校验」', o.page8HasOldNote === false, String(o.page8HasOldNote));
+  ok('lite 顶部步骤条 = 4 步且不含「AI 校验」',
+     (o.page7Steps || []).length === 4 && (o.page7Steps || []).indexOf('AI 校验') < 0, JSON.stringify(o.page7Steps));
+  ok('底部工作流条不含「AI 校验」', o.page7StripHasAi === false, String(o.page7StripHasAi));
   ok('idx 9 分段页有内容', o.page9.len > 100, `len=${o.page9.len}`);
   ok('idx 10 / 11 有内容', o.page10.len > 60 && o.page11.len > 60, `10=${o.page10.len} 11=${o.page11.len}`);
   ok('无 console.error 异常', o.consoleErrs.length === 0, JSON.stringify(o.consoleErrs));

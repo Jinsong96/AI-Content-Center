@@ -12,10 +12,12 @@
 //   ③ 粘贴后统计行更新、底部按钮变为可点
 //   ④ 图 C 返回正常数据 → GEN 建成 A1/A2/B1 三档，quiz 三档各 3 题
 //   ⑤ 母稿（B1）由前端补齐并入库，且是用户粘贴的原文
-//   ⑥ AI 校验页（idx 8）**不是空白**，明确写着「本链路不做质量校验」
+//   ⑥ AI 校验页（idx 8）在 lite 下**不存在**：go(8) 被改送到 9，且页面上没有那套说明文案
+//      （2026-09-23 Bryan：原来那句「本链路不做质量校验」连同页面一起删掉）
 //   ⑦ 生成后自动落在内容生成页（idx 7）且渲染出文章预览
 //   ⑧ 负向：parse_ok=false 时必须有错误条 + 重试按钮，且 GEN 保持为空（不静默、不留白）
 //   ⑨ 负向：无正文时点「生成」不得发起调用
+//   ⑪ 负向：licensed（产线）下 go(8) 仍停在 8 —— 证明「改送 9」是 lite 专属，没误删产线页面
 //
 // 用法：
 //   cd <repo> && node tools/probe_lite_route.mjs
@@ -174,10 +176,32 @@ const SETUP = `(async()=>{
     const txt=wrap?wrap.textContent.replace(/\\s+/g," ").trim():"";
     return { idx:idx, len:txt.length, head:txt.slice(0,60) };
   };
+  /* 顶部步骤条（artWorkflowBar → artFlowSteps）的节点名，用来验 lite 少一步 */
+  const stepBar=async function(idx){
+    go(idx); await sleep(400);
+    return Array.prototype.slice.call(document.querySelectorAll("#stage .mfs")).map(function(n){
+      const t=n.querySelector(".mfs-t"); return t?t.textContent.trim():"";
+    });
+  };
+  /* 底部工作流条（wfStrip）里有没有某个节点名 */
+  const stripHas=function(name){
+    return Array.prototype.slice.call(document.querySelectorAll(".wfstrip .wfnode")).some(function(n){
+      return n.textContent.trim()===name;
+    });
+  };
   out.page7=await probePage(7);
-  /* ⑥ AI 校验页：lite 必须给明确说明，不是空壳 */
-  out.page8=await probePage(8);
-  out.page8HasNoValidateNote = out.page8.head.indexOf("不做质量校验")>=0 || out.page8.head.indexOf("本链路")>=0;
+  /* ⑥ AI 校验页在 lite 下**不存在**（2026-09-23 Bryan：连说明文案一起删）：
+     go(8) 必须被改送到 9，并且落到的页面上不再出现那套说明。 */
+  out.page7Steps = await stepBar(7);
+  out.page7StripHasAi = stripHas("AI 校验");
+  go(8); await sleep(450);
+  out.page8RedirectTo = cur;
+  {
+    const wrap=document.querySelector("#stage .wrap");
+    const txt=wrap?wrap.textContent.replace(/\\s+/g," ").trim():"";
+    out.page8LandedLen = txt.length;
+    out.page8HasOldNote = txt.indexOf("不做质量校验")>=0;
+  }
   out.page9=await probePage(9);
   out.page10=await probePage(10);
   out.page11=await probePage(11);
@@ -198,6 +222,16 @@ const SETUP = `(async()=>{
   out.badNeedBar=!!need;
   out.badNeedHasRetry=!!(need&&need.querySelector("button"));
   out.badConsoleErrs=errs.length;
+
+  /* ⑪ 负向对照：licensed（产线口径）下 go(8) 必须老老实实停在 8 ——
+      否则说明「改送 9」写成了全局规则，把产线的 AI 校验页一起干掉了。 */
+  {
+    const routeBak=state.route;
+    state.route="licensed";
+    go(8); await sleep(400);
+    out.licPage8=cur;
+    state.route=routeBak;
+  }
 
   window.difyCall=realDify;
   console.error=_ce;
@@ -271,10 +305,17 @@ async function main() {
 
   console.log('\n[4] 后续页面都不空白');
   ok('生成后落在内容生成页 idx=7', o.cur === 7, String(o.cur));
-  [['内容生成', o.page7], ['AI 校验', o.page8], ['段落校对', o.page9], ['逐段审核', o.page10], ['文章库', o.page11], ['素材选择', o.page0]].forEach(([n, p]) => {
+  [['内容生成', o.page7], ['段落校对', o.page9], ['逐段审核', o.page10], ['文章库', o.page11], ['素材选择', o.page0]].forEach(([n, p]) => {
     ok(n + ` 页有内容（len=${p.len}）`, p.len > 40, JSON.stringify(p));
   });
-  ok('AI 校验页写明「不做质量校验」', o.page8HasNoValidateNote, o.page8.head);
+
+  console.log('\n[4b] AI 校验页已从 lite 链路删除（2026-09-23）');
+  ok('go(8) 被改送到 9（页面不可达，不是空白页）', o.page8RedirectTo === 9, `落到 ${o.page8RedirectTo}`);
+  ok('落到的页面不含旧说明「不做质量校验」', o.page8HasOldNote === false, String(o.page8HasOldNote));
+  ok('lite 顶部步骤条 = 4 步', (o.page7Steps || []).length === 4, JSON.stringify(o.page7Steps));
+  ok('步骤条不含「AI 校验」', (o.page7Steps || []).indexOf('AI 校验') < 0, JSON.stringify(o.page7Steps));
+  ok('底部工作流条也不含「AI 校验」节点', o.page7StripHasAi === false, String(o.page7StripHasAi));
+  ok('负向对照：licensed 下 go(8) 仍停在 8（产线页面没被误删）', o.licPage8 === 8, `落到 ${o.licPage8}`);
 
   console.log('\n[5] 负向：解析失败');
   ok('有错误条', o.badErrShown);

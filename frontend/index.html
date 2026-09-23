@@ -3784,6 +3784,9 @@ function go(i){
     if(i===1) i = 2;                 /* entry 0 → sensitivity directly */
     else if(i===5) i = 6;             /* facts → KB specs */
   }
+  /* lite（对照组）没有「AI 校验」这一步：底部按钮、底部工作流条等任何入口
+     落到 idx 8 都改送 9（段落校对），保证不会出现空白页。 */
+  if(isLite() && i===8) i = 9;
   cur = i;
   state.view = null;      /* 切换步骤时退出「查看原文」等独立视图，避免页面串台 */
   refreshRail();
@@ -3870,11 +3873,18 @@ function head(no, title){
 /* workflow footer strip (bottom of every page) */
 /* B3：底部这条原先只是「看起来像导航、点了一条也不动」的装饰，与页内可点的 artWorkflowBar 两套并存。
    现在统一为可点击跳转，并去掉 01–12 编号（侧边栏已按品牌规范去编号，两处应一致）。 */
+/* lite（对照组）整条链路没有「AI 校验」（idx 8）⇒ 底部工作流条里也不该有这个节点
+   （留着它点了会被 go() 改送 9，是一句说不通的空跳转）。
+   其余入口原样返回全部 12 步 —— 产线行为一字不改。 */
+function wfStages(){
+  return isLite() ? STAGES.filter((s,i)=>i!==8) : STAGES;
+}
+/* 底部工作流条的节点列表；lite 走 wfStages() 过滤，见上。 */
 function wfStrip(){
   const curIdx = (cur>=0 && cur<12) ? cur : -1;
   return `<div class="wfstrip">
     <div class="wfstrip-h">${L("完整工作流（当前高亮，点击可跳转）","Full workflow (current highlighted — click to jump)")}</div>
-    <div class="wfstrip-bar">${STAGES.map((s,i)=>{
+    <div class="wfstrip-bar">${wfStages().map((s,i)=>{
       const st = i===curIdx ? "cur" : (i<curIdx ? "done" : "wait");
       const tt = esc(L("跳到：", "Go to: ") + L(s.t, s.tEn));
       return `<div class="wfnode ${st} wfclick" role="button" tabindex="0" title="${tt}" onclick="go(${i})" onkeydown="if(event.key==='Enter'){go(${i})}"><span class="wfn-t">${L(s.t,s.tEn)}</span></div>`;
@@ -3909,13 +3919,15 @@ function matWorkflowBar(){
 function artFlowSteps(){
   /* 自有版权 / 公版书 / CEFR分级 / 轻量提示词入口都无需「事实分段」；
      CEFR分级与轻量提示词还跳过「分级标准」—— 都是母稿直接向下改写，不走知识库选规格。
-     热点搜集入口 → 7 步（含事实分段）；owned/public → 6 步；licensed/lite → 5 步 */
+     热点搜集入口 → 7 步（含事实分段）；owned/public → 6 步；licensed → 5 步；
+     lite（对照组）→ 4 步 —— 不跑任何校验，「AI 校验」整页不存在（2026-09-23 Bryan 定） */
   const skipFact = state.route === "owned" || state.route === "public" || isLicLike();
   const steps = [];
   if(!skipFact) steps.push({ idx:5, t:"事实分段", tEn:"Fact Segmentation" });
   if(!isLicLike()) steps.push({ idx:6, t:"分级标准", tEn:"KB & CEFR" });
   steps.push({ idx:7, t:"内容生成", tEn:"Generation" });
-  steps.push({ idx:8, t:"AI 校验", tEn:"AI Validate" });
+  /* lite 是对照组：不跑任何校验 ⇒ 这一步连入口都不给（页面也已删除） */
+  if(!isLite()) steps.push({ idx:8, t:"AI 校验", tEn:"AI Validate" });
   steps.push({ idx:9, t:"段落校对", tEn:"Proofread" });
   steps.push({ idx:10, t:"逐段审核", tEn:"Segment Review" });
   steps.push({ idx:11, t:"存入文章库", tEn:"Save to Article Library" });
@@ -6363,17 +6375,9 @@ function typewriter(){
 
 /* ---------- Stage 8 ---------- */
 function s7(){
-  /* 轻量提示词链路**不做校验**（对照组设计）—— 必须显式说明，
-     否则这里会是一个什么都没有的空白页（最不该有的失败方式）。 */
-  if(isLite()){
-    return head("09", L("AI 校验","AI Validation")) +
-      artWorkflowBar() +
-      `<div class="note" style="padding:40px;text-align:center;margin:16px 0">
-        <p style="margin:0 0 10px"><b>${L("本链路不做质量校验","This path runs no validation")}</b></p>
-        <p style="margin:0;color:var(--sub);font-size:13px;line-height:1.7">${L("轻量提示词是<b>对照组</b>：目的就是看模型在一段极简提示词下的裸产出，所以不设字数 / 句长 / 蓝思 / 超纲等校验，也不做「不达标自动重跑」。<br>要看产线口径的 11 项校验结果，请走「CEFR文章分级」入口。",
-          "The lite prompt is the <b>control group</b>: it exists to observe raw model output from one minimal prompt, so no word-count / sentence-length / Lexile / out-of-syllabus checks run, and nothing auto-retries.<br>For the production-grade checks, use the CEFR Article Grading entry.")}</p>
-      </div>` + nextBtn(L("提交人工审核","Submit to review")) + wfStrip();
-  }
+  /* 轻量提示词链路**没有 AI 校验**（对照组不跑任何校验）。
+     这一页在 lite 下已不可达：go() 把 idx 8 改送到 9，artFlowSteps / wfStages 也不给它入口。
+     2026-09-23 Bryan：原来那句「本链路不做质量校验」的说明页连同文案一并删掉。 */
   return head("09", L("AI 校验","AI Validation")) +
     artWorkflowBar() +
   `<div class="validate"><div id="vcol"></div><div id="vcol2"></div></div>
