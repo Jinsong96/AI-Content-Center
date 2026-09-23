@@ -3176,6 +3176,8 @@ class Handler(BaseHTTPRequestHandler):
         # 直连必须带真实密钥；Railway 上密钥只存在于环境变量，故在此注入 WB_CONFIG。
         # 代价：密钥会随 HTML 下发到浏览器（F12 可见）。演示环境可接受；
         # 若要彻底隐藏，需把前端这 4 处改回「走 bridge 代理」模式。
+        # ⚠️ 新增工作流必须在下面这个白名单里补一行 —— 缺了它的表现是
+        #    前端「未配置」提示（不是报错），很容易误判成前端没改完。
         _envs = {
             "DEMO_PASS": demo_pass,
             "SF_API_KEY": self._env_key("SF_API_KEY"),
@@ -3184,6 +3186,7 @@ class Handler(BaseHTTPRequestHandler):
             "DIFY_WF_FACT": self._env_key("DIFY_WF_FACT"),
             "DIFY_WF_LICPREP": self._env_key("DIFY_WF_LICPREP"),
             "DIFY_WF_LICGEN": self._env_key("DIFY_WF_LICGEN"),
+            "DIFY_WF_LITE": self._env_key("DIFY_WF_LITE"),
         }
         _pairs = ",".join("%s:%s" % (k, json.dumps(v).replace("<", "\\u003c"))
                           for k, v in _envs.items())

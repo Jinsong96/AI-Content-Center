@@ -1538,6 +1538,7 @@ function bigBarHTML(){
   return '<div class="bigbar"><span class="bigbar-l">' + L("档位","Level") + '</span>' +
     BIG_GROUPS.map(function(g){
       if(["A1","A2","B1","B2"].indexOf(g.big) < minIdx) return '';   /* 低于区间下界的档不显示 */
+      if(isLite() && shownKeys().indexOf(g.big) < 0) return '';      /* lite 只产 3 档：不留空的 B2+ tab */
       const n = bigParaCount(g.big);
       return '<div class="bigtab' + (cur === g.big ? ' sel' : '') + (n ? '' : ' blank') + '" onclick="setBig(\'' + g.big + '\')"><b>' + (LEVEL_BY_KEY[g.big] ? LEVEL_BY_KEY[g.big].d : g.big) + '</b><span>' + L(g.zh, g.en) + '</span><span class="bt-n' + (n ? '' : ' off') + '"><i></i>' + n + ' ' + L("段","paras") + '</span></div>';
     }).join("") + '</div>';
@@ -2032,14 +2033,14 @@ function quizCellHTML(lv, i){
 /* 子档练习题对照：行=题号，列=4 档，与上方段落对齐网格同构，便于跨档比较 */
 /* 4 档练习题对照：行=题号，列=子档，与上方段落对齐网格同构，便于跨档比较 */
 function quizAlignedHTML(){
-  const lvls=allKeys();
+  const lvls=shownKeys();
   if(!lvls.some(k=>(state.quiz[k]||[]).length)) return "";
   const maxQ = Math.max(...lvls.map(k=>(state.quiz[k]||[]).length));
   const m = LVL_META;
   let h = bigBarOnce();
   h += `<div class="quizalign">`;
   h += `<div class="qalign-hbar"><div class="qspacer"></div>` + lvls.map(k=>`<div class="plvl-pill" style="border-color:${m[k].color}55"><span class="dot" style="background:${m[k].color}"></span><b>${nkDisp(k)}</b><span>${L(m[k].zh, m[k].en)}</span></div>`).join("") + `</div>`;
-  h += `<div class="qalign-hint">${L("4 档练习题按题型对齐对照（同一行即同一题型），便于跨档位比较难度梯度与措辞差异。","The four levels of this group are aligned by question type — same row = same type — for easy cross-level comparison of difficulty and wording.")}</div>`;
+  h += `<div class="qalign-hint">${L(lvls.length + " 档练习题按题型对齐对照（同一行即同一题型），便于跨档位比较难度梯度与措辞差异。","The " + lvls.length + " levels of this group are aligned by question type — same row = same type — for easy cross-level comparison of difficulty and wording.")}</div>`;
   for(let i=0;i<maxQ;i++){
     h += `<div class="qalignrow"><div class="qrow-no">#${i+1}</div>` + lvls.map(k=>quizCellHTML(k,i)).join("") + `</div>`;
   }
@@ -2424,15 +2425,20 @@ const AIWF_FACT = { apiBase: "https://api.dify.ai/v1", appKey: (window.WB_CFG &&
    拆成「预处理 → 人工确认 → 生成」两段即可，也不必给引擎加中断/恢复能力。 */
 const AIWF_LICPREP = { apiBase: "https://api.dify.ai/v1", appKey: (window.WB_CFG && window.WB_CFG.DIFY_WF_LICPREP) || "", user: "frontend-demo" };  /* 图 A：提炼要点 → 按需精简 → 分段 */
 const AIWF_LICGEN  = { apiBase: "https://api.dify.ai/v1", appKey: (window.WB_CFG && window.WB_CFG.DIFY_WF_LICGEN) || "", user: "frontend-demo" };   /* 图 B：按骨架逐段向下改写 */
+/* 图 C（轻量提示词）：Bryan 2026-09-23 的**对照实验链路** —— 只有一段约 400 字提示词、
+   **一个** LLM 节点，一次产出 A1-/A2 两篇文章 + 三档各 3 道题。
+   刻意不接图 A（无预处理分段）、不接图 B（无校验重跑），用来观察模型裸产出质量。 */
+const AIWF_LITE = { apiBase: "https://api.dify.ai/v1", appKey: (window.WB_CFG && window.WB_CFG.DIFY_WF_LITE) || "", user: "frontend-demo" };
 /* wf 名 → { 直连兜底对象, 桥接层用的环境变量名 }。集中一处，避免四个 wf 各自三元表达式的老写法漏改。 */
 const DIFY_WF_CFG = {
   fact:    { env: "DIFY_WF_FACT" },
   gen:     { env: "DIFY_WF_GEN" },
   licprep: { env: "DIFY_WF_LICPREP" },
   licgen:  { env: "DIFY_WF_LICGEN" },
+  lite:    { env: "DIFY_WF_LITE" },
   main:    { env: "DIFY_WF_MAIN" },
 };
-const DIFY_WF_OBJ = { fact: AIWF_FACT, gen: AIWF_GEN, licprep: AIWF_LICPREP, licgen: AIWF_LICGEN, main: AIWF };
+const DIFY_WF_OBJ = { fact: AIWF_FACT, gen: AIWF_GEN, licprep: AIWF_LICPREP, licgen: AIWF_LICGEN, lite: AIWF_LITE, main: AIWF };
 /* 统一 Dify 工作流调用：优先走桥接层同源代理（/api/dify/workflows/run，稳定，绕开浏览器直连
    api.dify.ai 的 UA/频率风控与网络抖动——直连会偶发 fetch 报 "Failed to fetch"），
    代理不可达或失败时回退直连公网。返回 Dify 原始 JSON（data.data.status / code 结构不变）。 */
@@ -2481,6 +2487,7 @@ async function difyCall(wf, inputs, user, signal){
   if(!AIWF_FACT.appKey) miss.push("DIFY_WF_FACT");
   if(!AIWF_LICPREP.appKey) miss.push("DIFY_WF_LICPREP");
   if(!AIWF_LICGEN.appKey) miss.push("DIFY_WF_LICGEN");
+  if(!AIWF_LITE.appKey) miss.push("DIFY_WF_LITE");
   if(miss.length) console.warn("[ReadPal] 服务端未配置环境变量：" + miss.join(", ") + "。相关 AI 功能不可用，请在部署平台 Variables 填入后重新部署。");
 })();
 /* 自有素材书架封面（base64 内嵌，单文件架构）。BOOK_COVER 为《用英文讲好中国故事》总封面，5 个辑暂共用；后续给某辑单独封面时在 BOOK_COVERS 里按辑名覆盖即可。 */
@@ -3084,7 +3091,7 @@ function refreshRunViz(){
      授权母稿链路没有节点进度，用 elapsed 估算（2026-09-22 修） */
   const gbox = document.getElementById("s6run");
   if(gbox){
-    const isLic = state.route === "licensed";
+    const isLic = isLicLike();
     const pctG = isLic
       ? Math.min(90, Math.round((parseFloat(s.elapsed) || 0) / Math.max(1, GEN_EST) * 100))
       : (function(){ const ex = !(state.factsCache && state.factsCache.summary); return ex ? runPct(FACT_EST, s.nodes, FACT_NODE_EST) : runPct(GEN_EST, s.nodes, GEN_NODE_EST); })();
@@ -3257,9 +3264,9 @@ function applyLive(){
     if(!paras || !paras.length) paras = mdParas(raw);
     if(!paras.length) return;
     const firstLine = raw.split(String.fromCharCode(10)).map(function(l){ return l.trim(); }).find(Boolean) || "";
-    /* 授权链路（CEFR分级）：标题以导入时填的为准，锁定不做模型第一行 / o.title 替换。
+    /* 母稿直改链路（CEFR分级 / 轻量提示词）：标题以导入时填的为准，锁定不做模型第一行 / o.title 替换。
        无标题（或占位「粘贴的母稿」）才回落到模型输出。 */
-    const licTitle = (state.route === "licensed"
+    const licTitle = (isLicLike()
                       && String(state.live.label || "").trim()
                       && state.live.label !== "粘贴的母稿" && state.live.label !== "Pasted master")
                    ? String(state.live.label).trim() : "";
@@ -3267,12 +3274,21 @@ function applyLive(){
     const wc = wcOf(raw), sc = sentOf(raw);
     const r = vmap[k];
     const score = r ? r.score : null;
-    const metrics = [
-      [{ zh: (score != null ? "校验 " + score + "/8" : "—"), en: (score != null ? score + "/8 checks" : "—") }, score != null ? Math.round(score / 8 * 100) : 30],
-      [{ zh: (wc / sc).toFixed(1) + " 词/句", en: (wc / sc).toFixed(1) + " w/s" }, 70],
-      [{ zh: state.live.elapsed + " s（全流程）", en: state.live.elapsed + " s (workflow)" }, 55],
-      [{ zh: wc + " 词", en: wc + " words" }, Math.min(100, Math.round(wc / 4))],
-    ];
+    /* 轻量提示词链路**不跑 11 项校验**（对照组设计），第 1 格沿用「校验 x/8」会恒显示「—」，
+       用户会以为校验失败了。换成 lite 真正有的量：段数。 */
+    const metrics = isLite()
+      ? [
+          [{ zh: paras.length + " 段", en: paras.length + " paras" }, Math.min(100, paras.length * 8)],
+          [{ zh: (wc / sc).toFixed(1) + " 词/句", en: (wc / sc).toFixed(1) + " w/s" }, 70],
+          [{ zh: state.live.elapsed + " s（全流程）", en: state.live.elapsed + " s (workflow)" }, 55],
+          [{ zh: wc + " 词", en: wc + " words" }, Math.min(100, Math.round(wc / 4))],
+        ]
+      : [
+          [{ zh: (score != null ? "校验 " + score + "/8" : "—"), en: (score != null ? score + "/8 checks" : "—") }, score != null ? Math.round(score / 8 * 100) : 30],
+          [{ zh: (wc / sc).toFixed(1) + " 词/句", en: (wc / sc).toFixed(1) + " w/s" }, 70],
+          [{ zh: state.live.elapsed + " s（全流程）", en: state.live.elapsed + " s (workflow)" }, 55],
+          [{ zh: wc + " 词", en: wc + " words" }, Math.min(100, Math.round(wc / 4))],
+        ];
     const used = (r && Array.isArray(r.checks))
       ? r.checks.map(function(c){ return (c.status === "pass" ? "✓" : c.status === "warn" ? "!" : "✕") + " " + c.name + (c.detail ? " · " + c.detail : ""); })
       : [L("（校验数据待运行后填充）", "(run workflow to populate)")];
@@ -3891,13 +3907,13 @@ function matWorkflowBar(){
 }
 /* ---------- 文章生产 · 顶部工作流步骤条（6 步生产 + 1 步存入文章库） ---------- */
 function artFlowSteps(){
-  /* 自有版权 / 公版书 / 授权母稿（CEFR分级）入口都无需「事实分段」；
-     授权母稿（licensed）还跳过「分级标准」—— 它是母稿直接向下改写，不走知识库选规格。
-     热点搜集入口 → 7 步（含事实分段）；owned/public → 6 步；licensed → 5 步 */
-  const skipFact = state.route === "owned" || state.route === "public" || state.route === "licensed";
+  /* 自有版权 / 公版书 / CEFR分级 / 轻量提示词入口都无需「事实分段」；
+     CEFR分级与轻量提示词还跳过「分级标准」—— 都是母稿直接向下改写，不走知识库选规格。
+     热点搜集入口 → 7 步（含事实分段）；owned/public → 6 步；licensed/lite → 5 步 */
+  const skipFact = state.route === "owned" || state.route === "public" || isLicLike();
   const steps = [];
   if(!skipFact) steps.push({ idx:5, t:"事实分段", tEn:"Fact Segmentation" });
-  if(state.route !== "licensed") steps.push({ idx:6, t:"分级标准", tEn:"KB & CEFR" });
+  if(!isLicLike()) steps.push({ idx:6, t:"分级标准", tEn:"KB & CEFR" });
   steps.push({ idx:7, t:"内容生成", tEn:"Generation" });
   steps.push({ idx:8, t:"AI 校验", tEn:"AI Validate" });
   steps.push({ idx:9, t:"段落校对", tEn:"Proofread" });
@@ -3933,6 +3949,10 @@ const ROUTES = [
    desc:"导入已解决版权的 B1 / B2 母稿（BBC、超级阅读力等出版社书系），按现有分级标准<b>只往下生产</b>：B2 → B1 + A2 + A1-，B1 → A2 + A1-。母稿本身也入库。不抽事实，按骨架逐段改写。",
    descEn:"Import licensed B1 / B2 master texts (BBC, publisher series) and generate <b>downward only</b>: B2 → B1 + A2 + A1-, B1 → A2 + A1-. The master itself is saved too. No fact extraction — paragraph-by-paragraph rewrite.",
    items:["BBC","超级阅读力","一次多篇","按需精简"], itemsEn:["BBC","Publisher series","Batch import","Optional condensing"]},
+  {id:"lite", ico:"", color:"#E65425", name:"轻量提示词", nameEn:"Lite Prompt",
+   desc:"<b>对照实验入口</b>：只用一段约 400 字的极简提示词（不含分级规格、不含校验规则、不分段预处理）把 B1 母稿向下生成 A1- / A2 两档，并为 A1- / A2 / B1 三档各出 3 道题。用来观察模型在极简提示词下的<b>裸产出质量</b>，不与产线链路的结果混用。",
+   descEn:"<b>A/B experiment entry</b>: one ~400-character prompt only (no grading specs, no validation rules, no segmentation pass) turns a B1 master into A1- / A2, plus 3 exercises for each of A1- / A2 / B1. Used to observe <b>raw model output quality</b> under a minimal prompt.",
+   items:["极简提示词","两档生成","三档出题","实验对照"], itemsEn:["Minimal prompt","Two levels","Nine exercises","A/B experiment"]},
 ];
 /* 公版书素材源面板（内置固定测试书目，离线可用）*/
 function sePanelHTML(){
@@ -4001,10 +4021,32 @@ const LIC_DEF_SEG = 12;      /* licRange() 的默认段数 —— **只用于展
 const LIC_TARGETS = { B2:["B1","A2","A1"], B1:["A2","A1"] };
 let _licSeq = 0;             /* 条目稳定 id —— 不用下标定位（下标会随删除错位） */
 
+/* ===== 「母稿直改」型入口（共用一个状态机与后续渲染页） =====
+   licensed = CEFR文章分级（产线链路：图 A 预处理分段 → 人工确认 → 图 B 向下生成 + 校验重跑）
+   lite     = 轻量提示词（2026-09-23 对照实验：一段约 400 字提示词 + 单 LLM 节点一次产出，
+              无预处理、无确认页、无校验重跑）
+   两者**共用 state.lic**（busy 闸、错误出口、导入列表）与生成后的预览/校对/审核页，
+   差异只在：入口面板、是否跑预处理、调用哪张图、以及是否做质量校验。
+   ⚠️ 新增同类入口时，下面两个 helper 是唯一判据 —— 不要再散写 state.route === "licensed"。 */
+function isLicLike(){ return state.route === "licensed" || state.route === "lite"; }
+function isLite(){ return state.route === "lite"; }
+/* 本链路**实际有产出**的档位（按 LEVELS12 顺序）。
+   🔴 只对「轻量提示词」收敛：它只产 B1 / A2 / A1- 三档，而产线的档位条 / 对齐网格 / 题目对照
+   都按四档铺 —— lite 下会多出空的 B2+ 列、空 tab、空 pill，用户会以为该档生成失败。
+   非 lite 链路恒返回全 4 档：热点与授权母稿的行为**完全不变**（改一处不能崩两条链路）。 */
+function shownKeys(){
+  if(!isLite()) return allKeys();
+  const ks = allKeys().filter(function(k){ return GEN[k] && GEN[k].paras && GEN[k].paras.length; });
+  return ks.length ? ks : allKeys();
+}
+
 function licState(){
   if(!state.lic) state.lic = { arts:[], prep:null, confirmed:false, gen:null, err:null, busy:"", paste:"" };
   if(!state.lic.arts) state.lic.arts = [];
   if(state.lic.paste == null) state.lic.paste = "";
+  /* lite 入口的单篇草稿（与 arts 列表互不干扰：lite 不做批量） */
+  if(state.lic.liteText == null) state.lic.liteText = "";
+  if(state.lic.liteTitle == null) state.lic.liteTitle = "";
   return state.lic;
 }
 function licArts(){ return licState().arts; }
@@ -4233,6 +4275,192 @@ function licEmbarkBtn(){
       <span style="flex-shrink:0">${esc(st.busy)}</span>
       <span class="lic-bar"><i></i></span></div>`;
   return `<div class="nextbar" id="licBar"><button class="btn" onclick="licRunPrep()">${L("开始分段","Segment")} →</button></div>`;
+}
+
+/* ========== 轻量提示词入口（lite）· 2026-09-23 对照实验 ==========
+   与 CEFR文章分级（licensed）**交互同构**（导入 → 生成 → 预览 → 分段 → 审核 → 入库），
+   但骨架被刻意抽掉三件事：
+     · 没有图 A 预处理 —— 不分段、不精简、无「确认分段」页，粘贴完直接生成
+     · 没有校验重跑 —— 不量字数/句长/超纲，模型给什么就是什么（要看的正是裸产出）
+     · 不支持批量 —— 一次一篇，避免把「哪一篇的结果」搞混
+   母稿（B1）本身不入图，由前端按原文段落切好后作为 B1 档一起入库 ——
+   因为 B1 也有 3 道题，没有对应文章可看会让人看不懂题目指向哪里。 */
+
+/* 母稿按原文自然段落切分（图 C 不返回母稿，因此在前端本地做）。
+   优先按空行切；整篇只有一个空行块时退回按单换行切 —— 粘贴来源常常已经丢了空行。 */
+function liteMasterParas(text){
+  const raw = String(text == null ? "" : text).replace(/\r\n?/g, "\n").trim();
+  if(!raw) return [];
+  let ps = raw.split(/\n{2,}/).map(function(s){ return s.trim(); }).filter(function(s){ return s; });
+  if(ps.length <= 1){
+    const byLine = raw.split(/\n/).map(function(s){ return s.trim(); }).filter(function(s){ return s; });
+    if(byLine.length > 1) ps = byLine;
+  }
+  return ps;
+}
+function liteHasText(){ return !!String(licState().liteText || "").trim(); }
+/* 输入框 oninput：只改 state + 刷新统计行与底部按钮，**不整页 render**（否则每敲一字丢焦点） */
+function liteInput(v){
+  licState().liteText = String(v || "");
+  const el = $("#liteStat"); if(el) el.innerHTML = liteStatHTML();
+  liteRefreshBar();
+}
+/* 正文从空 ↔ 非空时，底部要在「请先粘贴」等待态与「生成」按钮之间切换。
+   这里只换那一个节点 —— 整页 render 会重建 textarea，正在输入的人会丢焦点（同 licSetSeg 的教训）。 */
+function liteRefreshBar(){
+  const el = document.querySelector("#stage .wrap > .nextbar") || document.querySelector("#stage .wrap > .licbusy");
+  if(!el || !el.parentNode) return;
+  const tmp = document.createElement("div");
+  tmp.innerHTML = liteEmbarkBtn();
+  const node = tmp.firstElementChild;
+  if(node) el.parentNode.replaceChild(node, el);
+}
+function liteTitleInput(v){ licState().liteTitle = String(v || ""); }
+function liteStatHTML(){
+  const text = String(licState().liteText || "");
+  const wc = licWordCount(text), ps = liteMasterParas(text).length;
+  if(!wc) return '<span style="color:var(--sub)">' + L("还没粘贴正文","No text yet") + "</span>";
+  return L("正文 <b>" + wc + "</b> 词　·　按原文切成 <b>" + ps + "</b> 段（母稿原样入库为 B1）",
+           "<b>" + wc + "</b> words　·　<b>" + ps + "</b> paragraphs (master saved as B1)");
+}
+function liteAddFile(inp){
+  const f = (inp && inp.files && inp.files[0]) || null;
+  if(!f) return;
+  const st = licState();
+  licSetBusy(st, L("正在读取 " + f.name + "…","Reading " + f.name + "…"));
+  render();
+  licReadFile(f).then(function(r){
+    st.liteText = String(r.text || "");
+    if(!String(st.liteTitle || "").trim()) st.liteTitle = String(r.title || "").slice(0, 120);
+    licClearBusy(st);
+    if(inp) inp.value = "";
+    render();
+    toast(L("已读入《" + (r.title || f.name) + "》","Loaded " + (r.title || f.name)));
+  }, function(e){
+    licClearBusy(st);
+    if(inp) inp.value = "";
+    render();
+    toast(L("文件没读进来：","Could not read the file: ") + (e && e.message || ""));
+  });
+}
+function litePanelHTML(){
+  const st = licState();
+  const text = String(st.liteText || "");
+  return `<div id="litePanel" style="background:#fff;border:1px solid var(--border2);border-radius:12px;padding:18px 20px">
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px">
+      <b style="font-size:15px">${L("轻量提示词 · 母稿导入","Lite Prompt · Master intake")}</b>
+      <span class="tint" style="background:#FFF0EB;color:#D04418">${L("对照实验","A/B experiment")}</span>
+    </div>
+    <p style="color:var(--sub);margin:0 0 12px;font-size:13px">${L("粘贴或上传 <b>1 篇 B1 母稿</b>（母稿不改动），点击下方按钮生成 A1- / A2 两档并出题。<b>不做分段确认、不做质量校验</b> —— 这一条链路要看的正是模型在一段极简提示词下的裸产出。",
+      "Paste or upload <b>one B1 master text</b> (unchanged), then hit the button to generate A1- / A2 plus exercises. <b>No segmentation confirm, no validation</b> — this path exists to observe raw model output from a single minimal prompt.")}</p>
+    <div class="licimp">
+      <div class="licimp-c">
+        <div class="licimp-t">${L("母稿标题","Master title")}</div>
+        <input id="liteTitle" type="text" value="${esc(st.liteTitle || "")}" placeholder="${L("粘贴母稿标题（导出时放在正文最前面）","Paste the master title (appears before the text on export)")}" oninput="liteTitleInput(this.value)" style="width:100%;box-sizing:border-box;border:1px solid var(--border2);border-radius:9px;padding:10px 12px;font-size:13px;font-family:inherit;background:#fff;color:var(--text);outline:none">
+        <div class="licimp-t" style="margin-top:12px">${L("母稿正文（B1）","Master text (B1)")}</div>
+        <textarea id="litePaste" rows="9" spellcheck="false" placeholder="${L("把 B1 母稿正文整段粘进来（标题请填在上方，正文里不要再包含标题）","Paste the B1 master text here (put the title above; don't repeat it in the body)")}" oninput="liteInput(this.value)">${esc(text)}</textarea>
+      </div>
+      <div class="licimp-c">
+        <div class="licimp-t">${L("上传文件","Upload a file")}</div>
+        <label class="licdrop">
+          <input type="file" accept=".txt,.md,.markdown,.docx,text/plain" onchange="liteAddFile(this)" style="display:none">
+          <b>${L("选择 1 个文件","Choose one file")}</b>
+          <span>${L("支持 .txt / .md / .docx（单篇）","Supports .txt / .md / .docx (single file)")}</span>
+        </label>
+        ${st.busy ? '<div style="font-size:12px;color:var(--sub);margin-top:8px">' + esc(st.busy) + "</div>" : ""}
+      </div>
+    </div>
+    <div id="liteStat" class="liccalc" style="margin-top:14px">${liteStatHTML()}</div>
+  </div>`;
+}
+/* 极简入口底部的启动按钮（直接跑图 C，没有「先分段再确认」这一步） */
+function liteEmbarkBtn(){
+  if(!liteHasText()) return waitBtn(L("请先粘贴或上传母稿正文","Paste or upload the master text first"));
+  const st = licState();
+  if(st.busy) return `<div class="licbusy"><span class="spin" style="width:22px;height:22px;border-width:2px"></span>
+      <span style="flex-shrink:0">${esc(st.busy)}</span>
+      <span class="lic-bar"><i></i></span></div>`;
+  return `<div class="nextbar" id="liteBar"><button class="btn" onclick="liteRun()">${L("生成 A1- / A2 与题目","Generate A1- / A2 + exercises")} →</button></div>`;
+}
+/* 极简入口的错误出口：解析失败/调用失败都有明确报错 + 原地重试（不静默、不留白） */
+function liteStatusHTML(){
+  const st = licState();
+  if(!st.err) return "";
+  return `<div class="licneed">${L("出错了：","Failed: ")}${esc(st.err)}
+    <button class="btn sec" style="margin-left:10px;padding:3px 12px;font-size:12px" onclick="liteRun()">${L("重试生成","Retry")}</button></div>`;
+}
+/* 极简链路的唯一一次调用：图 C。不重跑、不校验 —— 拿到什么就是什么。 */
+async function liteRun(){
+  const st = licState();
+  const text = String(st.liteText || "").trim();
+  const title = String(st.liteTitle || "").trim();
+  if(!text){ toast(L("请先粘贴或上传母稿正文","Paste or upload the master text first")); return; }
+  if(licBusyBlocked("gen")) return;
+  const t0 = Date.now();
+  const label = title || L("粘贴的母稿","Pasted master");
+  /* 开跑即清上一稿：否则 s6 会渲染成文章预览页，用户以为已经生成好了（同 licRunGen 的教训） */
+  GEN = {}; state.words12 = {}; state.meta12 = {}; state.quiz = {}; state.quizShow = {};
+  state.live = { status: "running", material: text.slice(0, 4800), label: label, book: "",
+                 run: null, err: null, t0: t0, elapsed: 0 };
+  licSetBusy(st, L("正在用轻量提示词生成 A1- / A2 与 9 道题（约 40–90 秒）…",
+                   "Generating A1- / A2 and 9 exercises from the lite prompt (~40–90s)…"));
+  st.errStage = "lite"; st.err = null; render();
+  try {
+    _runAbort = new AbortController();
+    const data = await difyCall("lite", { master_text: text.slice(0, 20000), title_in: title.slice(0, 300), level: "B1" },
+                                AIWF_LITE.user, _runAbort.signal);
+    _runAbort = null;
+    if(!(data && data.data && (data.data.status === "succeeded" || data.data.outputs))){
+      st.errStage = "lite"; st.err = licCallFail(data); licClearBusy(st); render(); return;
+    }
+    const o = data.data.outputs || {};
+    /* 解析失败必须显式拦下 —— 否则会产生一篇「看着生成了、其实什么都没有」的空白页 */
+    if(String(o.parse_ok || "") !== "true"){
+      st.errStage = "lite";
+      st.err = L("模型输出没能解析成结构化结果（", "Model output could not be parsed (")
+              + (String(o.parse_warn || "").trim() || L("未说明原因","no reason reported")) + L("）","）")
+              + L("　—— 这本身就是这次实验的有效结果，可以重试一次看是否偶发。",
+                  " — this itself is a valid result of the experiment; retry once to see if it is intermittent.");
+      licClearBusy(st); render(); return;
+    }
+    /* 母稿（B1）注入：前端本地按原文段落补齐，applyLive 会一并建成 GEN["B1"] */
+    (function(){
+      try {
+        const A = JSON.parse(o.articles_json || "{}"), P = JSON.parse(o.paras_json || "{}");
+        const mp = liteMasterParas(text);
+        if(mp.length){ A.B1 = mp.join("\n\n"); P.B1 = mp;
+          o.articles_json = JSON.stringify(A); o.paras_json = JSON.stringify(P); }
+      } catch(e){ /* 两个 JSON 的解析失败在上面 parse_ok 分支已经拦下，这里只是兜底 */ }
+    })();
+    st.gen = data;
+    st.confirmed = true;
+    /* expectedParaCount() 读 state.live.licN —— lite 没有「母稿段数」这个概念（A1/A2 的段数
+       由模型按提示词自行决定，未必等于母稿段数），所以取模型实际产出档的段数，
+       否则段落对齐视图会拿一个凭空来的 12 段当基准。 */
+    let _nSeg = 12;
+    try {
+      const _P = JSON.parse(o.paras_json || "{}");
+      const _a = _P.A1 || _P.A2;
+      if(_a && _a.length) _nSeg = _a.length;
+    } catch(e){ /* 解析失败已在 parse_ok 分支拦下 */ }
+    state.live = { status: "done", material: text.slice(0, 4800), label: label, book: "",
+                   run: data, err: null, t0: t0, elapsed: Math.max(1, Math.round((Date.now() - t0) / 1000)), licN: _nSeg };
+    state.liveSel = ""; state.liveCustom = "";
+    state.extracted = true; state.validated = true; state.reviewed = false;
+    applyLive();
+    licClearBusy(st);
+    const warn = String(o.parse_warn || "").trim();
+    if(warn) toast(L("已生成（解析提示：","Generated (parser notes: ") + warn + "）");
+    else toast(L("已用轻量提示词生成 A1- / A2 与题目，正在进入文章生产…","Generated from the lite prompt — opening Article Production…"));
+    go(7);
+  } catch(e){
+    _runAbort = null;
+    st.errStage = "lite";
+    st.err = (e && (e.name === "AbortError" || /abort/i.test(String(e.message))))
+      ? L("已取消本次生成","Generation cancelled")
+      : L("网络错误：","Network error: ") + (e && e.message);
+    licClearBusy(st); render();
+  }
 }
 
 /* ========== 授权链路：跑图 A（预处理）→ 人工确认 → 跑图 B（向下生成） ==========
@@ -4691,8 +4919,8 @@ function licConfirmHTML(){
 
 function intakeBackBar(){
   const r = ROUTES.find(x=>x.id===state.route);
-  /* CEFR分级（licensed）标题已是「01 CEFR分级」，无需再重复一个红色入口标签（2026-09-22 轻量化） */
-  if(r.id === "licensed") return "";
+  /* CEFR分级 / 轻量提示词：标题已是「01 CEFR分级」「01 轻量提示词」，无需再重复一个红色入口标签（2026-09-22 轻量化） */
+  if(isLicLike()) return "";
   return `<div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap">
     <span class="tint" style="background:${r.color}1A;color:${r.color};font-weight:700">${r.ico} ${L(r.name,r.nameEn)}</span>
     ${r.id==="trend" ? `<span style="font-size:12px;color:var(--muted)">${L("点击下方「进入热点搜集」查看真实热点榜单","Hit \"To trend discovery\" below to see real hot topics")}</span>` : ""}
@@ -4725,14 +4953,21 @@ function s0(){
   }else if(state.route === "licensed"){
     /* 图 A 跑完 → 停在确认页（需求：分段后停一下让人确认），不再回到导入面板 */
     body = licStatusHTML() + (licState().prep ? licConfirmHTML() : licensedPanelHTML());
+  }else if(state.route === "lite"){
+    /* 极简链路没有预处理环节，导入面板始终是它自己（跑完后直接进文章生产页） */
+    body = liteStatusHTML() + litePanelHTML();
   }
-  const isLicensed = state.route === "licensed";
-  return head("01", isLicensed ? L("CEFR分级","CEFR Grading") : L("素材选择","Material Selection")) +
-    (isLicensed ? "" : matWorkflowBar()) +
-    intakeBackBar() + body +
-    (state.route === "trend"
-      ? nextBtn("进入热点搜集","To trend discovery")
-      : (state.route === "licensed" ? (licState().prep ? "" : licEmbarkBtn()) : s0EmbarkBtn())) + wfStrip();
+  const licLike = isLicLike();
+  const headTitle = state.route === "licensed" ? L("CEFR分级","CEFR Grading")
+                  : (state.route === "lite" ? L("轻量提示词","Lite Prompt") : L("素材选择","Material Selection"));
+  let bottom;
+  if(state.route === "trend") bottom = nextBtn("进入热点搜集","To trend discovery");
+  else if(state.route === "licensed") bottom = licState().prep ? "" : licEmbarkBtn();
+  else if(state.route === "lite") bottom = liteEmbarkBtn();
+  else bottom = s0EmbarkBtn();
+  return head("01", headTitle) +
+    (licLike ? "" : matWorkflowBar()) +
+    intakeBackBar() + body + bottom + wfStrip();
 }
 /* owned/public 入口底部按钮：已选素材且未运行 → 运行工作流并跳转；已完成 → 直接进入敏感排除；未选 → 提示 */
 function s0EmbarkBtn(){
@@ -4755,7 +4990,7 @@ function scrollToEmbark(){
 function pickRoute(id){
   state.route = id;
   if(id === "trend"){ go(1); return; }   /* 热点搜集：选中即进入，无需二次确认 */
-  if(id==="owned"||id==="public"||id==="licensed"){
+  if(id==="owned"||id==="public"||id==="licensed"||id==="lite"){
     /* 非热点入口都不经过热点：清空热点选中，避免选题标签/信源/事实抽取读到旧热点（如七夕）。
        授权母稿入口更要清干净 —— 它整条链路都不走事实抽取，残留热点只会误导。 */
     state.hot = undefined;
@@ -4766,15 +5001,16 @@ function pickRoute(id){
     state.extracted = false; state.validated = false; state.reviewed = false;
     state.topicSel = null;   /* 重置选题多选，让新素材重新智能匹配 */ resetTags();
     GEN = {};
-    /* 授权母稿入口：点进来就是「全新一篇」——清空上次的母稿列表/分段/生成状态，
+    /* 授权母稿 / 轻量提示词入口：点进来就是「全新一篇」——清空上次的母稿/分段/生成状态，
        否则 s0 会因 prep 残留直接跳去「确认分段」页，而不是让用户重新导入母稿。 */
-    if(id === "licensed") state.lic = null;
+    if(id === "licensed" || id === "lite") state.lic = null;
   }
-  $$(".rstep").forEach((r,j)=>r.classList.toggle("skipped", isSkipped(j) || ((id==="owned"||id==="public"||id==="licensed") && j===1)));
+  $$(".rstep").forEach((r,j)=>r.classList.toggle("skipped", isSkipped(j) || ((id==="owned"||id==="public"||id==="licensed"||id==="lite") && j===1)));
   render();
   if(id==="owned"){ setTimeout(()=>{ const p=$("#bankPanel"); if(p){ p.scrollIntoView({behavior:"smooth", block:"center"}); p.classList.add("glow"); setTimeout(()=>p.classList.remove("glow"), 1600);} }, 120); }
   if(id==="public"){ setTimeout(()=>{ const p=$("#sePanel"); if(p){ p.scrollIntoView({behavior:"smooth", block:"center"}); p.classList.add("glow"); setTimeout(()=>p.classList.remove("glow"), 1600);} }, 120); }
   if(id==="licensed"){ setTimeout(()=>{ const p=$("#licPanel"); if(p){ p.scrollIntoView({behavior:"smooth", block:"center"}); p.classList.add("glow"); setTimeout(()=>p.classList.remove("glow"), 1600);} }, 120); }
+  if(id==="lite"){ setTimeout(()=>{ const p=$("#litePanel"); if(p){ p.scrollIntoView({behavior:"smooth", block:"center"}); p.classList.add("glow"); setTimeout(()=>p.classList.remove("glow"), 1600);} }, 120); }
 }
 /* ---- 自有素材库（《用英文讲好中国故事》）---- */
 function renderBank(){
@@ -5948,15 +6184,28 @@ function setStyle(k){
   render();
 }
 function s6(){
-  /* 授权母稿链路：只要还没产出文章、且不在生成中，就显示「生成文章」按钮，
-     绝不落到下面那句「还没有可展示的文章」兜底文案（授权链能进本页 = 母稿已导入分段）。
-     覆盖两种进入方式：① pendingGen（确认页跳过来）② 生成中的瞬时重渲染闪一下。 */
-  if(state.route === "licensed"){
+  /* 母稿直改链路（CEFR分级 / 轻量提示词）：只要还没产出文章、且不在生成中，就显示「生成文章」按钮，
+     绝不落到下面那句「还没有可展示的文章」兜底文案（能进本页 = 母稿已导入）。
+     覆盖两种进入方式：① pendingGen（确认页跳过来）② 生成中的瞬时重渲染闪一下。
+     ⚠️ lite 没有图 A、没有 st.prep，可生成的前提是「正文还在」而不是「分段已确认」。 */
+  if(isLicLike()){
     const g0 = GEN[state.lvl];
     const _has = !!(g0 && g0.paras && g0.paras.length);
     const _running = state.live.status === "running";
-    if(!_has && !_running && licState().prep){
-      const st = licState();
+    const _st = licState();
+    const _ready = isLite() ? liteHasText() : !!_st.prep;
+    if(!_has && !_running && _ready){
+      if(isLite()){
+        const _wc = licWordCount(_st.liteText);
+        return head("08", L("内容生成","Graded Generation")) +
+          artWorkflowBar() +
+          `<div class="note" style="padding:40px;text-align:center;margin:16px 0">
+            <p style="margin:0 0 14px">${L("母稿已就绪（<b>" + _wc + "</b> 词）—— 即将用轻量提示词生成 A1- / A2 两档与 9 道题。<b>本链路不做分段确认、不做质量校验</b>，产出即模型原样结果。",
+              "Master ready (<b>" + _wc + "</b> words) — about to generate A1- / A2 and 9 exercises from the lite prompt. <b>No segmentation confirm and no validation</b> — the output is exactly what the model produced.")}</p>
+            <button class="btn" onclick="liteRun()">${L("生成文章","Generate articles")}</button>
+          </div>` + wfStrip();
+      }
+      const st = _st;
       const tgts = LIC_TARGETS[st.prep ? st.prep.level : ""] || [];
       const nSeg = (st.prep && st.prep.segs) ? st.prep.segs.length : 0;
       return head("08", L("内容生成","Graded Generation")) +
@@ -5973,8 +6222,8 @@ function s6(){
   const running = state.live.status === "running";
   if(!hasArticle){
     if(running){
-      /* 授权母稿链路：直接逐段改写生成，不抽事实 —— 走专门的进行中文案（2026-09-22 修） */
-      const isLic = state.route === "licensed";
+      /* 母稿直改链路：直接逐段改写生成，不抽事实 —— 走专门的进行中文案（2026-09-22 修） */
+      const isLic = isLicLike();
       /* 先抽事实卡、再接续生成：进度文案与分母按当前阶段区分，避免「生成」文案配「抽取」阶段造成困惑 */
       const extracting = isLic ? false : !(state.factsCache && state.factsCache.summary);
       const denom = isLic ? GEN_EST : (extracting ? FACT_EST : GEN_EST);
@@ -6030,22 +6279,37 @@ function s6(){
   const cap = offCap(state.lvl);
   const lf = liveFacts();
   const factTrace = factTraceHTML();
+  /* 轻量提示词链路不挂产线控件：
+     ① 写作风格条点了会走 setStyle() → runGeneration()，跑的是**四档产线主链路**（不是图 C），
+        lite 下这是个功能性错误，必须摘掉；
+     ② 侧栏 4 个 metric 的标签写死「AI 校验得分 / 蓝思区间 / 目标 128–172 词」，
+        对不跑校验、不设字数靶心的对照组全是误导，改按 lite 口径出标签。 */
+  const _lite = isLite();
+  const _mLbl = _lite
+    ? [L("段数 · 实测","Paragraphs · measured"),
+       L("平均句长 · 实测","Avg sentence · measured"),
+       L("生成耗时 · 全流程","Run time · full workflow"),
+       L("篇幅 · 实测词数","Length · measured words")]
+    : [liveReady() ? L("AI 校验得分（本档 8 项）","AI checks (this level, 8)") : L("超纲词率（上限 "+cap+"）","Off-list rate (cap "+cap+")"),
+       liveReady() ? L("平均句长 · 实测","Avg sentence · measured") : L("平均句长 · 目标 ","Avg sentence · target ")+L(specOf(state.lvl).avg, specOf(state.lvl).en.avg),
+       liveReady() ? L("真实生成耗时 · 全流程","Live run time · full workflow") : L("蓝思值 · 区间 ","Lexile · band ")+L(specOf(state.lvl).lex, specOf(state.lvl).en.lex),
+       liveReady() ? L("篇幅 · 实测词数","Length · measured words") : L("篇幅 · 目标 ","Length · target ")+L(specOf(state.lvl).len, specOf(state.lvl).en.len)];
   return head("08", L("内容生成","Graded Generation")) +
     artWorkflowBar() +
-  `  ${styleBarHTML()}
+  `  ${_lite ? "" : styleBarHTML()}
   ${running ? `<div class="note" style="margin-bottom:12px;display:flex;align-items:center;gap:10px"><div class="spin"></div><span>${L("正在按所选风格重新生成…","Regenerating in selected style…")}</span> <span data-r="mini-time">${state.live.elapsed}s</span></div>` : ""}
   <div class="gentabs">${allKeys().filter(k=>GEN[k]).map(k=>`<div class="gentab ${state.lvl===k?"sel":""}" onclick="setlvl('${k}')">${nkDisp(k)}</div>`).join("")}</div>
   <div class="genlayout">
     <div class="genpaper">${coverHTML()}<h3 id="gtitle"></h3><div class="byline" id="gby"></div><div class="body" id="gbody"></div>${liveReady() ? audioBarHTML() : ""}${liveReady() ? quizHTML(state.lvl) : ""}${running ? `<div class="genloading"><div class="spin"></div><div class="gl-txt">${L("正在重新生成…","Regenerating…")}</div><div class="gl-time"><span data-r="mini-time">${state.live.elapsed}s</span></div></div>` : ""}</div>
     <div class="genside">
-      <div class="metric"><div class="k">${liveReady() ? L("AI 校验得分（本档 8 项）","AI checks (this level, 8)") : L("超纲词率（上限 "+cap+"）","Off-list rate (cap "+cap+")")}</div><div class="v" id="m0"></div><div class="bar"><i id="mb0"></i></div></div>
-      <div class="metric"><div class="k">${liveReady() ? L("平均句长 · 实测","Avg sentence · measured") : L("平均句长 · 目标 ","Avg sentence · target ")+L(specOf(state.lvl).avg, specOf(state.lvl).en.avg)}</div><div class="v" id="m1"></div><div class="bar"><i id="mb1"></i></div></div>
-      <div class="metric"><div class="k">${liveReady() ? L("真实生成耗时 · 全流程","Live run time · full workflow") : L("蓝思值 · 区间 ","Lexile · band ")+L(specOf(state.lvl).lex, specOf(state.lvl).en.lex)}</div><div class="v" id="m2"></div><div class="bar"><i id="mb2"></i></div></div>
-      <div class="metric"><div class="k">${liveReady() ? L("篇幅 · 实测词数","Length · measured words") : L("篇幅 · 目标 ","Length · target ")+L(specOf(state.lvl).len, specOf(state.lvl).en.len)}</div><div class="v" id="m3"></div><div class="bar"><i id="mb3"></i></div></div>
-      <div class="factused"><h6>${L("事实卡引用（段落级溯源）","Fact-card citations (per paragraph)")}</h6>${factTrace}</div>
+      <div class="metric"><div class="k">${_mLbl[0]}</div><div class="v" id="m0"></div><div class="bar"><i id="mb0"></i></div></div>
+      <div class="metric"><div class="k">${_mLbl[1]}</div><div class="v" id="m1"></div><div class="bar"><i id="mb1"></i></div></div>
+      <div class="metric"><div class="k">${_mLbl[2]}</div><div class="v" id="m2"></div><div class="bar"><i id="mb2"></i></div></div>
+      <div class="metric"><div class="k">${_mLbl[3]}</div><div class="v" id="m3"></div><div class="bar"><i id="mb3"></i></div></div>
+      ${_lite ? "" : `<div class="factused"><h6>${L("事实卡引用（段落级溯源）","Fact-card citations (per paragraph)")}</h6>${factTrace}</div>`}
     </div>
   </div>
-  ${nextBtn("进入 AI 校验","Validate & record")}` + wfStrip();
+  ${_lite ? nextBtn("提交人工审核","Submit to review") : nextBtn("进入 AI 校验","Validate & record")}` + wfStrip();
 }
 /* 教研/审核接手已就绪素材时，直接运行工作流生成文章 */
 function runWorkflowNow(){
@@ -6099,6 +6363,17 @@ function typewriter(){
 
 /* ---------- Stage 8 ---------- */
 function s7(){
+  /* 轻量提示词链路**不做校验**（对照组设计）—— 必须显式说明，
+     否则这里会是一个什么都没有的空白页（最不该有的失败方式）。 */
+  if(isLite()){
+    return head("09", L("AI 校验","AI Validation")) +
+      artWorkflowBar() +
+      `<div class="note" style="padding:40px;text-align:center;margin:16px 0">
+        <p style="margin:0 0 10px"><b>${L("本链路不做质量校验","This path runs no validation")}</b></p>
+        <p style="margin:0;color:var(--sub);font-size:13px;line-height:1.7">${L("轻量提示词是<b>对照组</b>：目的就是看模型在一段极简提示词下的裸产出，所以不设字数 / 句长 / 蓝思 / 超纲等校验，也不做「不达标自动重跑」。<br>要看产线口径的 11 项校验结果，请走「CEFR文章分级」入口。",
+          "The lite prompt is the <b>control group</b>: it exists to observe raw model output from one minimal prompt, so no word-count / sentence-length / Lexile / out-of-syllabus checks run, and nothing auto-retries.<br>For the production-grade checks, use the CEFR Article Grading entry.")}</p>
+      </div>` + nextBtn(L("提交人工审核","Submit to review")) + wfStrip();
+  }
   return head("09", L("AI 校验","AI Validation")) +
     artWorkflowBar() +
   `<div class="validate"><div id="vcol"></div><div id="vcol2"></div></div>
@@ -6215,7 +6490,7 @@ function s12(){
   /* 审核环节允许直接编辑段落（editable=true）：改动实时写回 GEN + 本机草稿，
      点「审核通过」时 buildBankArticle 读的是改后的 GEN ⇒ 落库/导出均为最终版。 */
   const parasHTML = alignedViewHTML(true);
-  const parasBlock = `<div class="reviewparas"><div class="pane-h">${L("逐段原文 · 4 档对齐（可点击段落直接修改，改后版本即为最终版）","Segment originals · 4 levels aligned — click any paragraph to edit; your edits are the final version")}</div>${parasHTML}</div>`;
+  const parasBlock = `<div class="reviewparas"><div class="pane-h">${L("逐段原文 · " + shownKeys().length + " 档对齐（可点击段落直接修改，改后版本即为最终版）","Segment originals · " + shownKeys().length + " levels aligned — click any paragraph to edit; your edits are the final version")}</div>${parasHTML}</div>`;
   return head("11", L("逐段审核","Segment Review")) +
     artWorkflowBar() +
     reviewContextHTML() +
@@ -6419,8 +6694,9 @@ function emptyGroupHTML(){
    加一个「4 档对照 / 单档全文」开关：单档时整幅宽度显示当前档，适合逐字校对与改稿。 */
 function alignModeBarHTML(){
   const m = state.alignMode === "single" ? "single" : "grid";
+  const nLv = shownKeys().length;   /* lite = 3 档，产线 = 4 档 —— 按实际产出数标，别写死 */
   return '<div class="alignmode"><span class="am-l">' + L("视图","View") + '</span>'
-    + '<button class="am-b' + (m === "grid" ? " sel" : "") + '" onclick="setAlignMode(\'grid\')">' + L("4 档对照","Compare 4") + '</button>'
+    + '<button class="am-b' + (m === "grid" ? " sel" : "") + '" onclick="setAlignMode(\'grid\')">' + L(nLv + " 档对照","Compare " + nLv) + '</button>'
     + '<button class="am-b' + (m === "single" ? " sel" : "") + '" onclick="setAlignMode(\'single\')">' + L("单档全文","Single level") + '</button>'
     + (m === "single" ? '<span class="am-h">' + L("当前：","now: ") + nkDisp(state.lvl) + '</span>' : "")
     + '</div>';
@@ -6542,7 +6818,7 @@ function alignWarnHTML(){
   return h;
 }
 function alignBodyHTML(editable){
-  const lvls = allKeys();
+  const lvls = shownKeys();   /* lite 只 3 档 —— 不留空列（空列会被读成「这档没生成出来」） */
   const maxP = Math.max(0, ...lvls.map(function(k){ return (GEN[k] && GEN[k].paras) ? GEN[k].paras.length : 0; }));
   if(!maxP) return emptyGroupHTML();
   if(state.alignMode === "single"){
@@ -6584,7 +6860,10 @@ function alignedViewHTML(editable){
   /* B4：段数已并入 bigbar 计数徽标，不再另起一排纯展示 pill */
   html+=alignModeBarHTML();
   html+=alignBodyHTML(true);
-  html+='<div class="note">'+L("AI 切分 + 人工校对 = 双重保障，确保用户切换难度时体验无缝。","AI split + human proofreading = double guarantee for seamless difficulty switching.")+'</div>';
+  html+='<div class="note">'+(isLite()
+    ? L("轻量提示词链路：母稿（B1）按原文段落原样保留，A1- / A2 的段落由模型按大意切分——段落是否逐段对应，请人工核对。",
+        "Lite-prompt path: the master (B1) keeps its own paragraphs; A1- / A2 are split by the model — verify the alignment by eye.")
+    : L("AI 切分 + 人工校对 = 双重保障，确保用户切换难度时体验无缝。","AI split + human proofreading = double guarantee for seamless difficulty switching."))+'</div>';
   html+=quizAlignedHTML();
   html+=guideCardHTML();
   html+=saveArticleBankBar(); return html;
