@@ -28,6 +28,9 @@ import json
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import model_channels as MC  # noqa: E402  —— 模型策略单一真源（生成档→luna / 校验档→deepseek-flash）
+
 REPO = Path(__file__).resolve().parent.parent
 OUT = Path(sys.argv[1]) if len(sys.argv) > 1 else REPO / 'dify_graphs' / 'graphA.new.json'
 
@@ -43,6 +46,8 @@ MODEL_FLASH = {
     'mode': 'chat',
     'completion_params': {'temperature': 0.2, 'max_tokens': 4000, 'thinking': False},
 }
+# ⚠️ 这只是**占位**：落盘前 main() 会用 MC.apply_policy() 按节点 id 统一改写
+#    （本图 3 个 LLM 节点都是「内容生成」⇒ 实际写出去的是 luna + 抬高的 max_tokens）。
 MODEL_PRO = {
     'provider': 'langgenius/deepseek/deepseek',
     'name': 'deepseek-v4-pro',
@@ -774,6 +779,15 @@ def main():
             print('   -', e)
         return 1
     print('✅ 静态校验通过：引用可解析、无死节点、全部从 start 可达')
+    rows = MC.apply_policy(d['graph'])
+    for nid, kind, desc in rows:
+        print('   模型 %-16s [%s] %s' % (nid, kind, desc))
+    bad = MC.verify_policy(d['graph'])
+    if bad:
+        print('✗ 模型策略自检失败（拒绝落盘，防止静默回退）：')
+        for b in bad:
+            print('   -', b)
+        return 1
     OUT.write_text(json.dumps(d, ensure_ascii=False, indent=2), encoding='utf-8')
     print('✓ 已写出 %s (%d bytes)' % (OUT, OUT.stat().st_size))
     print('  推送：node tools/dify_push_graph.mjs --app=d4e0905b-b8da-47f1-9d10-a1ca87bdc401 --graph=%s' % OUT)

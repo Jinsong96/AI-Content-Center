@@ -112,6 +112,15 @@ def think_rename_specs(target):
 def patch_text(path, target):
     """改源码文件里的 provider / name 字面量。返回 (新文本, 改动数, 明细)"""
     s = Path(path).read_text(encoding='utf-8')
+    # 🔴 2026-09-23：模型档已是 tools/model_channels.py 单一真源。
+    #    这些建图脚本里的 provider/name 字面量**只是新建节点时的占位**，落盘前会被
+    #    MC.apply_policy() 按节点 id 改写。再改字面量不但无效，还会制造「改了却没生效」
+    #    的错觉（最坏情况：以为切了渠道，线上其实没变）。直接拒绝并指路。
+    if 'model_channels' in s:
+        raise SystemExit(
+            '✗ 拒绝改写 %s：该文件已接入 tools/model_channels.py（模型档单一真源）。\n'
+            '  · 要整体切渠道 → 改 model_channels.py 的 CHANNELS / POLICY\n'
+            '  · 要换某张图某几个节点 → python3 tools/set_llm_models.py --in=<草稿dump> --out=<payload>' % path)
     ch = CHANNELS[target]
     hits = []
 

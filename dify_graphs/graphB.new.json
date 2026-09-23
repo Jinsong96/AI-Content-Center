@@ -372,13 +372,11 @@
           "desc": "生成 B1 档文章（固定 12 段，段落对应素材大意）",
           "model": {
             "completion_params": {
-              "max_tokens": 4500,
-              "temperature": 0.45,
-              "thinking": false
+              "max_tokens": 10240
             },
             "mode": "chat",
-            "name": "deepseek-v4-pro",
-            "provider": "langgenius/deepseek/deepseek"
+            "name": "gpt-5.6-luna",
+            "provider": "langgenius/opencode_go/opencode_go"
           },
           "prompt_template": [
             {
@@ -414,13 +412,11 @@
           "desc": "生成 A2 档文章（固定 12 段，段落对应素材大意）",
           "model": {
             "completion_params": {
-              "max_tokens": 3000,
-              "temperature": 0.45,
-              "thinking": false
+              "max_tokens": 8192
             },
             "mode": "chat",
-            "name": "deepseek-v4-pro",
-            "provider": "langgenius/deepseek/deepseek"
+            "name": "gpt-5.6-luna",
+            "provider": "langgenius/opencode_go/opencode_go"
           },
           "prompt_template": [
             {
@@ -456,13 +452,11 @@
           "desc": "生成 A1 档文章（固定 12 段，段落对应素材大意）",
           "model": {
             "completion_params": {
-              "max_tokens": 2000,
-              "temperature": 0.45,
-              "thinking": false
+              "max_tokens": 8192
             },
             "mode": "chat",
-            "name": "deepseek-v4-pro",
-            "provider": "langgenius/deepseek/deepseek"
+            "name": "gpt-5.6-luna",
+            "provider": "langgenius/opencode_go/opencode_go"
           },
           "prompt_template": [
             {
@@ -594,13 +588,11 @@
           "selected": false,
           "desc": "带「每段实际词数」反馈做收尾压缩；已达标则逐字原样输出",
           "model": {
-            "provider": "langgenius/deepseek/deepseek",
-            "name": "deepseek-v4-pro",
+            "provider": "langgenius/opencode_go/opencode_go",
+            "name": "gpt-5.6-luna",
             "mode": "chat",
             "completion_params": {
-              "temperature": 0.45,
-              "max_tokens": 6000,
-              "thinking": false
+              "max_tokens": 12288
             }
           },
           "prompt_template": [
@@ -790,13 +782,11 @@
           "desc": "按四类题型（语言/文本/逻辑/认知）逐档出题，含中文解析",
           "model": {
             "completion_params": {
-              "max_tokens": 12000,
-              "temperature": 0.6,
-              "thinking": false
+              "max_tokens": 16384
             },
             "mode": "chat",
-            "name": "deepseek-v4-pro",
-            "provider": "langgenius/deepseek/deepseek"
+            "name": "gpt-5.6-luna",
+            "provider": "langgenius/opencode_go/opencode_go"
           },
           "prompt_template": [
             {

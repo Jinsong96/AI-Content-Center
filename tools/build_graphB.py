@@ -34,10 +34,16 @@ import re
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import model_channels as MC  # noqa: E402  —— 模型策略单一真源（生成档→luna / 校验档→deepseek-flash）
+
 REPO = Path(__file__).resolve().parent.parent
 GEN_PATH = REPO / 'dify_graphs' / 'gen.new.json'
 OUT = Path(sys.argv[1]) if len(sys.argv) > 1 else REPO / 'dify_graphs' / 'graphB.new.json'
 
+# ⚠️ 以下两个常量只是**新建节点时的占位**：main() 里 normalize_models() 会按
+#    model_channels 的策略表（**按节点 id**，不按模型名）统一改写。
+#    实际写出去的：生成节点 → luna（含抬高的 max_tokens），校验节点 → deepseek-v4-flash。
 MODEL_PRO = {
     'provider': 'langgenius/deepseek/deepseek',
     'name': 'deepseek-v4-pro',
@@ -434,35 +440,17 @@ def normalize_models(d):
     2026-09-21 就是这么踩的：DeepSeek 官方余额归零后改 MODEL_* 常量切到硅基流动，
     图 A（全是自己写的节点）一次通过，图 B 仍 402 —— 因为**失败的是拷来的 nodeTitle**。
     判据：改完渠道后逐节点打印 provider/name，不能只看常量。
+    🔴 2026-09-23 起**改为按节点 id 走 model_channels 的显式策略表**，不再按「模型名里有没有 pro」猜档位：
+    生成节点换成名字里没有 pro 的模型（如 gpt-5.6-luna）时，旧写法会把它误判成 flash 档
+    → 被改回 deepseek-v4-flash，**静默回退**。节点归类只认 id（见 MC.GEN_NODE_IDS）。
     """
-    chan = {}
-    for spec in (MODEL_PRO, MODEL_FLASH_LOW):
-        key = 'pro' if 'pro' in spec['name'].lower() else 'flash'
-        # 思考开关的参数名是**渠道相关**的：官方 `thinking` / 硅基 `enable_thinking`。
-        # 写错会被 Dify 静默丢弃 → 模型按渠道默认跑（硅基默认开思考 → 慢 6.75 倍、
-        # 实测 A1- 生成卡 205s 后摔 KeyError: 'choices'）。
-        think = 'enable_thinking' if 'siliconflow' in spec['provider'] else 'thinking'
-        chan[key] = (spec['provider'], spec['name'], think)
+    rows = MC.apply_policy(d['graph'])
     n = 0
-    for node in d['graph']['nodes']:
-        dd = node.get('data') or {}
-        if dd.get('type') != 'llm':
+    for nid, kind, desc in rows:
+        if '（未变）' in desc:
             continue
-        m = dd.get('model')
-        if not isinstance(m, dict):
-            continue
-        prov, name, think = chan['pro' if 'pro' in str(m.get('name', '')).lower() else 'flash']
-        cp = m.get('completion_params')
-        if isinstance(cp, dict):
-            for src in ('thinking', 'enable_thinking'):
-                if src != think and src in cp:
-                    print('   ↻ %s: 思考参数 %s → %s' % (node.get('id'), src, think))
-                    cp[think] = cp.pop(src)
-                    n += 1
-        if m.get('provider') != prov or m.get('name') != name:
-            print('   ↻ %s: %s/%s → %s/%s' % (node.get('id'), m.get('provider'), m.get('name'), prov, name))
-            m['provider'], m['name'] = prov, name
-            n += 1
+        print('   ↻ %s: %s' % (nid, desc))
+        n += 1
     return n
 
 
@@ -989,6 +977,12 @@ def main():
             print('   -', e)
         return 1
     print('✅ 静态校验通过：引用可解析、无死节点、全部从 start 可达')
+    bad = MC.verify_policy(d['graph'])
+    if bad:
+        print('✗ 模型策略自检失败（拒绝落盘，防止静默回退）：')
+        for b in bad:
+            print('   -', b)
+        return 1
     OUT.write_text(json.dumps(d, ensure_ascii=False, indent=2), encoding='utf-8')
     print('✓ 已写出 %s (%d bytes)' % (OUT, OUT.stat().st_size))
     print('  推送：node tools/dify_push_graph.mjs --app=d26cabd2-8837-4833-ab88-6f7aed015d4f --graph=%s' % OUT)

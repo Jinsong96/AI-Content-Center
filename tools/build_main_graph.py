@@ -48,6 +48,9 @@ import re
 import sys
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, _HERE)
+import model_channels as MC  # noqa: E402  —— 模型策略单一真源（生成档→luna / 校验档→deepseek-flash）
+
 G_DIR = os.path.abspath(os.environ.get('DIFY_GRAPH_DIR') or os.path.join(_HERE, '..', 'dify_graphs'))
 
 FACT_IN = os.path.join(G_DIR, 'fact.new.json')
@@ -347,23 +350,15 @@ def check(g):
         if e['source'] not in nodes or e['target'] not in nodes:
             errs.append('悬空边 %s → %s' % (e['source'], e['target']))
 
-    # 5) 模型与思考开关
+    # 5) 模型与思考开关 —— 按 model_channels 的策略表校验（**不写死渠道**）
+    #    本图有相当一部分节点是**从 GEN/FACT 整段搬运**来的，带着那边的 model 字面量，
+    #    所以「统一落定」必须在搬运之后做（main() 里 g = out['graph'] 处已调 apply_policy）。
     llm = 0
     for nid, n in nodes.items():
-        d = n['data']
-        if d.get('type') != 'llm':
-            continue
-        llm += 1
-        m = d.get('model') or {}
-        if m.get('name') not in DS_MODELS:
-            errs.append('%s 模型应为 DeepSeek 官方（deepseek-v4-flash / pro），实为 %s' % (nid, m.get('name')))
-        if m.get('provider') != DS_PROVIDER:
-            errs.append('%s provider 应为 DeepSeek 官方，实为 %s' % (nid, m.get('provider')))
-        cp = m.get('completion_params') or {}
-        if cp.get('thinking') is not False:
-            errs.append('%s 缺少 thinking=false（会被平台默认开着思考跑）' % nid)
-        if 'enable_thinking' in cp:
-            errs.append('%s 残留了错误的参数名 `enable_thinking`（DeepSeek 官方渠道会被静默丢弃）' % nid)
+        if n['data'].get('type') == 'llm':
+            llm += 1
+    for b in MC.verify_policy({'nodes': list(nodes.values())}):
+        errs.append(b)
 
     # 6) 4 档下拉选项
     for nid, n in nodes.items():
@@ -409,6 +404,12 @@ def main():
 
     g = out['graph']
     print('\n  节点 %d  边 %d' % (len(g['nodes']), len(g['edges'])))
+
+    # 模型策略在此落定：本图有节点是从 GEN/FACT 整段搬来的，自带那边的字面量，
+    # 不在这里统一过一遍就会出现「一半节点走 A 渠道、一半走 B 渠道」的混合图。
+    print('\n══ 模型策略 ══')
+    for nid, kind, desc in MC.apply_policy(g):
+        print('  %-16s [%-5s] %s' % (nid, kind, desc))
 
     errs, warns, refcount, llm = check(g)
     print('\n══ 静态校验 ══')

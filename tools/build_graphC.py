@@ -49,13 +49,19 @@ def _positional():
     return [a for a in sys.argv[1:] if not a.startswith('--')]
 
 
-# ───────────────────── 模型档（--model=deepseek|luna，默认 deepseek）─────────────────────
+# ───────────── 模型档（--model=deepseek|luna，**默认 luna**）─────────────
 # 为什么要有这个开关：2026-09-23 Bryan 要验证「换到 OpenCode Go 的 GPT 5.6 Luna 能不能用」。
 # 换模型必须可回退、可对照 —— 所以做成档位而不是直接改死，出问题一条命令推回 deepseek 版。
 #
+# 🔴 默认档 = luna：线上（v2 起）跑的就是 luna，默认档必须与线上一致，
+#    否则「重跑一次 build_graphC.py」就会产出 deepseek 版、推上去等于静默回退。
+#    deepseek 档现在是对照实验的**对照组**，要用得显式 `--model=deepseek`（输出 graphC.new.json）。
+#
 # ⚠️ 两档的 completion_params 不完全一样，别照抄：
 #   · deepseek 走 Dify 官方插件（langgenius/deepseek/deepseek），支持私有字段 `thinking`
-#   · OpenCode Go 是 OpenAI 兼容聚合渠道，**没有 `thinking`** —— 带上可能被拒或被忽略，故不写
+#   · OpenCode Go 是 OpenAI 兼容聚合渠道，**没有 `thinking`**；且 luna 是**推理型**，
+#     思考会吃掉 2000–3000 token —— max_tokens 太小（如 2000）会把正文挤成空字符串，
+#     而 finish_reason 仍是 `stop`、节点仍报 succeeded（**静默失败**）。此处给 6000 起步。
 MODEL_PRESETS = {
     'deepseek': {
         'desc': 'DeepSeek 官方渠道（产线在用）',
@@ -77,7 +83,7 @@ MODEL_PRESETS = {
     },
 }
 
-MODEL_KEY = (_flag('model') or os.environ.get('GC_MODEL') or 'deepseek').lower()
+MODEL_KEY = (_flag('model') or os.environ.get('GC_MODEL') or 'luna').lower()
 if MODEL_KEY not in MODEL_PRESETS:
     print('✗ 未知模型档：%s（可选 %s）' % (MODEL_KEY, ' / '.join(MODEL_PRESETS)))
     sys.exit(2)

@@ -99,13 +99,11 @@
           "desc": "need_simplify=true 时提炼 10–15 条要点清单（条数由该档字数区间反推）；false 时**不做任何动作**（直接回空清单）",
           "selected": false,
           "model": {
-            "provider": "langgenius/deepseek/deepseek",
-            "name": "deepseek-v4-pro",
+            "provider": "langgenius/opencode_go/opencode_go",
+            "name": "gpt-5.6-luna",
             "mode": "chat",
             "completion_params": {
-              "temperature": 0.3,
-              "max_tokens": 8000,
-              "thinking": false
+              "max_tokens": 12288
             }
           },
           "prompt_template": [
@@ -148,13 +146,11 @@
           "desc": "need_simplify=true → 按清单压缩成 10–15 段（全文字数落硬区间）；false → **逐字原样输出原文**",
           "selected": false,
           "model": {
-            "provider": "langgenius/deepseek/deepseek",
-            "name": "deepseek-v4-pro",
+            "provider": "langgenius/opencode_go/opencode_go",
+            "name": "gpt-5.6-luna",
             "mode": "chat",
             "completion_params": {
-              "temperature": 0.3,
-              "max_tokens": 8000,
-              "thinking": false
+              "max_tokens": 12288
             }
           },
           "prompt_template": [
@@ -261,13 +257,11 @@
           "desc": "保留原文时按该档「每段词数」在句末切分（段数自然算出）；精简稿则沿用它的既有切分（10–15 段）",
           "selected": false,
           "model": {
-            "provider": "langgenius/deepseek/deepseek",
-            "name": "deepseek-v4-pro",
+            "provider": "langgenius/opencode_go/opencode_go",
+            "name": "gpt-5.6-luna",
             "mode": "chat",
             "completion_params": {
-              "temperature": 0.3,
-              "max_tokens": 8000,
-              "thinking": false
+              "max_tokens": 12288
             }
           },
           "prompt_template": [
