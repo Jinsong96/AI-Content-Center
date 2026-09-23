@@ -6264,6 +6264,18 @@ function semWarnHTML(){
   return h;
 }
 
+/* 授权链路：段落对齐告警里点「重新生成」→ 作废已生成结果，回到分段确认页重走流程。
+   图 B 一次跑全部低档（无法单档重跑），所以「重新生成该档位」在这里落地为「整篇重走」。 */
+function licRegenFromWarn(){
+  const st = licState();
+  if(!st.prep){ toast(L("还没有分段结果","No segmentation yet")); return; }
+  st.gen = null; st.confirmed = false; st.pendingGen = false; st.err = null; st.errStage = null;
+  GEN = {}; state.quiz = {}; state.quizShow = {}; state.guide = {};
+  state.alignGuard = null;
+  state.live = { status: "idle", material: "", label: "", book: "", run: null, err: null, t0: 0, elapsed: 0 };
+  state.extracted = false; state.validated = false; state.reviewed = false;
+  go(0);   /* licensed 下 st.prep 仍在 → s0 渲染「确认分段」页 */
+}
 function alignWarnHTML(){
   const g = state.alignGuard || null;
   const vj = liveVJ();
@@ -6293,6 +6305,7 @@ function alignWarnHTML(){
   h += '</ul><div class="aw-fix">'
      + L("处理建议：重新生成该档位。若反复出现，说明素材某条大意信息量偏大，请反馈给内容工程。",
          "Tip: regenerate the affected level. If it recurs, the source's gist item is likely too dense — report to content engineering.")
+     + (state.route === "licensed" ? ' <button class="btn sec" style="padding:3px 14px;font-size:12px;margin-left:8px" onclick="licRegenFromWarn()">' + L("重新生成","Regenerate") + '</button>' : "")
      + '</div></div>';
   return h;
 }
