@@ -3264,11 +3264,16 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/dify/workflows/run":
             wf = (body.get("wf") or "").strip().lower()
             # licprep / licgen = 授权母稿向下改写的两条独立工作流（预处理 / 向下生成）
+            # lite = 图 C「轻量提示词」对照实验（单 LLM 节点）
+            # ⚠️ 新增工作流必须**同时**改两处：本 keymap + _serve_index() 的 _envs 注入白名单。
+            #    只改后者 ⇒ 前端能拿到 key，但代理转发时被判 unknown wf（2026-09-23 踩过）。
             keymap = {"fact": "DIFY_WF_FACT", "gen": "DIFY_WF_GEN", "main": "DIFY_WF_MAIN",
-                      "licprep": "DIFY_WF_LICPREP", "licgen": "DIFY_WF_LICGEN"}
+                      "licprep": "DIFY_WF_LICPREP", "licgen": "DIFY_WF_LICGEN",
+                      "lite": "DIFY_WF_LITE"}
             kn = keymap.get(wf)
             if not kn:
-                return self._send({"ok": False, "error": "unknown wf (expect fact|gen|main|licprep|licgen)"}, 400)
+                return self._send({"ok": False,
+                                   "error": "unknown wf (expect %s)" % "|".join(sorted(keymap))}, 400)
             # 授权链路两条都比 fact/gen 长：图 B 要连做 3 档改写 + 压缩 + 出题，给足 300s
             pf = {"inputs": body.get("inputs") or {},
                   "response_mode": body.get("response_mode") or "blocking",
