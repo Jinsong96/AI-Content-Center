@@ -59,7 +59,7 @@ try {
     var r=await fetch('/api/dify/workflows/run',{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({wf:${JSON.stringify(WF)},inputs:${JSON.stringify(inputs)},response_mode:'blocking',user:'prod-probe'})});
     var txt=await r.text(); var ms=Date.now()-t0;
-    var out={http:r.status,ms:ms,len:txt.length,snippet:txt.slice(0,300)};
+    var out={http:r.status,ms:ms,len:txt.length,snippet:txt.slice(0,1200)};
     try{ var j=JSON.parse(txt);
       out.ok=j.ok; out.status=(j.data&&j.data.status)||j.status; out.err=String(j.error||'').slice(0,240);
       var o=(j.data&&j.data.outputs)||j.outputs||{};
@@ -74,8 +74,13 @@ try {
   if (res.err) console.log(`[bridge] error=${res.err}`);
   if (res.parse_ok !== undefined) console.log(`[bridge] parse_ok=${res.parse_ok}  parse_warn=${res.parse_warn || '(无)'}`);
   if (res.fields) console.log(`[bridge] 输出字段=${res.fields.join(',')}`);
-  if (OUT && res._raw) { fs.writeFileSync(OUT, JSON.stringify(res._raw, null, 1)); console.log(`[out] ${OUT}`); }
-  if (!res.fields) console.log('[body] ' + res.snippet);
+  if (OUT && res._raw && Object.keys(res._raw).length) { fs.writeFileSync(OUT, JSON.stringify(res._raw, null, 1)); console.log(`[out] ${OUT}`); }
+  // ⚠️ 失败时必须把上游返回体原样打出来：桥接层会把它包在 error 里，
+  //    而 `fields` 可能是空数组（truthy）——旧写法 `if (!res.fields)` 会**吞掉错误信息**。
+  if (!res.fields || res.fields.length === 0) {
+    console.log('[body] ' + (res.snippet || '(空)'));
+    if (OUT) { fs.writeFileSync(OUT + '.err.json', JSON.stringify(res, null, 1)); console.log(`[out] ${OUT}.err.json（含原始错误体）`); }
+  }
   rc = (res.http === 200 && res.ok !== false && res.parse_ok !== 'false') ? 0 : 1;
 } catch (e) {
   console.error('✗ ' + (e?.message || e));
