@@ -2859,6 +2859,11 @@ async function runGeneration(){
         if(v && v.any_exceed && attempt < MAX_VOCAB_RETRY){
           avoidByLevel = collectAvoidWords(v);
           state.live.vocabRounds = attempt + 1;
+          /* 🔴 重跑期间不许露出中间稿（2026-09-23，与授权链路同一处修）：
+             清掉本轮草稿并回到「进行中」，否则 s6 会把这稿渲染出来（哪怕带遮罩），
+             用户读到一半就被下一轮替换掉。定稿轮才 applyLive 的产物留在 GEN 里。 */
+          GEN = {}; state.words12 = {}; state.meta12 = {};
+          state.live.status = "running"; state.live.run = null;
           continue;
         }
       }
@@ -4334,6 +4339,10 @@ function licRunGen(){
      而不是落到「还没有可展示的文章」兜底文案（2026-09-22 修：授权链生成停在 s6 页，
      需要进度条反馈，否则点击后一片空白很困惑）。 */
   state.live = { status: "running", material: String(a.text || "").slice(0, 4800), label: String(a.title || ""), book: "", run: null, err: null, t0: Date.now(), elapsed: 0, licN: segs.length };
+  /* 🔴 等待页必须是「纯等待页」（2026-09-23）：开跑即清掉上一稿（上一篇/上一轮）。
+     不清的话接第 2 篇母稿时，s6 会因为 GEN 里还留着上一篇的段落而渲染成文章预览页，
+     用户以为这篇已经生成好了，其实才刚开始跑。 */
+  GEN = {}; state.words12 = {}; state.meta12 = {};
   const tgts = LIC_TARGETS[st.prep.level] || [];
   licSetBusy(st, L("正在逐段改写 " + segs.length + " 段并生成 " + tgts.map(function(k){ return nkDisp(k); }).join(" + ") + "（段数越多越久，预计 1–3 分钟）…",
               "Rewriting " + segs.length + " paragraphs into " + tgts.map(function(k){ return nkDisp(k); }).join(" + ") + " (~1–3 min)…"));
@@ -4398,7 +4407,15 @@ function licRunGen(){
           go(7);
           return;
         }
-        /* 不达标且还有重跑额度 → 回灌超纲词，继续 */
+        /* 不达标且还有重跑额度 → 回灌超纲词，继续。
+           🔴 未定稿就绝不把草稿留在 GEN 里（2026-09-23）：
+           过去这一轮已 applyLive + status=done，下一轮开头的 licSetBusy+render 会把
+           「马上被替换掉的中间稿」渲染成文章预览页 —— 用户能读、能点「进入 AI 校验」，
+           读到一半才等到「质量不达标，自动重跑」的提示。现在多轮「生成 → 校验 → 重跑」
+           全程停在等待页，只有定稿（达标 / 用尽重跑次数）才切到文章预览。 */
+        GEN = {}; state.words12 = {}; state.meta12 = {};
+        state.live.status = "running"; state.live.run = null;
+        state.live.t0 = Date.now(); state.live.elapsed = 0;   /* 进度条按本轮重新计时，否则顶死在 90% 像卡住 */
         avoidByLevel = collectAvoidWords(v);
         // eslint-disable-next-line no-constant-condition
       } catch(e){
@@ -5764,8 +5781,12 @@ function s6(){
       const pct = isLic
         ? (function(){ const el = parseFloat(state.live.elapsed) || 0; return Math.min(90, Math.round(el / Math.max(1, denom) * 100)); })()
         : (extracting ? runPct(FACT_EST, state.live.nodes, FACT_NODE_EST) : runPct(GEN_EST, state.live.nodes, GEN_NODE_EST));
+      /* 授权链路：把 licState().busy 的当前进度文案顶上来当等待文案 ——
+         重跑时它是「质量不达标，自动重跑第 N 次（字数/句长/超纲原因）…」，
+         否则进度条第二轮从 0 重走，用户会以为卡住或被重启（2026-09-23）。 */
+      const licBusyTxt = isLic ? String(licState().busy || "") : "";
       const runTxt = isLic
-        ? L("正在逐段改写并生成低档文章 · 预计 1–3 分钟","Rewriting paragraph by paragraph · ~1–3 min")
+        ? (licBusyTxt || L("正在逐段改写并生成低档文章 · 预计 1–3 分钟","Rewriting paragraph by paragraph · ~1–3 min"))
         : (extracting
           ? L("正在抽取事实卡 · 预计 5–10 秒，完成后自动接续生成","Extracting fact cards · ~5–10s, then auto-generates")
           : L("正在生成 4 档文章 · 预计约 2–3 分钟，完成后自动刷新","Generating 4 levels · about 2–3 min, auto-refreshes on completion"));
