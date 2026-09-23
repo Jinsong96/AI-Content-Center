@@ -23,22 +23,71 @@ ReadPal · 图 C「轻量提示词」构建脚本（2026-09-23）
   · 不做精简模式、不做批量
 
 用法：
-    python3 tools/build_graphC.py [输出路径，默认 dify_graphs/graphC.new.json]
+    python3 tools/build_graphC.py [输出路径] [--model=deepseek|luna]
+      · --model=deepseek（默认）→ dify_graphs/graphC.new.json
+      · --model=luna     → dify_graphs/graphC.luna.json（OpenCode Go · GPT 5.6 Luna）
+    ⚠️ 图 C 的**唯一实验变量是提示词**；换 --model 是另一类对照（模型对照），
+       跑对照实验时一次只动一个变量，别同时改提示词。
 """
 import json
+import os
 import re
 import sys
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
-OUT = Path(sys.argv[1]) if len(sys.argv) > 1 else REPO / 'dify_graphs' / 'graphC.new.json'
 
-MODEL_PRO = {
-    'provider': 'langgenius/deepseek/deepseek',
-    'name': 'deepseek-v4-pro',
-    'mode': 'chat',
-    'completion_params': {'temperature': 0.45, 'max_tokens': 6000, 'thinking': False},
+
+def _flag(name, default=None):
+    for a in sys.argv[1:]:
+        if a.startswith('--%s=' % name):
+            return a.split('=', 1)[1].strip()
+    return default
+
+
+def _positional():
+    return [a for a in sys.argv[1:] if not a.startswith('--')]
+
+
+# ───────────────────── 模型档（--model=deepseek|luna，默认 deepseek）─────────────────────
+# 为什么要有这个开关：2026-09-23 Bryan 要验证「换到 OpenCode Go 的 GPT 5.6 Luna 能不能用」。
+# 换模型必须可回退、可对照 —— 所以做成档位而不是直接改死，出问题一条命令推回 deepseek 版。
+#
+# ⚠️ 两档的 completion_params 不完全一样，别照抄：
+#   · deepseek 走 Dify 官方插件（langgenius/deepseek/deepseek），支持私有字段 `thinking`
+#   · OpenCode Go 是 OpenAI 兼容聚合渠道，**没有 `thinking`** —— 带上可能被拒或被忽略，故不写
+MODEL_PRESETS = {
+    'deepseek': {
+        'desc': 'DeepSeek 官方渠道（产线在用）',
+        'model': {
+            'provider': 'langgenius/deepseek/deepseek',
+            'name': 'deepseek-v4-pro',
+            'mode': 'chat',
+            'completion_params': {'temperature': 0.45, 'max_tokens': 6000, 'thinking': False},
+        },
+    },
+    'luna': {
+        'desc': 'OpenCode Go 渠道 · GPT 5.6 Luna（对照实验）',
+        'model': {
+            'provider': 'langgenius/opencode_go/opencode_go',
+            'name': 'gpt-5.6-luna',
+            'mode': 'chat',
+            'completion_params': {'temperature': 0.45, 'max_tokens': 6000},
+        },
+    },
 }
+
+MODEL_KEY = (_flag('model') or os.environ.get('GC_MODEL') or 'deepseek').lower()
+if MODEL_KEY not in MODEL_PRESETS:
+    print('✗ 未知模型档：%s（可选 %s）' % (MODEL_KEY, ' / '.join(MODEL_PRESETS)))
+    sys.exit(2)
+
+MODEL_PRO = MODEL_PRESETS[MODEL_KEY]['model']
+MODEL_DESC = MODEL_PRESETS[MODEL_KEY]['desc']
+
+_pos = _positional()
+OUT = Path(_pos[0]) if _pos else REPO / 'dify_graphs' / (
+    'graphC.new.json' if MODEL_KEY == 'deepseek' else 'graphC.%s.json' % MODEL_KEY)
 
 # ───────────────────────── ① 轻量提示词（system）─────────────────────────
 # 🔴 这是**实验的唯一变量** —— 除「出题档位明确化」与「输出格式约定」外，
@@ -320,6 +369,8 @@ def main():
     d = build()
     errs = static_check(d)
     print('节点 %d · 边 %d' % (len(d['graph']['nodes']), len(d['graph']['edges'])))
+    print('  模型档：%s → %s | %s' % (MODEL_KEY, MODEL_PRO['provider'], MODEL_PRO['name']))
+    print('  参数：%s' % json.dumps(MODEL_PRO['completion_params'], ensure_ascii=False))
     if errs:
         print('✗ 静态校验失败：')
         for e in errs:
