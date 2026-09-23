@@ -5991,8 +5991,10 @@ function s12(){
   /* 切换条提到页面级：先占住「一页一条」的闸门，alignedViewHTML 内部那次即返回空，不会出两条。
      之前它藏在「逐段原文」卡片内部（首屏看不到），用户会以为审核页根本没有换挡按钮。 */
   const bigBar = bigBarOnce();
-  const parasHTML = alignedViewHTML(false);
-  const parasBlock = `<div class="reviewparas"><div class="pane-h">${L("逐段原文 · 4 档对齐（全文完整展示）","Segment originals · 4 levels aligned, full text")}</div>${parasHTML}</div>`;
+  /* 审核环节允许直接编辑段落（editable=true）：改动实时写回 GEN + 本机草稿，
+     点「审核通过」时 buildBankArticle 读的是改后的 GEN ⇒ 落库/导出均为最终版。 */
+  const parasHTML = alignedViewHTML(true);
+  const parasBlock = `<div class="reviewparas"><div class="pane-h">${L("逐段原文 · 4 档对齐（可点击段落直接修改，改后版本即为最终版）","Segment originals · 4 levels aligned — click any paragraph to edit; your edits are the final version")}</div>${parasHTML}</div>`;
   return head("11", L("逐段审核","Segment Review")) +
     artWorkflowBar() +
     reviewContextHTML() +
@@ -6014,11 +6016,18 @@ async function approve(){
   if(hasArt && !Object.keys(state.audio || {}).length && !state.audioPromise){
     genArticleAudio();
   }
-  /* 从文章库进入的审核：直接标记已审核（避免重建导致 contentId 不一致） */
+  /* 从文章库进入的审核：把审核页改过的段落回写进文章，再标记已审核（避免重建导致 contentId 不一致） */
   if(state.reviewingId){
     const list = loadBank();
     const a = list.find(x=>x.id===state.reviewingId);
-    if(a){ a.reviewedBy = "审核老师"; saveBank(list); syncArticleToLibrary(a); }
+    if(a){
+      /* 审核页可编辑（editable=true），改动实时写进了 GEN；这里反向回写到文章对象，
+         否则「审核页改的段落」不会落到库里，导出仍是旧版。 */
+      allKeys().forEach(function(k){
+        if(GEN[k] && Array.isArray(GEN[k].paras)) a.paras[k] = GEN[k].paras.map(function(p){ return Array.isArray(p) ? p[0] : p; });
+      });
+      a.reviewedBy = "审核老师"; saveBank(list); syncArticleToLibrary(a);
+    }
     state.reviewingId = null;
     toast(L("审核通过 · 已归档到文章库","Approved — archived to the article library"));
     go(11);
