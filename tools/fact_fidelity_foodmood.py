@@ -74,6 +74,12 @@ def hits(text: str, pats: list[str]) -> bool:
     return any(re.search(p, text, re.I) for p in pats)
 
 
+# B 档专名（只标来源，`专名分档`图判为可省/可泛化）—— 按 Bryan 规则，丢失不算错
+# 用于把「原始 19 项」折算成「必需保真度」
+TIER_B = {"McMaster University", "University College Cork", "Kyushu University",
+          "Michael Mosley(专家)", "BBC(来源)"}
+
+
 def score(text: str, table: dict) -> tuple[int, int, list[str]]:
     miss = [k for k, v in table.items() if not hits(text, v)]
     return len(table) - len(miss), len(table), miss
@@ -100,13 +106,19 @@ def main():
 
     sources: dict[str, list[str]] = {}
 
-    # 轻提示词 + 骨架锁定
-    for rd in (1, 2):
-        p = f"/tmp/skel_loop.round{rd}.json"
-        if os.path.exists(p):
-            d = json.load(open(p, encoding="utf-8"))
+    # 轻提示词 + 骨架锁定（多组实验并存，便于看「逐步加约束」的差异）
+    for tag, base in (
+        ("骨架·无清单", "/tmp/skel_loop"),
+        ("骨架+清单(无数字)", "/tmp/skel_keep"),
+        ("骨架+清单+数字", "/tmp/skel_keepnum"),
+    ):
+        # 只取该组的「收敛轮」（存在的最大轮次），三组同口径才可比
+        rounds = [rd for rd in (1, 2, 3, 4, 5) if os.path.exists(f"{base}.round{rd}.json")]
+        if rounds:
+            rd = max(rounds)
+            d = json.load(open(f"{base}.round{rd}.json", encoding="utf-8"))
             for lv in ("A1", "A2"):
-                sources[f"轻提示词+骨架 第{rd}轮 {('A1-' if lv == 'A1' else lv)}"] = d["paras"][lv]
+                sources[f"{tag} 第{rd}轮 {('A1-' if lv == 'A1' else lv)}"] = d["paras"][lv]
 
     # 产线 图A+图B（同骨架）
     p = "/tmp/prod_food.json"
@@ -126,11 +138,16 @@ def main():
         p = f"/tmp/fid_{re.sub(r'[^A-Za-z0-9]+', '_', name)}.txt"
         open(p, "w", encoding="utf-8").write(text)
         lv = "A1" if "A1-" in name else "A2"
+        # 必需保真度：把 B 档专名（可省）从分母/丢分里剔除 —— 对齐 Bryan 的专名分档规则
+        miss_req = [x for x in (n_miss + m_miss + c_miss) if x not in TIER_B]
+        tot_req = (n_tot + m_tot + c_tot) - len(TIER_B)
+        req_pct = round((tot_req - len(miss_req)) / tot_req * 100)
         rows.append({
             "name": name, "paras": len(paras), "words": count_words(text),
             "num": f"{n_ok}/{n_tot}", "name_ok": f"{m_ok}/{m_tot}", "causal": f"{c_ok}/{c_tot}",
             "total_pct": round((n_ok + m_ok + c_ok) / (n_tot + m_tot + c_tot) * 100),
             "miss": n_miss + m_miss + c_miss,
+            "req_pct": req_pct,
             "overband": overband(p, lv),
         })
 
@@ -144,14 +161,14 @@ def main():
     print("母稿：Food and mood（458 词 / 骨架 15 段）｜事实清单：数字 ×%d、专名实体 ×%d、因果 ×%d"
           % (nt, mt, ct))
     print("=" * 112)
-    print(f"{'产出':<30}{'段':>4}{'词':>6}{'数字':>8}{'专名':>8}{'因果':>8}{'保真度':>9}{'超纲率':>10}")
+    print(f"{'产出':<27}{'段':>4}{'词':>6}{'数字':>7}{'专名':>8}{'因果':>7}{'原始':>7}{'必需':>7}{'超纲率':>9}")
     print("-" * 112)
-    print(f"{'母稿（基线）':<30}{5:>4}{count_words(master):>6}"
-          f"{f'{mn}/{nt}':>8}{f'{nn}/{mt}':>8}{f'{cn}/{ct}':>8}{'100%':>9}{overband(mp, 'A1'):>10}")
+    print(f"{'母稿（基线）':<27}{5:>4}{count_words(master):>6}"
+          f"{f'{mn}/{nt}':>7}{f'{nn}/{mt}':>8}{f'{cn}/{ct}':>7}{'100%':>7}{'100%':>7}{overband(mp, 'A1'):>9}")
     print("-" * 112)
     for r in rows:
-        print(f"{r['name']:<30}{r['paras']:>4}{r['words']:>6}{r['num']:>8}{r['name_ok']:>8}"
-              f"{r['causal']:>8}{str(r['total_pct']) + '%':>9}{r['overband']:>10}")
+        print(f"{r['name']:<27}{r['paras']:>4}{r['words']:>6}{r['num']:>7}{r['name_ok']:>8}"
+              f"{r['causal']:>7}{str(r['total_pct']) + '%':>7}{str(r['req_pct']) + '%':>7}{r['overband']:>9}")
     print("=" * 112)
     print()
     for r in rows:

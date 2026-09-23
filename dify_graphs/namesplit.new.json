@@ -1,0 +1,170 @@
+{
+  "graph": {
+    "nodes": [
+      {
+        "id": "nodeStart",
+        "type": "start",
+        "position": {
+          "x": 80,
+          "y": 300
+        },
+        "positionAbsolute": {
+          "x": 80,
+          "y": 300
+        },
+        "width": 244,
+        "height": 170,
+        "zIndex": 0,
+        "data": {
+          "type": "start",
+          "title": "开始",
+          "selected": false,
+          "desc": "接收母稿骨架（逐段）+ 标题",
+          "variables": [
+            {
+              "label": "母稿骨架（逐段，原文未改动）",
+              "variable": "skeleton",
+              "type": "paragraph",
+              "required": true,
+              "max_length": 20000,
+              "options": []
+            },
+            {
+              "label": "标题",
+              "variable": "title",
+              "type": "text-input",
+              "required": false,
+              "max_length": 200,
+              "options": []
+            }
+          ]
+        }
+      },
+      {
+        "id": "nodeSplit",
+        "type": "llm",
+        "position": {
+          "x": 420,
+          "y": 280
+        },
+        "positionAbsolute": {
+          "x": 420,
+          "y": 280
+        },
+        "width": 244,
+        "height": 110,
+        "zIndex": 0,
+        "data": {
+          "type": "llm",
+          "title": "① 专名分档 + 主题词（DeepSeek Pro）",
+          "selected": false,
+          "desc": "A 档=必须原样保留；B 档=可省略/泛化；并抽出主题词",
+          "model": {
+            "provider": "langgenius/deepseek/deepseek",
+            "name": "deepseek-v4-pro",
+            "mode": "chat",
+            "completion_params": {
+              "temperature": 0.1,
+              "max_tokens": 4096,
+              "thinking": false
+            }
+          },
+          "prompt_template": [
+            {
+              "role": "system",
+              "text": "你是英语分级阅读内容生产流程里的**专名分档员**。\n\n上游给你一篇母稿按大意切好的骨架（逐字保留原文，未改动一个字）。请把骨架里的\n**专有名词** 与 **主题词** 分别找出来，并给出处理档位。\n\n# 一、主题词（topic_words）\n本文讨论的**核心概念**，不是专有名词。\n判准：**这个词如果被换成别的词，文章讲的事情就变了。**\n例：honesty、malaria、mood、diet、climate change、depression。\n⚠️ 只要 2–5 个，取最核心的。不要贪多，不要罗列普通名词。\n\n# 二、专有名词分两档\n\n## A 档 · 必须原样保留\n满足**任一**条件即归 A 档：\n1. **世界级知名公众人物** —— 各国领导人、国际知名人物、著名历史人物。\n   例：Xi Jinping、Donald Trump、Elon Musk、Albert Einstein\n2. **国家 / 国际组织 / 广为人知的地标、城市、地区**。\n   例：China、the United States、WHO、the United Nations、Africa、Paris\n3. **本文讨论的对象本身** —— 这篇文章或这一段就是在讲它。\n   例：讲疟疾的文章里 Plasmodium、Anopheles；讲某个国家疫情的文章里 Nigeria\n\n## B 档 · 可以省略 / 可以泛化\n只用来标注**信息来源**的次要专名：\n研究者、某大学教授、某媒体主持人、某报告作者、只出现一次且拿掉不影响理解的次要机构。\n例：Cyril Caminade（一位研究员）→ 可写成 a researcher\n    Mary Johnson（MIT 教授）→ 可写成 a professor / Mary\n    McMaster University → 可写成 a university in Canada\n    Michael Mosley（BBC 主持人）→ 可写成 a BBC presenter\n\n# 唯一的判准\n**把这个名字从文章里拿掉，读者会不会不知道文章在讲谁、在讲哪儿？**\n会 → A 档。不会 → B 档。\n\n# 兜底\n**拿不准的一律归 A 档**（宁保留、勿省略）。\n\n# 输出格式\n只输出一个 JSON 对象，不要解释文字，不要 markdown 代码围栏：\n\n{\"topic_words\":[\"malaria\"],\"names\":[{\"name\":\"Plasmodium\",\"tier\":\"A\",\"reason\":\"本文讨论的对象\"},{\"name\":\"Cyril Caminade\",\"tier\":\"B\",\"reason\":\"仅标注信息来源\"}]}\n\n· name 必须是骨架里**原样出现**的写法（保留大小写），不要翻译、不要改写。\n· reason 用中文，一句话。\n· 如果骨架里没有专名，names 写空数组。\n"
+            },
+            {
+              "role": "user",
+              "text": "【标题】{{#nodeStart.title#}}\n\n【母稿骨架】（逐段，未改动原文）\n{{#nodeStart.skeleton#}}\n\n按上面的规则分档，只输出 JSON。\n"
+            }
+          ],
+          "context": {
+            "enabled": false,
+            "variable_selector": []
+          },
+          "vision": {
+            "enabled": false,
+            "configs": {
+              "detail": "low"
+            }
+          },
+          "memory": null,
+          "answer": ""
+        }
+      },
+      {
+        "id": "nodeEnd",
+        "type": "end",
+        "position": {
+          "x": 760,
+          "y": 280
+        },
+        "positionAbsolute": {
+          "x": 760,
+          "y": 280
+        },
+        "width": 244,
+        "height": 90,
+        "zIndex": 0,
+        "data": {
+          "type": "end",
+          "title": "结束",
+          "selected": false,
+          "desc": "输出分档原文（外层脚本解析 JSON）",
+          "outputs": [
+            {
+              "variable": "raw",
+              "value_selector": [
+                "nodeSplit",
+                "text"
+              ]
+            }
+          ]
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "e-start-split",
+        "source": "nodeStart",
+        "target": "nodeSplit",
+        "sourceHandle": "source",
+        "targetHandle": "target",
+        "type": "custom",
+        "zIndex": 0,
+        "data": {
+          "isInIteration": false,
+          "sourceType": "start",
+          "targetType": "llm"
+        }
+      },
+      {
+        "id": "e-split-end",
+        "source": "nodeSplit",
+        "target": "nodeEnd",
+        "sourceHandle": "source",
+        "targetHandle": "target",
+        "type": "custom",
+        "zIndex": 0,
+        "data": {
+          "isInIteration": false,
+          "sourceType": "llm",
+          "targetType": "end"
+        }
+      }
+    ],
+    "viewport": {}
+  },
+  "features": {
+    "file_upload": {},
+    "text_to_speech": {
+      "enabled": false,
+      "voice": "",
+      "language": ""
+    },
+    "sensitive_word_avoidance": {
+      "enabled": false
+    }
+  }
+}
