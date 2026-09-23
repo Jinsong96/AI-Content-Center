@@ -3063,7 +3063,13 @@ function applyLive(){
     if(!paras || !paras.length) paras = mdParas(raw);
     if(!paras.length) return;
     const firstLine = raw.split(String.fromCharCode(10)).map(function(l){ return l.trim(); }).find(Boolean) || "";
-    const title = firstLine.replace(/^#+ */, "").replace(/^Title: */i, "").trim() || o.title || "Untitled";
+    /* 授权链路（CEFR分级）：标题以导入时填的为准，锁定不做模型第一行 / o.title 替换。
+       无标题（或占位「粘贴的母稿」）才回落到模型输出。 */
+    const licTitle = (state.route === "licensed"
+                      && String(state.live.label || "").trim()
+                      && state.live.label !== "粘贴的母稿" && state.live.label !== "Pasted master")
+                   ? String(state.live.label).trim() : "";
+    const title = licTitle || firstLine.replace(/^#+ */, "").replace(/^Title: */i, "").trim() || o.title || "Untitled";
     const wc = wcOf(raw), sc = sentOf(raw);
     const r = vmap[k];
     const score = r ? r.score : null;
