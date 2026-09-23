@@ -146,6 +146,62 @@ PARSE_CODE = r"""function main({ text, title_in }) {
   const res = { articles_json: '{}', paras_json: '{}', quiz_json: '{"levels":{}}',
                 title: String(title_in || '').trim(), parse_ok: 'false', parse_warn: '' };
 
+  // ── 宽松修复：只修**语法**，不碰任何内容。返回 {text, why[]}，why 空 = 无需修复。
+  //    ① 字符串内的裸换行（未转义）② 对象/数组闭合前的尾随逗号
+  //    🔴 逐字符扫描并跟踪「是否在字符串内」—— 否则正文里出现的 ,} 会被误改。
+  const looseFix = function (s) {
+    const why = [];
+    // ① 字符串内裸换行 / 裸 tab → 转义
+    let a = '', inStr = false, esc = false, nl = false;
+    for (let i = 0; i < s.length; i++) {
+      const c = s.charAt(i);
+      if (inStr) {
+        if (esc) { a += c; esc = false; continue; }
+        if (c === '\\') { a += c; esc = true; continue; }
+        if (c === '"') { a += c; inStr = false; continue; }
+        if (c === '\n') { a += '\\n'; nl = true; continue; }
+        if (c === '\r') { nl = true; continue; }
+        if (c === '\t') { a += '\\t'; continue; }
+      } else {
+        if (c === '"') { inStr = true; }
+      }
+      a += c;
+    }
+    if (nl) why.push('字符串内裸换行');
+    // ② 尾随逗号（迭代，最多 3 轮 —— 处理 ,,} 这类叠加）
+    let b = a, tc = false;
+    for (let round = 0; round < 3; round++) {
+      let o = '', inS = false, es = false, hit = false;
+      for (let i = 0; i < b.length; i++) {
+        const c = b.charAt(i);
+        if (inS) {
+          o += c;
+          if (es) { es = false; continue; }
+          if (c === '\\') { es = true; continue; }
+          if (c === '"') { inS = false; }
+          continue;
+        }
+        if (c === '"') { inS = true; o += c; continue; }
+        if (c === ',') {
+          let j = i + 1;
+          while (j < b.length && ' \t\r\n'.indexOf(b.charAt(j)) >= 0) j++;
+          if (b.charAt(j) === '}' || b.charAt(j) === ']') { hit = true; continue; }
+        }
+        o += c;
+      }
+      b = o;
+      if (!hit) break;
+      tc = true;
+    }
+    if (tc) why.push('尾随逗号');
+    return { text: b, why: why };
+  };
+
+  // 标题比对用的归一化（忽略大小写/标点/空白）
+  const normT = function (s) {
+    return String(s == null ? '' : s).toLowerCase().replace(/[\s"'“”‘’.,:;!?—–\-]/g, '');
+  };
+
   let raw = String(text || '').trim();
   // 去 markdown 代码围栏
   raw = raw.replace(/^```[a-zA-Z0-9]*\s*/, '').replace(/\s*```\s*$/, '').trim();
@@ -159,8 +215,21 @@ PARSE_CODE = r"""function main({ text, title_in }) {
 
   let obj = null;
   try { obj = JSON.parse(raw); } catch (e) {
-    res.parse_warn = 'JSON 解析失败：' + String(e && e.message || e).slice(0, 160);
-    return res;
+    // 模型偶尔吐非法 JSON —— 先做**纯语法**宽松修复（不动内容），修不好才报错。
+    // 实测动因：luna 4 次里 1 次在 articles_json 里多写一个尾随逗号，整条链路就全废。
+    const fx = looseFix(raw);
+    if (fx.why.length) {
+      try {
+        obj = JSON.parse(fx.text);
+        warn.push('JSON 含 ' + fx.why.join('、') + '，已自动修复');
+      } catch (e2) {
+        res.parse_warn = 'JSON 解析失败（已试宽松修复：' + fx.why.join('、') + '）：' + String(e2 && e2.message || e2).slice(0, 140);
+        return res;
+      }
+    } else {
+      res.parse_warn = 'JSON 解析失败：' + String(e && e.message || e).slice(0, 160);
+      return res;
+    }
   }
   if (!obj || typeof obj !== 'object') { res.parse_warn = 'JSON 顶层不是对象'; return res; }
 
@@ -207,6 +276,29 @@ PARSE_CODE = r"""function main({ text, title_in }) {
     art2[k] = t || ps.join('\n\n');
     par2[k] = ps;
   });
+  // 向下档不带标题：正文/分段的首块若就是标题，剔除。
+  // 🔴 确定性动作，不交给模型 —— 实测 luna 3/3 把标题写进正文（deepseek 0/3），
+  //    而 paras_json 不含标题 ⇒ 不剔除就会「正文与分段不一致」，破坏段落对齐。
+  const tl = normT(res.title);
+  if (tl) {
+    WANT.forEach(function (k) {
+      if (art2[k]) {
+        const lines = art2[k].split('\n');
+        while (lines.length && !lines[0].trim()) lines.shift();
+        if (lines.length && normT(lines[0]) === tl) {
+          lines.shift();
+          while (lines.length && !lines[0].trim()) lines.shift();
+          art2[k] = lines.join('\n');
+          warn.push(k + ' 正文首行是标题，已剔除');
+        }
+      }
+      if (Array.isArray(par2[k]) && par2[k].length && normT(par2[k][0]) === tl) {
+        par2[k].shift();
+        warn.push(k + ' 分段首段是标题，已剔除');
+      }
+    });
+  }
+
   const extra = Object.keys(arts).filter(function (k) { return WANT.indexOf(k) < 0; });
   if (extra.length) warn.push('模型额外产出了 ' + extra.join('/') + ' 文章，本链路不使用');
 

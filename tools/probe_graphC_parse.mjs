@@ -104,5 +104,63 @@ console.log('\n[6] 完全没有 JSON');
   ok('parse_warn 明确说找不到 JSON', /找不到 JSON/.test(r.parse_warn), r.parse_warn);
 }
 
+console.log('\n[7] 尾随逗号（luna 实测崩点）→ 自动修复，不整链失败');
+{
+  const q1 = '{"type":"text","q":"Q?","options":["a","b","c","d"],"answer":0,"explain":"e"}';
+  const bad = '{ "articles_json": {"A1":"Pam is messy.","A2":"Pam is tidy."}, '
+    + '"paras_json": {"A1":["Pam is messy."],"A2":["Pam is tidy."]}, '
+    + '"quiz_json": {"levels": {"A1":[' + q1 + '],"A2":[' + q1 + '],"B1":[' + q1 + ']} }, }';
+  const r = main({ text: bad, title_in: 'T' });
+  ok('parse_ok=true（已自动修复）', r.parse_ok === 'true', r.parse_warn + ' | ' + r.articles_json.slice(0, 90));
+  ok('告警说明修了尾随逗号', /尾随逗号/.test(r.parse_warn), r.parse_warn);
+  const A = JSON.parse(r.articles_json);
+  ok('正文可用', A.A1 === 'Pam is messy.' && A.A2 === 'Pam is tidy.', JSON.stringify(A));
+}
+
+console.log('\n[8] 标题只在正文里（luna 实测形态）→ 剔除，且不破坏分段对齐');
+{
+  const t = JSON.parse(JSON.stringify(GOOD));
+  t.articles_json.A1 = 'The Clutterer\n\n' + t.articles_json.A1;   // 分段里没有标题
+  const r = main({ text: JSON.stringify(t), title_in: 'The Clutterer' });
+  const A = JSON.parse(r.articles_json), P = JSON.parse(r.paras_json);
+  ok('正文不再以标题开头', A.A1.indexOf('The Clutterer') !== 0, A.A1.slice(0, 40));
+  ok('正文内容保留完整', /Pam keeps her room/.test(A.A1));
+  ok('分段段数不变（仍 2 段）', P.A1.length === 2, JSON.stringify(P.A1));
+  ok('告警说明已剔除标题', /标题，已剔除/.test(r.parse_warn), r.parse_warn);
+  ok('A2 未被误伤', P.A2.length === 2 && A.A2.indexOf('The Clutterer') !== 0);
+  ok('parse_ok 仍 true', r.parse_ok === 'true');
+}
+
+console.log('\n[9] 标题同时在正文和分段里 → 两边都剔除，段数仍一致');
+{
+  const t = JSON.parse(JSON.stringify(GOOD));
+  t.articles_json.A1 = 'The Clutterer\n\n' + t.articles_json.A1;
+  t.paras_json.A1 = ['The Clutterer'].concat(t.paras_json.A1);
+  const r = main({ text: JSON.stringify(t), title_in: 'the clutterer' });   // 大小写不同也应命中
+  const A = JSON.parse(r.articles_json), P = JSON.parse(r.paras_json);
+  ok('正文已剔标题', A.A1.indexOf('The Clutterer') !== 0);
+  ok('分段已剔标题（2 段）', P.A1.length === 2, JSON.stringify(P.A1));
+  ok('大小写不同也命中', /标题，已剔除/.test(r.parse_warn), r.parse_warn);
+}
+
+console.log('\n[10] 字符串内裸换行（未转义）→ 自动转义');
+{
+  const bad = JSON.stringify(GOOD).split('\\n\\n').join('\n\n');
+  const r = main({ text: bad, title_in: 'T' });
+  ok('parse_ok=true（已自动修复）', r.parse_ok === 'true', (r.parse_warn || '') + ' | ' + r.articles_json.slice(0, 80));
+  ok('告警说明修了裸换行', /裸换行/.test(r.parse_warn), r.parse_warn);
+}
+
+console.log('\n[11] 正文里的 ,} 不能被误当成尾随逗号（误伤保护）');
+{
+  const t = JSON.parse(JSON.stringify(GOOD));
+  t.articles_json.A1 = 'He said "one, two",} then left.';
+  t.paras_json.A1 = ['He said "one, two",} then left.'];
+  const r = main({ text: JSON.stringify(t), title_in: 'T' });
+  const A = JSON.parse(r.articles_json);
+  ok('正文内的逗号原样保留', A.A1 === 'He said "one, two",} then left.', JSON.stringify(A.A1));
+  ok('未误报尾随逗号', !/尾随逗号/.test(r.parse_warn), r.parse_warn);
+}
+
 console.log(`\n${fail === 0 ? '✅' : '✗'} ${pass}/${pass + fail} 通过`);
 process.exit(fail === 0 ? 0 : 1);
