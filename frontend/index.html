@@ -367,6 +367,16 @@ body{font-family:var(--font);color:var(--text);background:var(--bg);overflow:hid
 .fcard .stmt{font-size:12.5px;line-height:1.6;color:#1D2939;font-weight:500}
 .fcard .zh{font-size:11.5px;line-height:1.55;color:#667085;margin-top:3px;padding-left:8px;border-left:2px solid var(--border);font-weight:400}
 .fcard .meta{display:flex;gap:10px;margin-top:8px;font-size:10.5px;color:var(--sub);align-items:center;flex-wrap:wrap}
+/* 事实卡人工编辑（2026-09-23）：卡片上的编辑/删除入口 + 就地编辑态 */
+.fcard .fops{margin-left:auto;display:flex;gap:6px;flex:0 0 auto}
+.fcard .fop{font-size:10.5px;font-weight:700;color:var(--sub);background:#F5F6F8;border:1px solid var(--border);border-radius:6px;padding:1px 8px;cursor:pointer;font-family:inherit;line-height:1.6}
+.fcard .fop:hover{color:var(--pri-tx);border-color:var(--pri);background:var(--pri-t)}
+.fcard .fop.del:hover{color:#A32D2D;border-color:#E5A79B;background:#FFF3EF}
+.fcard.editing{border-color:var(--pri);transform:none;box-shadow:0 0 0 3px var(--pri-t)}
+.fedit{width:100%;box-sizing:border-box;font-family:inherit;font-size:12.5px;line-height:1.6;color:#1D2939;font-weight:500;background:#fff;border:1px solid var(--border);border-radius:8px;padding:7px 9px;resize:vertical;min-height:56px}
+.fedit.zh{font-size:11.5px;font-weight:400;color:#667085;margin-top:6px;min-height:42px}
+.fedit:focus{outline:none;border-color:var(--pri)}
+.fedit-bar{display:flex;gap:8px;margin-top:8px}
 .confbar{flex:1;min-width:56px;height:5px;background:var(--bg);border-radius:3px;position:relative;overflow:hidden}
 .confbar i{position:absolute;left:0;top:0;bottom:0;background:var(--ok);border-radius:3px}
 .confbar.low i{background:var(--warn)}
@@ -2099,6 +2109,9 @@ const KPIS = [
 const state = {route:null, hot:undefined, hotTheme:null, hotSubTheme:null, realHot:null, realHots:null, realScanning:false, bridgeOk:null, style:"default", lvl:"B1_2", lvlManual:false, big:"B1", guide:{}, words12:null, meta12:null, extracted:false, validated:false, reviewed:false, srcForm:null, customHots:null, topicSel:null, factsCache:null, trendsDegraded:false, trendsErrors:null, trendsFiltered:null, audio:{}, audioMeta:null, audioGenerating:false, audioPromise:null, audioAccent:"us", quiz:{}, quizShow:{}, factMap:null, unusedFacts:[], alignGuard:null, scanFirst:null, scanElapsed:0,
   tagContent:[], tagFree:[], tagFreeCands:[], tagFreeInput:"", tagCognitive:"全年龄",
   tagOpenCats:{}, tagAIContent:[], tagMeta:null, tagWarn:"", tagExtracting:false, tagTitleOnly:false, taxoLoaded:false, reviewingId:null, ownedBook:null,
+  /* 事实卡人工编辑层（2026-09-23）：factsEdit=改后的卡（null=没改过，直接读 AI 原稿）；
+     factsEditOrig=AI 原稿快照（只用来标「人工修订」）；factsDirty=改过之后已生成的文章已过期 */
+  factsEdit:null, factsEditOrig:null, factEditIdx:-1, factEditDraft:null, factsDirty:false,
   lic:null};   /* 授权母稿向下改写：{arts:[], prep, confirmed, gen, err, busy, paste} —— 见 licensedPanelHTML 上方的说明 */
 /* ==================== 当前选中素材（统一访问热点 / 自有版权 / 公版书三种入口） ==================== */
 function curHot(){ if(state.realHot) return state.realHot; return (state.hot !== undefined && state.hot !== null && HOTS[state.hot]) ? HOTS[state.hot] : null; }
@@ -2151,9 +2164,11 @@ function fulltextBadge(h){
 function curFacts(){
   const lf = liveFacts();
   if(lf && lf.length){
+    /* 人工改过的卡不能再标 AUTO / 置信度 —— 那是 AI 的产出，图上标着会把「人改的」说成「AI 判的」。
+       改过的卡由调用方按 rev==="edited" 换成「人工修订」徽标。 */
     return lf.map((f, i) => ({
       type: guessFactType(f.en || f.zh), stmt: f.en || f.zh, zh: f.zh || "",
-      conf: 0.92, rev: "auto",
+      conf: factIsEdited(i) ? 1 : 0.92, rev: factIsEdited(i) ? "edited" : "auto",
       cross: "single-source", anchor: "AI · F" + (i+1),
     }));
   }
@@ -2511,9 +2526,22 @@ function liveFactDiag(){
 }
 function liveReady(){ return state.live.status === "done" && !liveExcluded(); }
 function liveVJ(){ try { return JSON.parse(liveOut().validation_json); } catch(e){ return null; } }
-/* AI 工作流真实抽取的事实（facts_json → 中英对照 {en, zh} 数组；兼容旧字符串数组） */
+/* AI 工作流真实抽取的事实（facts_json → 中英对照 {en, zh} 数组；兼容旧字符串数组）
+   ⚠️ 这里同时是「事实卡人工编辑层」的出口：教研改过 / 删过卡之后，事实卡渲染、段落引用标签
+   （factCiteHTML）、06 内容生成页的溯源面板全部读这个函数 —— 只在渲染层叠加、不回写入参，
+   就是「编辑了没用」的静默失败。 */
 function liveFacts(){
   const o = liveOut();
+  /* 编辑层必须与 facts_json 同源同命：state.live 被清空（换素材 / 切入口 / 重开）时，
+     它要一起失效，否则会把上一批的卡冒充成当前素材的事实卡。 */
+  if(state.factsEdit && o && o.facts_json){
+    try {
+      const src = JSON.parse(o.facts_json);
+      if(Array.isArray(src) && src.length){
+        return state.factsEdit.map(f => ({ en: String(f.en || ""), zh: String(f.zh || "") }));
+      }
+    } catch(e){ /* 原始 facts_json 解析失败 → 落回下面的原逻辑，不让编辑层变成唯一通路 */ }
+  }
   if(!o || !o.facts_json) return null;
   try {
     const arr = JSON.parse(o.facts_json);
@@ -2523,6 +2551,102 @@ function liveFacts(){
       return { en: String((f && f.en) || "").trim(), zh: String((f && f.zh) || "").trim() };
     }).filter(f => f.en || f.zh);
   } catch(e){ return null; }
+}
+
+/* ===== 事实卡人工编辑层（2026-09-23 · Bryan） =====
+   需求：热点搜集的事实分段抽完之后，教研要能就地改、删事实卡（AI 抽错专名 / 留了口水句 / 抽重了）。
+   三条硬约束，少一条就是「改了没用」的静默失败：
+   ① 编辑层是事实卡的唯一真源 —— liveFacts() 优先读它，卡片、段落引用标签、生成页溯源一并生效；
+   ② 改动必须回写 state.factsCache：facts_text（GEN 骨架兜底）+ facts_raw.facts ——
+      GEN 的 B1/B2+ 高档素材由 nodeClean 逐条读 facts_raw.facts[].en 现拼，只改界面等于没改；
+   ③ 删卡会让 1-based 编号整体前移 → 已生成的 fact_map / unused_facts 立刻失准，必须清掉并明说，
+      否则校对页会继续按旧编号标「被引用 P1」——错的溯源比没有溯源更坏。 */
+function factsEditInit(){
+  if(state.factsEdit) return state.factsEdit;
+  const lf = liveFacts();
+  if(!lf || !lf.length) return null;
+  /* gist 归属号（这张卡挂在哪条大意下）只存在于 facts_raw 里，facts_json 没有 ——
+     必须随卡一起搬进编辑层：删卡后它能保证留下的卡仍挂在原来那条大意上，不会整体串位。 */
+  let gists = [];
+  try {
+    const raw = JSON.parse((state.factsCache || {}).facts_raw || "{}");
+    gists = ((raw && Array.isArray(raw.facts)) ? raw.facts : []).map(f => (f ? f.gist : undefined));
+  } catch(e){ gists = []; }
+  state.factsEditOrig = lf.map(f => ({ en: f.en || "", zh: f.zh || "" }));
+  state.factsEdit = lf.map((f, i) => ({ oid: i, en: f.en || "", zh: f.zh || "", gi: gists[i] }));
+  return state.factsEdit;
+}
+/* 某张卡是否被人工改过 —— 用 oid（AI 原稿下标）认身份，不能用当前位置：
+   删过卡之后下标会整体前移，按位置比会把没改的卡全标成「人工修订」。 */
+function factIsEdited(i){
+  const ed = state.factsEdit, og = state.factsEditOrig;
+  if(!ed || !ed[i] || !og) return false;
+  const o = og[ed[i].oid];
+  if(!o) return false;
+  return String(ed[i].en || "") !== String(o.en || "") || String(ed[i].zh || "") !== String(o.zh || "");
+}
+/* 回写 factsCache —— GEN 的入参就是这里的东西，不回写则「文章还是按旧事实卡写的」 */
+function factsSyncToCache(){
+  const ed = state.factsEdit, fc = state.factsCache;
+  if(!ed || !fc) return;
+  fc.facts_text = ed.length ? ed.map((f, i) => (i + 1) + ". " + (f.en || f.zh)).join("\n") : "（无）";
+  try {
+    const raw = JSON.parse(fc.facts_raw || "{}");
+    if(raw && typeof raw === "object" && !Array.isArray(raw)){
+      raw.facts = ed.map(f => {
+        const o = { en: f.en || "", zh: f.zh || "" };
+        if(f.gi !== undefined && f.gi !== null && f.gi !== "") o.gist = f.gi;
+        return o;
+      });
+      fc.facts_raw = JSON.stringify(raw);
+    }
+  } catch(e){ /* facts_raw 不是对象（旧缓存 / 空）→ 只回写 facts_text；GEN 侧仍有骨架兜底，不抛错 */ }
+}
+/* 是否已产出文章：改卡之后据此决定要不要提示「已生成的文章不会自动更新」 */
+function hasGenAny(){
+  try { return allKeys().some(k => GEN[k] && GEN[k].paras && GEN[k].paras.length); } catch(e){ return false; }
+}
+function factEditStart(i){
+  const ed = factsEditInit(); if(!ed || !ed[i]) return;
+  state.factEditIdx = i; state.factEditDraft = { en: ed[i].en, zh: ed[i].zh };
+  render();
+}
+function factEditCancel(){ state.factEditIdx = -1; state.factEditDraft = null; render(); }
+function factEditInput(k, v){ if(state.factEditDraft) state.factEditDraft[k] = v; }
+function factEditSave(i){
+  const ed = factsEditInit(), d = state.factEditDraft;
+  if(!ed || !ed[i] || !d) return;
+  const en = String(d.en || "").trim(), zh = String(d.zh || "").trim();
+  if(!en && !zh){
+    toast(L("英文与中文不能同时留空；要移除这张卡请点「删除」","English and Chinese can't both be empty — use Delete to remove the card"));
+    return;
+  }
+  if(en === ed[i].en && zh === ed[i].zh){ state.factEditIdx = -1; state.factEditDraft = null; render(); return; }
+  ed[i].en = en; ed[i].zh = zh;
+  state.factEditIdx = -1; state.factEditDraft = null;
+  factsSyncToCache();
+  if(hasGenAny()) state.factsDirty = true;
+  toast(L("事实卡 " + (i + 1) + " 已更新；生成文章时用的是这一版","Fact card " + (i + 1) + " updated — generation will use this version"));
+  render();
+}
+function factDelete(i){
+  const ed = factsEditInit(); if(!ed || !ed[i]) return;
+  /* 卡全删光 = 素材没了，GEN 只剩大意骨架能写低档、高档无米下锅。拦在源头并说清原因，
+     不做「删光了再静默产出残次文章」。 */
+  if(ed.length <= 1){ toast(L("至少要保留 1 张事实卡，否则没有内容可写","Keep at least 1 fact card — otherwise there's nothing to write from")); return; }
+  ed.splice(i, 1);
+  state.factEditIdx = -1; state.factEditDraft = null;
+  factsSyncToCache();
+  /* 编号整体前移 → 旧的段落↔事实卡绑定（fact_map / unused_facts）已失准，必须作废 */
+  state.factMap = null; state.unusedFacts = [];
+  state.factsDirty = true;
+  toast(L("已删除事实卡 " + (i + 1) + "，剩 " + ed.length + " 张","Deleted fact card " + (i + 1) + " — " + ed.length + " left"));
+  render();
+}
+/* 事实卡改过、但文章还是改动前那一版 —— 必须说出来，不能让人以为文章跟着变了 */
+function factsDirtyHTML(){
+  if(!state.factsDirty || !state.factsEdit) return "";
+  return `<div class="note warn-note" style="margin-bottom:10px">${L("事实卡已改动：已生成的文章仍是改动前的版本，不会自动更新。请到「08 内容生成」重新生成，再来校对。","Fact cards changed — the generated articles still use the previous version and won't update by themselves. Regenerate at step 08 before proofreading.")}</div>`;
 }
 /* ===== 事实卡 ↔ 段落 绑定（真实溯源） =====
    fact_map 由 Dify nodeGenAll 输出：{"A2":[[1,2],[3],...],"B1":[...],"B2":[...]}
@@ -2645,6 +2769,10 @@ async function startLiveRun(material, label, book, override){
   if(state.live.status === "running"){ toast(L("AI 任务运行中，请稍候…","AI run in progress, please wait…")); return; }
   state.live = { status: "running", material, label: label || "", book: book || "", run: null, err: null, t0: Date.now(), elapsed: 0, nodes: 0 };
   state.genSkipConfirmed = false;   /* 新一轮：重置「低档不可生成」的确认状态 */
+  /* 新一轮抽取 → 上一批的事实卡人工修订层必须作废：不清的话，新卡的编号会套上旧卡的改动，
+     浏览器里看着就是「AI 把事实改错了」。编辑层随 live 一起重开。 */
+  state.factsEdit = null; state.factsEditOrig = null;
+  state.factEditIdx = -1; state.factEditDraft = null; state.factsDirty = false;
   state.factMap = null; state.unusedFacts = [];   /* 新一轮前清空上一轮的段落↔事实卡绑定 */
   state.alignGuard = null;                        /* 同时清空上一轮的段落对齐告警 */
   GEN = {}; state.quiz = {}; state.quizShow = {};   /* 清空上一轮文章与题目（事实抽取不产出文章） */
@@ -2872,6 +3000,8 @@ async function runGeneration(){
   } catch(e){ state.live.status = "error"; state.live.err = "网络错误：" + e.message; }
   state.live.elapsed = ((Date.now() - state.live.t0) / 1000).toFixed(1);
   renderLiveChip();
+  /* 本轮用的就是当前事实卡（含人工修订）→ 之前置的「事实卡已改动」过期提示该撤了 */
+  if(state.live.status === "done" && !liveExcluded() && hasGenAny()) state.factsDirty = false;
   /* 文章生成完立即后台生成音频（必须在 applyLive 之后，GEN 才填好） */
   if(state.live.status === "done" && !liveExcluded() && !Object.keys(state.audio || {}).length){
     genArticleAudio();
@@ -5603,6 +5733,9 @@ function s4(){
   const hasLive = !!(lf && lf.length);
   const running = state.live.status === "running";
   const ready = (hasLive || state.extracted) && !liveExcluded();
+  /* 只有真抽出过卡、且当前没在跑，才给编辑/删除入口 —— 运行中卡片会被进度条顶掉，
+     兜底态（按句拆分出来的假卡）改了也没有下游可写，给了按钮等于骗人。 */
+  const canEdit = hasLive && !running;
   const factCards = facts.map((f, i) => {
     /* C6：原先 QUOTE 与 EVENT 同色、变量名还叫 teal/purple（值却是橙红），后人极易误加绿色。
        现在只保留品牌橙的深浅梯度，类型靠文字徽标区分。 */
@@ -5611,13 +5744,22 @@ function s4(){
     /* 生成后回填：该卡被哪些段落引用；绑定存在却未被引用 → 标黄提示 */
     const cb = hasLive ? factCitedBy(i+1) : "";
     const uncited = hasLive && !!liveFactMap() && !cb;
-    return `<div class="fcard${uncited ? " uncited" : ""}">
-      <div class="top"><span class="tint ${tcolor}">${f.type}</span><span class="fid" title="${L("事实卡内部编号","internal fact-card id")}">${L("事实卡 ","Fact ")}${i+1}</span>${uncited?`<span class="tint warn">${L("未被引用","UNCITED")}</span>`:""}</div>
-      <div class="stmt">${esc(f.stmt)}</div>
-      ${f.zh ? `<div class="zh">${esc(f.zh)}</div>` : ""}
-      <div class="meta"><span>${L("置信","confidence")}</span><div class="confbar ${conf<0.9?"low":""}"><i style="width:${(conf*100).toFixed(0)}%"></i></div><b>${conf.toFixed(2)}</b>
+    const isEd = f.rev === "edited";
+    const editing = canEdit && state.factEditIdx === i && !!state.factEditDraft;
+    const d = state.factEditDraft || { en: "", zh: "" };
+    return `<div class="fcard${uncited ? " uncited" : ""}${editing ? " editing" : ""}">
+      <div class="top"><span class="tint ${tcolor}">${f.type}</span><span class="fid" title="${L("事实卡内部编号","internal fact-card id")}">${L("事实卡 ","Fact ")}${i+1}</span>${isEd?`<span class="tint ok">${L("人工修订","EDITED")}</span>`:""}${uncited?`<span class="tint warn">${L("未被引用","UNCITED")}</span>`:""}
+      ${canEdit && !editing ? `<span class="fops"><button class="fop" onclick="factEditStart(${i})">${L("编辑","Edit")}</button><button class="fop del" onclick="factDelete(${i})">${L("删除","Delete")}</button></span>` : ""}</div>
+      ${editing ? `<textarea class="fedit" placeholder="${L("英文事实（生成文章时用这一版）","English fact (this version is used for generation)")}" oninput="factEditInput('en', this.value)">${esc(d.en)}</textarea>
+      <textarea class="fedit zh" placeholder="${L("中文对照（可留空）","Chinese gloss (optional)")}" oninput="factEditInput('zh', this.value)">${esc(d.zh)}</textarea>
+      <div class="fedit-bar"><button class="btn mini" onclick="factEditSave(${i})">${L("保存","Save")}</button><button class="btn mini sec" onclick="factEditCancel()">${L("取消","Cancel")}</button></div>`
+      : `<div class="stmt">${esc(f.stmt)}</div>
+      ${f.zh ? `<div class="zh">${esc(f.zh)}</div>` : ""}`}
+      ${editing ? "" : (isEd
+        ? `<div class="meta"><span>${L("已人工修订 · 生成文章时以本版本为准","edited by hand — generation uses this version")}</span></div>`
+        : `<div class="meta"><span>${L("置信","confidence")}</span><div class="confbar ${conf<0.9?"low":""}"><i style="width:${(conf*100).toFixed(0)}%"></i></div><b>${conf.toFixed(2)}</b>
       <span class="tint ${f.rev==="auto"?"ok":"warn"}">${f.rev==="auto"?"AUTO":L("复核","REVIEW")}</span></div>
-      <div class="senref"> ${esc(f.anchor)} · ${L("交叉验证","cross-check")}: ${esc(f.cross)}</div>
+      <div class="senref"> ${esc(f.anchor)} · ${L("交叉验证","cross-check")}: ${esc(f.cross)}</div>`)}
       ${cb ? `<div class="citedby"> ${L("被引用","cited in")} ${cb}</div>` : ""}
     </div>`;
   }).join("");
@@ -5682,6 +5824,7 @@ function s4(){
     </div>
     <div>
       <div class="pane-h" style="justify-content:space-between"><span>${L("事实卡池 · FACT CARDS","FACT CARDS")}</span>${ready?`<span class="tint ok">${facts.length} ${hasLive?L("张 · 由 AI 真实抽取","cards · extracted live by AI"):L("张 · 已抽取","cards · extracted")}</span>`:""}</div>
+      ${factsDirtyHTML()}
       <div class="factlist" id="factlist">${factBody}</div>
       ${ready?`<div class="note" style="margin-top:10px">${L("置信度 ≥0.85 自动通过 · 0.6–0.85 人工复核（黄）· 数据卡强制交叉验证；单一信源事实生成时须保留原文限定词（如 nearly / around）。","Confidence ≥0.85 auto-pass · 0.6–0.85 human review · DATA cards cross-checked. Single-source facts keep their qualifiers (e.g. nearly / around).")}</div>`:""}
     </div>

@@ -187,11 +187,16 @@ async function main() {
     ['② 同档邻段未被误改', o.genNeighbor === JSON.stringify(['ORIGINAL-A1-p2']), o.genNeighbor],
     ['② 其它档未被误改', o.genOtherLvl === JSON.stringify(['ORIGINAL-B1-p1']), o.genOtherLvl],
     ['③ 草稿落盘且内容一致', o.draftSaved === true && o.draftTarget === JSON.stringify([EDIT_VAL]), `saved=${o.draftSaved} val=${o.draftTarget}`],
-    ['③ 界面有「已自动保存」反馈', o.draftStatShown === true, String(o.draftStatShown)],
+    /* 口径变更（2026-09-23，Bryan 要求删废话）：界面上那句「已自动保存到本机 hh:mm」已撤，
+       `#draftStat` 元素不再存在、markDraftStat() 变成空转。真正要保的是「草稿真落盘」（上一条），
+       所以这里改成**断言它不再出现**，而不是删掉断言 —— 免得日后有人把提示加回来没人发现。 */
+    ['③ 界面不再有「已自动保存」文案（草稿只落盘、不打扰）', o.draftStatShown === false, String(o.draftStatShown)],
     ['④ 段落词数徽标已刷新', /^\d+/.test(String(o.wordBadge)), o.wordBadge],
     ['⑤ 审核页显示编辑后文本', o.reviewShowsEdited === true, String(o.reviewShowsEdited)],
     ['⑤ 审核页不含原文', o.reviewShowsOriginal === false, String(o.reviewShowsOriginal)],
-    ['⑤ 审核页保持只读', o.reviewEditableCount === 0, String(o.reviewEditableCount)],
+    /* 口径反转（2026-09-23，Bryan 明确要求）：「人工审核允许编辑、实时修改，改过的版本就是最终版本」。
+       原先断言「审核页必须只读」已与需求相反 —— 留成反向断言，锁住「审核页确实可编辑」这件事。 */
+    ['⑤ 审核页可编辑（口径反转为「人工审核可实时改」）', o.reviewEditableCount > 0, String(o.reviewEditableCount)],
     ['⑥ 切回校对页仍是编辑后', o.backText === EDIT_VAL, o.backText],
     ['⑦ 入库 paras 含编辑', o.bankParasA1.indexOf(EDIT_VAL) >= 0, o.bankParasA1],
     ['⑦ 入库 articles 含编辑', o.bankHasEdit === true, String(o.bankHasEdit)],
