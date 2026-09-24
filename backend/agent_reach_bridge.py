@@ -3015,6 +3015,29 @@ class Handler(BaseHTTPRequestHandler):
             note_error("request.body", e, severity="warn", path=getattr(self, "path", ""))
             return {}
 
+    def _serve_card_check(self):
+        """分级卡片页的质检模块 frontend/card_check.js。
+
+        🔴 必须单独开路由：card.html 里是 `<script src="card_check.js">` 的相对引用，
+        本地用静态服务器整目录托管时能命中，**Railway 上只有 bridge 单服务托管**，
+        相对路径会打到 /card_check.js 而 404 —— 页面看着能开，但 CardCheck 是 undefined，
+        整条质检链路静默失效（2026-09-24 线上实测踩到）。路径写死，不接受任何外部拼接。
+        """
+        fp = os.path.join(_BASE_DIR, "frontend", "card_check.js")
+        if not os.path.exists(fp):
+            return self._send({"ok": False, "error": "card_check.js not found"}, 404)
+        try:
+            with open(fp, "rb") as f:
+                data = f.read()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/javascript; charset=utf-8")
+            self.send_header("Content-Length", str(len(data)))
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
+            self.wfile.write(data)
+        except Exception:
+            return self._send({"ok": False, "error": "card_check.js read failed"}, 500)
+
     def _serve_template(self):
         """导出 docx 的版式模板（frontend/template.docx）。路径写死，不接受外部参数。"""
         fp = os.path.join(_BASE_DIR, "frontend", "template.docx")
@@ -3329,6 +3352,9 @@ class Handler(BaseHTTPRequestHandler):
         if path in ("/card", "/card.html"):
             # 分级卡片新链路（工具包提示词 + 前端代码质检），与首页相互独立
             return self._serve_index(FRONTEND_CARD)
+        if path == "/card_check.js":
+            # 卡片页的质检模块（纯前端 JS，与首页无关）
+            return self._serve_card_check()
         if path == "/template.docx":
             # 导出 docx 用的版式模板（含 DocTitle / DocLevel 样式）；路径写死，不接受外部参数
             return self._serve_template()
