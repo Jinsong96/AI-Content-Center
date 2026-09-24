@@ -2,25 +2,40 @@
 
 > **为什么有这个目录**：技能运行副本在 `~/.workbuddy/skills/`，
 > 它**只存在于装了它的那台机器上** —— 换电脑就没了。
-> 而这两份技能（约 1,800 行）承载的正是「怎么安全改这个项目」的全部经验。
+> 而这些技能承载的正是「怎么安全改这个项目」的全部经验。
 > 按 `AGENTS.md` §10 的原则「**知识必须落进仓库**」，这里放一份镜像。
+
+## 四份镜像
+
+| 技能 | 对应 | 什么时候用它 |
+|---|---|---|
+| `readpal-frontend` | 🔵 **V1** 前端 | 改 `frontend/index.html`、`backend/agent_reach_bridge.py`，或要验证线上效果、部署上线 |
+| `readpal-dify-workflow` | 🔵 **V1** 工作流 | 改 Dify 图（FACT / GEN / MAIN / 授权母稿链路）、提示词、知识库，或排查「工作流跑不通 / 秒退」 |
+| `cefr-card-rewrite` | 🟢 **V2** 分级卡片 | 改分级卡片链路（提示词 + 质检判据 + 模板）、母稿改写、导出 Word |
+| `readpal-import-pack` | 内容交付 | 把多难度混排的 Word 拆成后台导入格式（正文 docx + 题目 xlsx + 母稿），逐字核验 |
+
+> 🔵 = V1 智能体（内容生产后台，入口 `/`）　🟢 = V2 智能体（分级卡片，入口 `/card`）
 
 ## 换设备 / 换账号怎么用
 
 ```bash
-# 1) 拉源码镜像（别 git clone —— 仓库含 90MB 音频）
-python3 tools/fetch_sources.py "$WS/readpal"          # $WS = 当前 WorkBuddy 工作区
+WS="<你的工作区>"
 
-# 2) 装回技能
+# 1) 拉源码镜像（别 git clone —— 仓库含约 90MB 音频）
+python3 "$WS/readpal/tools/fetch_sources.py" "$WS/readpal"
+
+# 2) 装回技能（按需复制，四份全装也可以）
 mkdir -p ~/.workbuddy/skills
-cp -R "$WS/readpal/skills/readpal-frontend"       ~/.workbuddy/skills/
-cp -R "$WS/readpal/skills/readpal-dify-workflow"  ~/.workbuddy/skills/
+cp -R "$WS/readpal/skills/readpal-frontend"      ~/.workbuddy/skills/
+cp -R "$WS/readpal/skills/readpal-dify-workflow" ~/.workbuddy/skills/
+cp -R "$WS/readpal/skills/cefr-card-rewrite"     ~/.workbuddy/skills/
+cp -R "$WS/readpal/skills/readpal-import-pack"   ~/.workbuddy/skills/
 
 # 3) 补本机令牌（.env.json 不入库，见下）
 cp "$WS/readpal/tools/.env.json" ~/.workbuddy/skills/readpal-frontend/scripts/.env.json
 ```
 
-## ⚠️ 两条维护约定
+## ⚠️ 三条维护约定
 
 1. **`.env.json` 永远不入库。** 镜像里已剔除；`~/.workbuddy/skills/readpal-frontend/scripts/.env.json`
    与 `tools/.env.json` 是同一份令牌，属本地文件（`.gitignore` 已排除）。
@@ -31,6 +46,9 @@ cp "$WS/readpal/tools/.env.json" ~/.workbuddy/skills/readpal-frontend/scripts/.e
    `scripts/` 下另有 6 个 `tools/` 里没有的探针：
    `probe_contract.mjs` `probe_live_e2e.mjs` `probe_review_levels.mjs`
    `probe_toutiao_fulltext.py` `screenshot.sh` `verify_live.sh` —— 它们只在这里。
+3. **技能改了要重新镜像，别只改运行副本。**
+   只改 `~/.workbuddy/skills/` 的那一份，换设备就丢了 —— 等于白改。
+   本目录是「换设备能拿回来」的唯一保险。
 
 ## 谁是真源
 
