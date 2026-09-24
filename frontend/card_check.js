@@ -235,18 +235,35 @@
      把句数先写死，词数才是从句数长出来的。 */
   var NAT_SENT = { 'A1-': 8, 'A2': 10, 'B1': 13 };
 
+  /* 单卡的句数上限（词数预算折成句数）。budgetTable 与 sentCap 都走它 —— 一处改、两处同变，
+     不会出现「表里写 ≤25 句、回炉指令里写 ≤27 句」这种自相矛盾。 */
+  function sentCapOf(cardWords, lv) {
+    var b = band(lv), n = NAT_SENT[lv];
+    if (!b || !n) return 0;
+    var mid = cardWords * (b[0] + b[1]) / 2;
+    return Math.max(1, Math.round(mid / n));
+  }
+
+  /* 该档「全文句数上限」= 逐卡上限之和。
+     为什么要单独暴露：实测（2026-09-24）字数超上限**几乎全是句数超**——
+     同一篇原文，B1 预算 ≤25 句，模型连续 4 轮都写 30 句（词数 402–436，87–94%），
+     而它的均句长（13.4）本来就是对的。回炉指令里写「删掉 44 个词」它不动，
+     写「删掉 5 个整句」才是它能数、能执行的量。 */
+  function sentCap(masterCards, lv) {
+    return (masterCards || []).reduce(function (a, c) { return a + sentCapOf(words(c).length, lv); }, 0);
+  }
+
   function budgetTable(masterCards) {
     var total = 0;
     var lines = ['每张卡的词数预算（= 母稿该卡词数 × 档位比例，代码算好）。'
-      + '写法照抄「词数 + 约几句」，不要自己估：'];
+      + '**词数要落进这个区间 —— 低于下限和高过上限一样不合格**；'
+      + '**句数同样是硬上限（每张卡都不许超）—— 词数和句数两个都要满足**。'];
     masterCards.forEach(function (c, i) {
       var n = words(c).length; total += n;
       var seg = ['A1-', 'A2', 'B1'].map(function (lv) {
         var b = band(lv);
-        var mid = n * (b[0] + b[1]) / 2;
-        var sc = Math.max(1, Math.round(mid / NAT_SENT[lv]));
         return lv + ' ' + Math.round(n * b[0]) + '–' + Math.round(n * b[1])
-          + ' 词（约 ' + sc + ' 句）';
+          + ' 词（≤ ' + sentCapOf(n, lv) + ' 句）';
       });
       lines.push('[' + (i + 1) + '] 母稿 ' + n + ' 词　→　' + seg.join(' ｜ '));
     });
@@ -256,11 +273,16 @@
     });
     lines.push('合计（全文）：' + sum.join(' ｜ '));
     /* 死线单独列一行：模型的系统性超写只靠「靶心」约束不住，必须把不可越过的上界
-       用绝对词数写死（不是百分比 —— 它算不动百分比）。 */
+       用绝对词数写死（不是百分比 —— 它算不动百分比）。句数上限同列一行，理由同上。 */
     var ceil = ['A1-', 'A2', 'B1'].map(function (lv) {
       return lv + ' ≤ ' + Math.floor(total * RATIO[lv][1]) + ' 词';
     });
     lines.push('🔴 死线（越线即不合格，必须回头删）：' + ceil.join(' ｜ '));
+    var sceil = ['A1-', 'A2', 'B1'].map(function (lv) {
+      return lv + ' ≤ ' + sentCap(masterCards, lv) + ' 句';
+    });
+    lines.push('🔴 句数死线（同样越线即不合格）：' + sceil.join(' ｜ ')
+      + ' —— 超了就是**整句删**，不是把句子写短。');
     return lines.join('\n');
   }
 
@@ -448,6 +470,7 @@
     splitOriginal: splitOriginal, splitToCards: splitToCards, alignCards: alignCards,
     validateStarts: validateStarts,
     normKeepPara: normKeepPara, budgetTable: budgetTable, band: band,
+    sentCap: sentCap, sentCapOf: sentCapOf, NAT_SENT: NAT_SENT,
     check: check, run: run
   };
 

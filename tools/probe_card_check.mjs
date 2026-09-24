@@ -139,5 +139,87 @@ function grabFn(src, name) {
      a ? (a === b ? '' : '页面 ' + a.length + ' 字符 vs 探针 ' + (b ? b.length : '缺失')) : '页面里找不到该函数');
 });
 
+/* [5] 跨侧不变式：页面写出去的 fix_levels，图上的解析节点必须能还原成这几档。
+   由来（2026-09-24）：页面把「本轮只输出这几档」整句当 fix_levels 传，而解析节点当时是
+   「按分隔符切词 + 档位名前缀匹配」—— 切出来的第一个词带中文前缀，匹配落空 ⇒ ASKED 退回四档 ⇒
+   「只重写 B2+」被判成「缺 A1-/A2/B1」⇒ 回炉整轮作废（实测第 3–5 轮连续白跑）。
+   这类坑靠人眼看不出来，所以把「两头口径」钉成断言。 */
+console.log('\n[5] 跨侧：fix_levels 文本 ↔ 解析侧档位还原');
+const GRAPH_PY = fs.readFileSync(path.join(REPO, 'tools/build_card_graph.py'), 'utf-8');
+/* 解析侧口径（与 build_card_graph.py 的 PARSE_CODE 同一套）：全文扫描档位名 */
+const askedOf = s => {
+  const out = [];
+  (String(s || '').match(/A1-?|A2|B1|B2\+/gi) || []).forEach(t => {
+    const k = t.toUpperCase().replace(/^A1-?$/, 'A1-').replace(/^B2\+$/, 'B2+');
+    if (out.indexOf(k) < 0) out.push(k);
+  });
+  return out;
+};
+const pageScopeHint = grabFn(PAGE_HTML, 'scopeHint');
+ok('页面里能取到 scopeHint', !!pageScopeHint);
+if (pageScopeHint) {
+  /* 直接跑页面的 scopeHint（用 new Function 还原成可调用函数） */
+  const fn = new Function(pageScopeHint + '; return scopeHint;')();
+  [['B2+'], ['A2', 'B1'], ['A1-', 'A2', 'B1', 'B2+'], ['B1', 'B2+']].forEach(lv => {
+    const txt = fn(lv);
+    const back = askedOf(txt);
+    ok('还原 ' + lv.join('/') + '（' + txt.slice(0, 24) + '…）', back.join('/') === lv.join('/'),
+       '口径还原成 ' + JSON.stringify(back));
+  });
+}
+ok('图侧解析已改成「全文扫描档位名」（不再依赖档位出现在第几个词）',
+   GRAPH_PY.indexOf('match(/A1-?|A2|B1|B2\\+/gi)') >= 0,
+   'build_card_graph.py 里找不到全文扫描的档位正则');
+ok('图侧仍把未点名的档位排除在缺档判定外（ASKED 机制在）',
+   GRAPH_PY.indexOf('ASKED.indexOf(lv) >= 0') >= 0, 'ASKED 判定没找到');
+ok('图侧主题词硬约束在（必须逐字出现在母稿正文里）',
+   GRAPH_PY.indexOf('主题词必须逐字出现在母稿正文里') >= 0, '提示词里没有这条约束');
+ok('图侧禁止照抄范例的题目/解析（实测会整题串味）',
+   GRAPH_PY.indexOf('范例只示范「格式和难度」') >= 0, '提示词里没有禁止照抄范例的约束');
+
+/* [6] 回炉指令本身（buildFixList）：它现在承担了大部分回炉语义，必须直接测。
+   实测逼出来的三条：① 超上限要给**句数差量**（「删掉 5 个整句」，只给词数它不动）；
+   ② 低于下限要给**均句长**方向（不能靠加句，句数已到上限）；
+   ③ 长句要**逐句**列出并明说「用分号假装断句无效」。 */
+console.log('\n[6] 回炉指令 buildFixList（双向篇幅指引 + 逐句拆法）');
+const pageFix = grabFn(PAGE_HTML, 'buildFixList');
+ok('页面里能取到 buildFixList', !!pageFix);
+if (pageFix) {
+  const mkFix = new Function('CardCheck', pageFix + '; return buildFixList;')(CC);
+  /* 10 张母稿卡（词数与真实切分同量级：25–63 词） */
+  const MC = [40, 57, 37, 52, 51, 34, 48, 53, 25, 63].map(n =>
+    Array.from({ length: n }, (_, i) => 'word' + i).join(' ') + '.');
+  /* 生成「每卡 sentences 句 × wps 词」的卡（真实形态：B1 每卡 2–3 句、A1- 每卡 2 句）。
+     ⚠️ 每句首字母必须大写 —— 断句器按 `.?!` + 空白 + `["'A-Z0-9]` 切，小写开头切不开。 */
+  const lvCards = (sentences, wps) => Array.from({ length: 10 }, () =>
+    Array.from({ length: sentences }, () => Array.from({ length: wps }, (_, i) => (i ? 'w' : 'W') + i).join(' ') + '.').join(' '));
+  /* ① B1 超上限：10 卡 × 3 句 × 14 词 = 420 词 / 30 句（B1 句数上限 25 ⇒ 超 5 句） */
+  let rep = { origWc: 460, cardsByLevel: { 'B1': lvCards(3, 14) },
+    stats: [{ level: 'B1', wc: 420, ratio: 0.913, avg: 14.0 }],
+    errs: ['B1 词数 420（91%），目标 65–78%，即 299–358 词'] };
+  let t = mkFix(rep, { levels: { 'B1': { questions: [] } } }, MC);
+  ok('超上限：给出**句数差量**（删掉 N 个整句）', /删掉 \d+ 个整句/.test(t), t.slice(0, 260));
+  ok('超上限：给出**逐张卡硬上限**', /逐张卡硬上限/.test(t), '');
+  ok('超上限：明说「不许靠合并句子压词数」', t.indexOf('不许靠') >= 0 && t.indexOf('合并句子') >= 0, '');
+  /* ② A1- 低于下限：10 卡 × 2 句 × 6 词 = 120 词 / 20 句（A1- 句数上限 19 ⇒ 句数也超）
+     —— 正是实测遇到的那种「句数超、字数却不够」的两头夹心，必须只给「加词」方向 */
+  rep = { origWc: 460, cardsByLevel: { 'A1-': lvCards(2, 6) },
+    stats: [{ level: 'A1-', wc: 120, ratio: 0.26, avg: 6.0 }],
+    errs: ['A1- 词数 120（26%），目标 30–42%，即 138–193 词'] };
+  t = mkFix(rep, { levels: { 'A1-': { questions: [] } } }, MC);
+  ok('低于下限：方向是**加词**', t.indexOf('方向是**加词**') >= 0, t.slice(0, 260));
+  ok('低于下限：给**均句长**目标（不靠加句）', /均句长/.test(t) && /句数上限/.test(t), '');
+  ok('低于下限：明说不要新增原文没有的事实', t.indexOf('不要新增原文没有的事实') >= 0, '');
+  ok('低于下限：**不再同时出现「删掉 N 个整句」**（两头夹心只说一个方向）',
+     !/删掉 \d+ 个整句/.test(t), '同时给了删句和加词两个反向指令');
+  /* ③ 篇幅已达标 + 长句：逐句列出并说明分号无效 */
+  rep = { origWc: 460, cardsByLevel: { 'B1': lvCards(25) },
+    stats: [{ level: 'B1', wc: 340, ratio: 0.74, avg: 14.0 }],
+    errs: ['B1 卡⑧ 句子 28 词 > 22：He says the Mediterranean diet is best.'] };
+  t = mkFix(rep, { levels: { 'B1': { questions: [] } } }, MC);
+  ok('长句：逐句列出并给出「各拆成 2 句」', /必须各拆成 2 句/.test(t), '');
+  ok('长句：明说「用分号 / 逗号假装断句无效」', t.indexOf('假装') >= 0 && t.indexOf('只认') >= 0, '');
+}
+
 console.log(`\n=== ${pass} 通过 / ${fail} 失败 ===`);
 process.exit(fail ? 1 : 0);

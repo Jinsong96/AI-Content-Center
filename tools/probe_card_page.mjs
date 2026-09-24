@@ -140,12 +140,12 @@ console.log('    面板文案:', RD.txt.slice(0, 120));
 ok('状态里记了轮次', RD.round >= 1 && Array.isArray(RD.rounds) && RD.rounds.length >= 1, JSON.stringify(RD.rounds));
 ok('第 1 轮记的是真实未过项数', RD.rounds.length >= 1 && typeof RD.rounds[0].errs === 'number',
    JSON.stringify(RD.rounds[0] || null));
-ok('轮次递增且不超过上限 3', RD.rounds.every((r, i) => r.round === i + 1) && RD.rounds.length <= 3,
+ok('轮次递增且不超过上限 5', RD.rounds.every((r, i) => r.round === i + 1) && RD.rounds.length <= 5,
    JSON.stringify(RD.rounds.map(r => r.round)));
 ok('面板显示了轮次记录', /生成轮次/.test(RD.txt), RD.txt.slice(0, 80));
 if (RD.rounds.length > 1) {
   /* 拼装后（各档取历史最优）的错误数**单调不增** —— 这是纯代码保证的，不是碰运气 */
-  const seq = RD.rounds.map(r => r.errs);
+  const seq = RD.rounds.map(r => r.errs).filter(v => typeof v === 'number');   // 解析失败的轮无数字
   ok('拼装后错误数单调不增（按档取最优，必然不退化）',
      seq.every((v, i) => i === 0 || v <= seq[i - 1]), JSON.stringify(seq));
   /* 回炉范围必须是「收窄」的：首轮全量，之后只点名上一轮还有错误的档位 */
@@ -155,6 +155,12 @@ if (RD.rounds.length > 1) {
   ok('回炉只点名没过的档位（scope 非空且不是全量）',
      tail.every(r => (r.scope || []).length > 0 && r.scope.length < 4),
      JSON.stringify(tail.map(r => r.scope)));
+  /* 🔴 2026-09-24 的坑：回炉只点名部分档位时，解析节点曾把「没点名的档位没正文」
+     判成缺档 ⇒ parseFail ⇒ 整轮作废（实测第 3–5 轮连续白跑，那一档真正的残留问题永远修不掉）。
+     这里按「点名了几档」硬钉：收窄的轮次**不允许**出现「本轮缺正文的档位」式误判。 */
+  const bogus = tail.filter(r => r.parseFail && /本轮缺正文的档位/.test(String(r.parseFail)));
+  ok('收窄轮次没有「只输出点名档位 ⇒ 被判缺档」的误报', bogus.length === 0,
+     JSON.stringify(bogus.map(r => ({ scope: r.scope, warn: String(r.parseFail).slice(0, 90) }))));
   console.log('    → 回炉范围：' + RD.rounds.map(r => `第${r.round}轮 ${r.errs}处`
     + ((r.scope || []).length ? '[只改 ' + r.scope.join('/') + ']' : '[全量]')).join(' → '));
 } else {

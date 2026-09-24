@@ -2,7 +2,7 @@
 
 > **本文件给 AI 助手读。任何新会话（换电脑 / 换 WorkBuddy 账号 / 新 agent）动工前请先读完。**
 > 仓库即唯一真源，本文件不含任何本机绝对路径，换任何设备都适用。
-> 最后更新：2026-09-18
+> 最后更新：2026-09-24（新增坑 25–28：跨侧文本解析 / 指令要给可数的量 / 单服务静态资源路由 / 同源函数同步）
 
 ---
 
@@ -15,6 +15,7 @@
 | 代码仓库 | `https://github.com/Jinsong96/AI-Content-Center`（main 分支） |
 | 线上站点 | Railway，推 GitHub 后**自动部署**（约 90 秒） |
 | 前端真源 | `frontend/index.html`（单文件，约 73 万字节，所有页面 / JS / CSS 全在里面） |
+| 分级卡片页（独立 demo） | `frontend/card.html` + `frontend/card_check.js`（质检判据 = 教研工具包原判据）→ 线上 `/card`；Dify App「ReadPal · 分级卡片」（图真源 `tools/build_card_graph.py`） |
 | 后端真源 | `backend/agent_reach_bridge.py`（零依赖标准库，同时托管前端） |
 | Dify 真源 | 线上 FACT / GEN 工作流；**仓库 `dify_graphs/` 里的图可能落后于线上**（见坑 18） |
 | 部署文档 | `RAILWAY_DEPLOY.md`（含 10 条故障排查） |
@@ -88,6 +89,11 @@ tools/push_via_api.py            GitHub API 直传（治坑 8）
 tools/e2e_verify.mjs             端到端回归：登录 + 遍历 12 页 + 收集 JS 异常
 tools/theme_audit.mjs            配色合规审计：遍历 12 页揪出非「黑/灰/橙红」色相
 tools/cdp_shot.mjs               CDP 精确视口截图（多尺寸一次出图，治坑 12）
+tools/sync_card_shared.mjs       分级卡片：页面 → 生成侧探针 共享函数逐字同步（治坑 28）
+tools/probe_card_check.mjs       分级卡片：离线质检回归（51 项，含同源守卫 / 跨侧不变式 / 回炉指令单测）
+tools/probe_card_parse.mjs       分级卡片：解析节点单测（8 项，秒级，钉死「回炉范围不失败」）
+tools/probe_card_page.mjs        分级卡片：端到端真跑（30 项：生成 + 渲染 + 导出）
+tools/probe_card_gen.mjs         分级卡片：生成侧诊断（一轮 ~10s，调提示词用）
 dify_graphs/*.new.json           Dify 图快照（**仅参考**，真源是线上草稿，见坑 18）
 dify_kb_backup/                  分级标准 / 敏感规则语料（知识库真源）
 launcher_mac/                    macOS 启动器
@@ -488,6 +494,50 @@ avoid_words in input form must be less than 500 characters
 > 同族坑：`build_main_graph.py` 的 `LEVELS12` 曾写内部 key `['A1','A2','B1','B2']`，
 > 而 MAIN 的 `nodeStart`（来自 FACT）用的是**展示名** `['A1-','A2','B1','B2+']`
 > → 这项校验**恒定误报**。**校验器自己的口径错也会伪装成「图错了」。**
+
+### 坑 25：跨侧传文本时，「按位置解析」必然失败 —— 要么传可解析的形式，要么全文扫描（2026-09-24）
+
+页面把「本轮只输出这几档」的**整句人话**当 `fix_levels` 传给图，图上解析节点按
+「分隔符切词 + 档位名前缀匹配」取档位 → 第一个词带中文前缀 → 匹配落空 → `ASKED` 退回四档
+→ 「只重写 B2+」被判成「缺 A1-/A2/B1」→ **回炉整轮作废**（实测第 3–5 轮连续白跑，
+而且**不报错**，面板只显示「解析未通过·已跳过」）。
+
+> **规则**：跨侧传的字符串，**要么约定成可机械解析的纯列表，要么解析侧全文扫描**，
+> 别依赖「第一个词就是我要的」。两头都加固最好。
+> 这类坑人眼看不出（界面上轮次照跑），必须靠断言钉住 ——
+> 见 `tools/probe_card_check.mjs` 第 [5] 段的**跨侧不变式**。
+
+### 坑 26：**「少写几个词」模型算不动，「少写几句」它算得动**（2026-09-24）
+
+同一个提示词/温度，B1 连续 4 轮回炉的轨迹是 **370 → 375 → 390 词**（指令里写的是
+「全文要删掉 12 个词以上」）。而拆开看：预算 ≤25 句，模型**每轮都写 30 句**、
+均句长 13.4 本来就是对的 ⇒ **超词数 100% 来自多写的 5 句**。
+把指令换成「**句数超了 5 句 → 删掉 5 个整句**」后，**两轮就进区间**（405 → 359 → 348）。
+
+> **规则**：所有「按量调整」类指令，一律翻译成**有限的整数**（几句 / 每卡 ≤N 词 / 删 N 句），
+> 不要给百分比或「总量差多少」。给「全文删 12 个词」它不动；给「每张卡 ≤35 词」它就当场核对。
+> 反向同理：字数**不足**时给的是**均句长**（不能靠加句 —— 句数已到上限）。
+
+### 坑 27：单服务托管下，相对路径引用的静态资源**必须显式开路由**（2026-09-24）
+
+`/card` 页面用 `<script src="card_check.js">`（相对路径）。本地 `python3 -m http.server` 能取到，
+但 Railway 上只有 bridge 一个服务 → `/card_check.js` **404** → `CardCheck` undefined →
+**整条质检链路无声失效**（页面照常渲染，`ratio` 全是 null）。
+
+> **规则**：新增任何单页 / 静态资源，**同时**在 `backend/agent_reach_bridge.py` 里加路由
+> （已有：`/card`、`/card_check.js`、`/template.docx`），并本地起服务验一次
+> `curl -s -o /dev/null -w "%{http_code} %{content_type}"`。
+> **页面能打开 ≠ 依赖的资源能加载。**
+
+### 坑 28：同源共享函数**手改必漏** —— 用工具同步 + 断言守卫（2026-09-24）
+
+页面 `card.html` 与生成侧诊断 `tools/probe_card_gen.mjs` 有 6 个函数必须**逐字一致**
+（`keepBest` / `assembleBest` / `mergeCard` / `failingLevels` / `scopeHint` / `buildFixList`）。
+靠手改漏同步过三次：漏 `scopeHint`、把 `buildFixList` 整段删掉、注释差 103 字符。
+
+> **规则**：改这几个函数 → `node tools/sync_card_shared.mjs --write`；
+> 再跑 `node tools/probe_card_check.mjs`（第 [4] 段用**大括号配对**抽取两边函数体逐字比长度）。
+> ⚠️ 用「找下一个 `function`」的正则会跑过头，必须配对括号（跳过字符串 / 模板串 / 注释）。
 
 
 ---

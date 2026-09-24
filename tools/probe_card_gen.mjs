@@ -51,9 +51,13 @@ function keepBest(rep, card, best) {
     const cards = (rep.cardsByLevel || {})[lv] || [];
     if (lv !== 'B2+' && !cards.length) return;
     const n = levelErrs(rep, lv);
-    if (best[lv] && best[lv].errs <= n) return;      // 手里已经有更好的一版
+    const nw = levelWcErrs(rep, lv);
+    if (best[lv]) {
+      if (best[lv].errs < n) return;                                  // 手里已经有更好的一版
+      if (best[lv].errs === n && best[lv].wc <= nw) return;           // 打平：篇幅已达标的优先
+    }
     const qs = (((card.levels || {})[lv] || {}).questions) || [];
-    best[lv] = { cards: cards.slice(), questions: qs.slice(), errs: n };
+    best[lv] = { cards: cards.slice(), questions: qs.slice(), errs: n, wc: nw };
     got.push(lv);
   });
   return got;
@@ -75,7 +79,14 @@ function assembleBest(card, best) {
 
 /* 增量合并：只取「本轮点名重写」的档位，其余档位一个字都不动。
    fixLevels 为空 = 全量替换（首次生成，或结构性问题需要整篇重来）。
-   注意母稿正文（B2+ 的 cards）永远以代码算的那份为准。 */
+   注意母稿正文（B2+ 的 cards）永远以代码算的那份为准。
+
+   ⚠️ topic_words 是**全局**字段（不属于任何一档），但也必须收进来：
+   「缺少主题词」是唯一一条**只能靠换词修**的错误 —— B2+ 正文是代码硬取的原文，
+   改正文修不掉它；不收 topic_words 就等于这条错误永远修不动（实测：跑满 5 轮仍停在
+   「B2+ 缺少主题词」，整轮生成白费）。照抄上一稿时模型给的就是原值，不产生漂移。
+   档位的 cards / questions 仍走「按错误数留历史最优」，最终结论也在拼装后**重算**，
+   所以交付不会因为这一条而变差。 */
 function mergeCard(prev, partial, fixLevels) {
   if (!prev || !fixLevels || !fixLevels.length) return partial;
   const out = JSON.parse(JSON.stringify(prev));
@@ -89,6 +100,8 @@ function mergeCard(prev, partial, fixLevels) {
     out.levels['B2+'] = out.levels['B2+'] || {};
     out.levels['B2+'].cards = B.cards.slice();
   }
+  const tw = ((partial || {}).topic_words || []).map(w => String(w || '').trim()).filter(Boolean);
+  if (tw.length) out.topic_words = tw;
   return out;
 }
 
@@ -116,9 +129,12 @@ function buildFixList(report, card, masterCards) {
   const cardsOf = lv => (((report.cardsByLevel || {})[lv] || []).length)
     ? report.cardsByLevel[lv] : ((((card || {}).levels || {})[lv] || {}).cards || []);
 
-  /* Dify 那边 fix_list 有长度上限（历史值 4000 字符）。按预算逐档附，附不下就明说 ——
-     绝不让上游 400 硬失败、也绝不静默省掉说明。 */
-  const LIMIT = 3800;
+  /* Dify 那边 fix_list 有 max_length 上限，**图上现在是 20000**（见 build_card_graph.py）。
+     这里留 3000 字符余量给 Dify 自身的包装。
+     ⛔ 早先写 3800 是「图上限 4000」时代的遗留，后果很隐蔽：一次回炉点 2–3 个档时，
+     后面的档位草稿会被丢弃，模型拿不到「上一稿」就只能整段重写 —— 篇幅反复压不下来
+     （实测 B1 连续 4 轮停在 84%）。附不下仍然明说，绝不静默。 */
+  const LIMIT = 17000;
   const attach = levels => {
     levels.forEach(lv => {
       const t = cardsOf(lv);
@@ -158,12 +174,63 @@ function buildFixList(report, card, masterCards) {
     const lo = rng ? Math.floor(rng[0] * report.origWc) : 0;
     const hi = rng ? Math.floor(rng[1] * report.origWc) : 0;
     const per = cardsOf(lv).map(c => CardCheck.words(c).length);
-    out.push("· " + lv + "（只改篇幅）：现在 **" + st.wc + " 词**（" + Math.round(st.ratio * 100) + "%），"
+    /* 🔴 句数差量（实测 2026-09-24 证明这是唯一有效的那个量）：
+       同一篇原文，B1 预算 ≤25 句，模型连续 4 轮都写 30 句、词数 402–436（87–94%）不降；
+       而它的均句长 13.4 本就是对的 —— 也就是说**超词数 100% 来自多写的 5 句**。
+       只在指令里写「删掉 44 个词」它不动；写「删掉 5 个整句」它才数得动、才执行。
+       这也正是本项目的既有原则：控字数靠「可数的量」（句数），不靠百分比。 */
+    const lvCards = cardsOf(lv);
+    const curSent = CardCheck.sentences(lvCards.join(" ")).length;
+    const capSent = (typeof CardCheck.sentCap === "function") ? CardCheck.sentCap(masterCards, lv) : 0;
+    const overSent = capSent ? Math.max(0, curSent - capSent) : 0;
+    out.push("· " + lv + "（只改篇幅）：现在 **" + st.wc + " 词 / " + curSent + " 句**（"
+      + Math.round(st.ratio * 100) + "%），"
       + "必须落到 **" + lo + "–" + hi + " 词**" + (st.wc > hi ? " —— 也就是全文要**删掉 "
         + (st.wc - hi) + " 个词以上**，建议删到 " + Math.round((lo + hi) / 2) + " 词左右"
         : " —— 也就是全文要**补回 " + (lo - st.wc) + " 个词以上**"));
-    out.push("    逐张卡现状：" + per.map((n, i) => "(" + (i + 1) + ")" + n).join(" ")
-      + " —— 删完再逐张数一遍");
+    if (overSent && st.wc > hi) {
+      out.push("    🔴 **句数超了 " + overSent + " 句**（现在 " + curSent + " 句，上限 " + capSent
+        + " 句）：**删掉 " + overSent + " 个整句** —— 这是本轮最容易做到、也最有效的一步。");
+      out.push("        句数是硬上限，也是词数的来源：把句数降到 " + capSent
+        + " 句以内，词数自然就进区间。（你的句子长度本来就是对的，**别再写短句**，是**少写几句**。）");
+    }
+    out.push("    逐张卡现状（**句数/词数**）：" + lvCards.map((c, i) => "(" + (i + 1) + ")"
+      + CardCheck.sentences(c).length + "/" + per[i]).join(" ")
+      + " —— 改完再逐张数一遍（词数和句数都要数）");
+    /* 🔴 把「删掉 N 个词」翻译成模型算得动的形式：**逐张卡的绝对上限**。
+       实测（2026-09-24，B1 原文 460 词）：只给「全文要删 12 个词」这种总量指令，
+       连续 3 轮回炉词数 370 → 375 → 390，**不降反涨**；而给「每张卡 ≤ 35 词」
+       它每张卡都能当下核对。同一条思路的既有依据：控字数靠**可数的量**（句数），不靠百分比。 */
+    if (st.wc > hi && per.length) {
+      const cap = Math.floor(hi / per.length);
+      out.push("    🔴 逐张卡硬上限 **" + cap + " 词**（= " + hi + " ÷ " + per.length
+        + " 张）：**每张卡都要 ≤ " + cap + "**，" + per.length + " 张加起来就自然 ≤ " + hi + "。"
+        + "现在超上限的卡：" + per.map((n, i) => n > cap ? "(" + (i + 1) + ")" + n : null)
+            .filter(Boolean).join(" ") + " —— 只改这几张。");
+      out.push("    怎么删（照这个做，**不要整段换一套说法重写**）：");
+      out.push("      ① **整句删**是首选 —— 举例、旁证、可有可无的修饰句直接不要");
+      out.push("         （如 such as diabetes / for example / Doctor X agrees 这类）；");
+      out.push("      ② 保真只要求**核心观点和主体**在，**不要求每个细节都在**；");
+      out.push("      ③ ⛔ 不许靠**合并句子**来压词数（合并会撞本档单句上限，等于没改），要删就整句删。");
+    }
+    /* 🔴 反方向也要给（2026-09-24 补）：**低于下限**同样不合格，而且它是被「拆句」规则带出来的 ——
+       长列举被拆成一项一句（`Olive oil.` / `Oily fish.`）后，A1- 只剩均 6 词/句、总词数 121（26%），
+       连续 5 轮回炉补不回来。低于下限时**不能靠加句**（句数已到上限），只能把句子写长，
+       所以这里给的是「均句长」这个量，并给出本档的单句上下限（MIN_SENT / MAX_SENT）。 */
+    if (st.wc < lo && per.length) {
+      const mn = (CardCheck.MIN_SENT || {})[lv], mx = (CardCheck.MAX_SENT || {})[lv];
+      out.push("    🔴 方向是**加词**（现在比下限还少 " + (lo - st.wc) + " 个词）："
+        + "**不要靠多写句子**（句数上限 " + capSent + " 句" + (overSent ? "，你现在 "
+          + curSent + " 句、反而已经超了)：" : "，已经满了)：") + "要靠**把句子写长**。");
+      out.push("        现在均句长 **" + st.avg.toFixed(1) + " 词/句**，太短了 —— 本档单句可以写到 "
+        + mx + " 词（低于 " + mn + " 词的碎片句也算问题）。目标均句长 **"
+        + Math.max(mn, Math.ceil((lo + hi) / 2 / Math.max(1, curSent))) + "–"
+        + Math.min(mx, Math.ceil(hi / Math.max(1, curSent))) + " 词/句**。");
+      out.push("        怎么加：① 把碎片句**并回完整句**（`Olive oil.` → `People should eat olive oil and oily fish.`，"
+        + "既补了词数又减了句数）；");
+      out.push("        ② 名词补形容词、动作补对象（`We eat food.` → `We eat healthy food every day.`）；");
+      out.push("        ③ ⛔ 不要新增原文没有的事实，也不要把一句话拆成两句。");
+    }
   });
   Object.keys(byLv).forEach(lv => {
     if (lv !== "通用" && wcBad[lv]) return;   // 该档本轮只改篇幅，别的问题下轮再说
@@ -172,20 +239,43 @@ function buildFixList(report, card, masterCards) {
       : "· " + lv + " 篇幅已达标，只修这些问题（篇幅别动）：");
     list.slice(0, 10).forEach(x => out.push("    - " + x));
     if (list.length > 10) out.push("    -（同类问题另有 " + (list.length - 10) + " 处，一并处理）");
+    /* 把「拆句」这件事说到**具体哪一句**上。起因（实测 2026-09-24）：提示词里已经写了
+       「断句只看 . ? !」「长列举要拆开」，但模型连续 4 轮都把那句 28 词的地中海饮食列举原样留着
+       —— 规则埋在长提示词里不管用，落在「这一句、拆成两句」上才有动作。
+       ⛔ 这里只给规则和原文，**不替它造句子**（造句子属于生成，会引入代码编造的内容）。 */
+    const longS = list.map(x => x.match(/^卡(\S+)\s+句子\s+(\d+)\s+词\s+>\s+(\d+)：(.+)$/)).filter(Boolean);
+    if (longS.length) {
+      out.push("    ⚠️ 下面这 " + longS.length + " 句**必须各拆成 2 句**（本档单句硬上限 "
+        + longS[0][3] + " 词）：");
+      longS.slice(0, 6).forEach(m => out.push("      · 卡" + m[1] + " 现 " + m[2] + " 词 → 拆成 2 句：" + m[4]));
+      out.push("      ⛔ 用分号 / 逗号「假装」断句**无效**（代码只认 `.` `?` `!`）；"
+        + "列举串就**一项一句**（`…. Olive oil. Oily fish. Whole grains.`）。"
+        + "拆句**不需要删事实**，只是把一句变成两句。");
+    }
   });
   attach(wcLv.concat(Object.keys(byLv).filter(lv => lv !== "通用" && !wcBad[lv])));
   out.push("");
-  out.push("· 只做加减，**不要把整段换一套说法重写**（重写会让篇幅弹到另一端）。");
-  out.push("✗ 不得删掉原文的核心事实，不得改变谁对谁做了什么；四档卡片数不变、第 N 张仍讲同一件事。");
+  out.push(wcLv.length
+    ? "· 标了「只改篇幅」的档，**只按上面给的方向改篇幅**（该删就删、该加就加，别两件事一起做），"
+      + "**不要把整段换一套说法重写**（重写会让篇幅弹到另一端）。"
+    : "· 只做加减，**不要把整段换一套说法重写**（重写会让篇幅弹到另一端）。");
+  out.push("✗ 不得改变谁对谁做了什么（主体 / 因果 / 立场）；四档卡片数不变、第 N 张仍讲同一件事。"
+    + (wcLv.length ? " ⚠️ 本条只约束「不许改」，**不约束「不许删」** —— 该删的整句照删。" : ""));
   return out.join("\n");
 }
 
 
-/* 「本轮只输出这几档」这句话由代码写死 —— 不指望提示词自己推断出回炉范围 */
+/* 「本轮只输出这几档」这句话由代码写死 —— 不指望提示词自己推断出回炉范围。
+   ⛔ 档位列表**必须放在最前面**（历史教训 2026-09-24）：这句文本同时被图上的解析节点
+   （parse）拿去做「本轮应该出现哪几档」的判定，用的是「按分隔符切词 + 档位名匹配」。
+   早先写「【本轮只输出这几档】B2+：…」，切出来的第一个词带中文前缀 → 匹配落空 →
+   解析判成「缺 A1-/A2/B1」→ 回炉整轮作废（第 3–5 轮连续白跑）。
+   现在两头都加固：图侧改成全文扫描档位名，这里也把列表放在最前，位置加错一层也不怕。 */
 function scopeHint(levels) {
-  return '【本轮只输出这几档】' + levels.join(' / ') + '：`levels` 里**只放列出的档位**，'
+  return levels.join(' / ') + '（本轮只输出这几档）：`levels` 里**只放列出的档位**，'
     + '其余档位整个不要出现在 JSON 里（程序会把它们原样保留，多输出反而会把已达标的档改坏）。'
-    + '`title_en` / `title_zh` / `topic_words` 照抄上一稿，不要重选。';
+    + '`title_en` / `title_zh` 照抄上一稿，不要重选；`topic_words` 也照抄上一稿，'
+    + '**只有本轮问题清单里点了「缺少主题词」时才换词** —— 换成一个**母稿正文里逐字出现过**的词。';
 }
 
 /* 母稿切分：与页面同一条路径（代码切，不交给模型） */
