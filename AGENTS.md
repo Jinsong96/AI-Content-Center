@@ -14,8 +14,8 @@
 | 形态 | 单文件前端 + 零依赖 Python 后端（bridge），前后端同域 |
 | 代码仓库 | `https://github.com/Jinsong96/AI-Content-Center`（main 分支） |
 | 线上站点 | Railway，推 GitHub 后**自动部署**（约 90 秒） |
-| 前端真源 | `frontend/index.html`（单文件，约 73 万字节，所有页面 / JS / CSS 全在里面） |
-| 分级卡片页（独立 demo） | `frontend/card.html` + `frontend/card_check.js`（质检判据 = 教研工具包原判据）→ 线上 `/card`；Dify App「ReadPal · 分级卡片」（图真源 `tools/build_card_graph.py`） |
+| 🔵 **V1 智能体** | 内容生产后台，入口 `/`。前端真源 `frontend/index.html`（单文件，约 91 万字节，所有页面 / JS / CSS 全在里面） |
+| 🟢 **V2 智能体** | 分级卡片，入口 `/card`。`frontend/card.html` + `frontend/card_check.js`（质检判据 = 教研工具包原判据）；Dify App「ReadPal · 分级卡片」（图真源 `tools/build_card_graph.py`） |
 | 后端真源 | `backend/agent_reach_bridge.py`（零依赖标准库，同时托管前端） |
 | Dify 真源 | 线上 FACT / GEN 工作流；**仓库 `dify_graphs/` 里的图可能落后于线上**（见坑 18） |
 | 部署文档 | `RAILWAY_DEPLOY.md`（含 10 条故障排查） |
@@ -23,6 +23,21 @@
 | 自带工具 | `tools/`（源码镜像 / 原子替换 / JS 校验 / API 直传 / 端到端回归 / 精确视口截图 / Dify 图生成器与拼装器 / 节拍实验） |
 
 **禁止**：复制 `index.html` 到别处改（会分叉）。所有会话都改仓库里那一份。
+
+### V1 / V2 命名（2026-09-24 定）
+
+Bryan 在对话里就用「**V1 智能体 / V2 智能体**」称呼这两套：
+
+| | 名称 | 入口 | 干什么 |
+|---|---|---|---|
+| 🔵 | **V1 智能体** | `/` | 内容生产后台（素材 → 分级文章 → 审核 → 文章库） |
+| 🟢 | **V2 智能体** | `/card` | 分级卡片（一篇母稿 → 四档卡片 + 题目） |
+
+- 两套**互不影响**：独立前端文件、独立 Dify 图，后端 `/` 与 `/card` 是两条独立路由。
+- 🔴 **命名只写进文档，不动任何文件路径。** 路径被后端写死
+  （`FRONTEND_HTML` / `FRONTEND_CARD` / `frontend/card_check.js` / `frontend/template.docx`），
+  改名会直接打挂线上。
+- 两条链路的对照、换设备 / 换账号的步骤见 `README.md`；技能装回的步骤见 `skills/README.md`。
 
 ### 分级体系（2026-09-15 起 · **唯一真源 = 飞书《CEFR 分级改写参数规范 v1》**）
 
