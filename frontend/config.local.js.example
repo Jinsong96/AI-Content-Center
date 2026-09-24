@@ -9,5 +9,6 @@ window.WB_CONFIG = {
   DIFY_WF_LICPREP: "",   // Dify 图 A：母稿预处理（提炼要点 → 按需精简 → 分段）
   DIFY_WF_LICGEN:  "",   // Dify 图 B：母稿向下生成（按骨架逐段改写 + 校验）
   DIFY_WF_LITE:    "",   // Dify 图 C：轻量提示词（单节点一次产出 A1-/A2 + 三档题目）
+  DIFY_WF_CARD:    "",   // Dify 分级卡片（工具包提示词，一次产出 A1-/A2/B1 三级卡片 + 四档题目）
   DEMO_PASS:       ""    // 演示账号统一密码（工程化后由后端鉴权取代）
 };

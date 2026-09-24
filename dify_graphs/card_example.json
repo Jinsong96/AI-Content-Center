@@ -1,0 +1,207 @@
+{
+ "title_en": "How honest are you?",
+ "title_zh": "你诚实吗？",
+ "topic_words": [
+  "honest",
+  "dishonest",
+  "honesty"
+ ],
+ "b2_card_starts": [
+  "Let's be honest –",
+  "Or maybe I'm wrong,",
+  "We may agree that",
+  "For example, in some",
+  "This relies on people",
+  "He says: \"We have",
+  "If everybody acted selfishly",
+  "So, for societies to",
+  "But being honest with",
+  "The app now has"
+ ],
+ "levels": {
+  "A1-": {
+   "cards": [
+    "Honest people tell the truth. But we all do small dishonest things. We copy a friend's homework.",
+    "Maybe you are very honest. You think honesty is always best. A man wrote this idea about 300 years ago.",
+    "Good people say sorry for their mistakes. But maybe something in us makes us cheat.",
+    "Some shops have an honesty box. You put money in the box to pay.",
+    "The box needs honest people. But people can easily pay less. A scientist says this is very old in humans.",
+    "Dishonest people get more than others. So they live longer. But selfish people only think about themselves. The group does not like them.",
+    "A world of dishonest people is not nice. So we need a balance.",
+    "People need to trust each other. So they need to be honest. We also have laws about money.",
+    "But true words can bring trouble. Now a new app sends messages with no name.",
+    "About 300 million people use it. But do you really want to know people's true thoughts? Is honesty always best?"
+   ],
+   "questions": [
+    {
+     "q": "What does \"selfish\" mean in card ⑥?",
+     "options": [
+      "Always telling the truth",
+      "Only thinking about yourself",
+      "Living a long time",
+      "Helping the group"
+     ],
+     "answer": "B",
+     "explanation": "卡片⑥原句直接给出了释义：\"selfish people only think about themselves\"，所以B正确。D\"帮助群体\"最容易误选，因为同一张卡里出现了\"the group\"，但文中说的是群体不喜欢自私的人，意思正好相反。"
+    },
+    {
+     "q": "What do you do with an honesty box?",
+     "options": [
+      "You put money in it to pay",
+      "You take money out of it",
+      "You send messages with it",
+      "You write your name on it"
+     ],
+     "answer": "A",
+     "explanation": "卡片④说\"You put money in the box to pay.\"，即把钱放进箱子来付款，所以A正确。B\"从箱子里拿钱\"与付款方向正好相反，是最容易因\"money\"和\"box\"同时出现而误选的干扰项。"
+    },
+    {
+     "q": "Why do dishonest people live longer, according to the text?",
+     "options": [
+      "Because the group likes them",
+      "Because they say sorry",
+      "Because they get more than other people",
+      "Because they use a new app"
+     ],
+     "answer": "C",
+     "explanation": "卡片⑥说\"Dishonest people get more than others. So they live longer.\"，So 前面的句子就是原因，所以C正确。A最容易误选，但文中明确说群体不喜欢自私的人，正好相反。"
+    }
+   ]
+  },
+  "A2": {
+   "cards": [
+    "Let's be honest: most of us have done something a little dishonest. Maybe we copied a friend's work. Or a shop gave us too much change, and we said nothing.",
+    "Or maybe you always tell the truth. You believe that \"honesty is the best policy\". Benjamin Franklin wrote these words in the 1700s.",
+    "We know we should say sorry for our mistakes. But is there something in human nature that makes us cheat?",
+    "Some shops and car parks have an honesty box. You put money in it to pay, and the shop trusts you.",
+    "But many people want to pay less. Philip Graves, a psychologist, says this feeling comes from how humans developed over time.",
+    "He says that when we get more than others, we have a better chance to survive. But dishonest people are selfish, and the group does not like them.",
+    "If everyone is dishonest all the time, the world will be a terrible place. We can help ourselves, but we should not lose our place in the group.",
+    "People must trust each other to work together. So we have to be honest. Laws also protect us from money crimes.",
+    "But when we say what we really think, we can get into trouble. Now a new app lets anyone send you a message with no name.",
+    "The app has 300 million users. But do you really want to know what people think about you? Is honesty always the best policy?"
+   ],
+   "questions": [
+    {
+     "q": "What does \"change\" mean in card ①?",
+     "options": [
+      "A new idea",
+      "A different way of living",
+      "A small box in a shop",
+      "Money that a shop gives back to you"
+     ],
+     "answer": "D",
+     "explanation": "卡片①说\"a shop gave us too much change, and we said nothing\"，商店\"给\"我们的change只能是找零，所以D正确。B\"不同的生活方式\"最容易误选，因为change最常见的意思是\"改变\"，但在这里和shop、gave搭配，指的是找回的零钱。"
+    },
+    {
+     "q": "According to Philip Graves, why have humans developed the ability to be dishonest?",
+     "options": [
+      "Because getting more than others helps us survive",
+      "Because the group likes dishonest people",
+      "Because honesty boxes are easy to use",
+      "Because laws protect us from cheating"
+     ],
+     "answer": "A",
+     "explanation": "卡片⑥说\"when we get more than others, we have a better chance to survive\"，所以A正确。B最容易误选，因为同一张卡提到了\"the group\"，但文中说的是群体不喜欢不诚实的人。"
+    },
+    {
+     "q": "What can happen when we say what we really think?",
+     "options": [
+      "We get more money",
+      "We make more friends",
+      "We can get into trouble",
+      "We can find a balance"
+     ],
+     "answer": "C",
+     "explanation": "卡片⑨说\"When we say what we really think, we can get into trouble.\"，所以C正确。D\"找到平衡\"出自卡片⑦，说的是自利和群体接纳之间的平衡，与说真话的后果无关，是最容易混淆的干扰项。"
+    }
+   ]
+  },
+  "B1": {
+   "cards": [
+    "Let's be honest – most of us have done something a little dishonest. Maybe we copied someone's work or never paid back a friend. Or perhaps a shop gave us too much change and we kept quiet.",
+    "Or maybe you're a good citizen who believes that honesty is the best policy. Benjamin Franklin wrote this famous saying in the 1700s.",
+    "Most of us agree that admitting our mistakes and behaving decently is the right way to live. But is there something in human nature that makes us cheat?",
+    "For example, some shops and car parks have an honesty box. You pay by putting money into it, but it depends on you putting in the right amount.",
+    "It only works if people don't cheat, but it's tempting to pay less than the full price. The psychologist Philip Graves says this temptation is part of our evolution.",
+    "According to Graves, we have developed the ability to be dishonest because gaining an advantage over others helps us survive. So why is honesty so important to us? It's because dishonesty is selfish, and our social group won't like it.",
+    "If everybody acted selfishly all the time, the world would be a very unpleasant place. Graves says we need to find a balance between helping ourselves and the risk of being rejected by the group.",
+    "So, for societies to work, we need to trust each other, and that means being honest. Honesty with money is essential for the economy, and laws protect us from corruption and fraud.",
+    "But being honest with words is a different matter: saying what we really think can get us into trouble. However, a new anonymous app lets people send you messages without you knowing who they're from.",
+    "The app now has 300 million users, which perhaps shows how honest we really like to be. But do you really want to know what people think about you? Is honesty always the best policy?"
+   ],
+   "questions": [
+    {
+     "q": "Which of these is NOT mentioned as an example of small dishonest behaviour?",
+     "options": [
+      "Copying someone's work",
+      "Not paying back money to a friend",
+      "Keeping quiet about getting too much change",
+      "Taking something from a shop without paying"
+     ],
+     "answer": "D",
+     "explanation": "卡片①列举了三个例子：抄别人的作业、借钱不还、多找零钱不吭声，分别对应A、B、C，所以D正确。D容易误选为\"提到过\"，因为卡片⑤说到有人会少付钱，但那是诚信箱里少付，不是不付钱直接拿走，而且不在卡片①的例子里。"
+    },
+    {
+     "q": "Why does the writer say honesty is important for societies?",
+     "options": [
+      "Because honest people always become rich",
+      "Because people need to trust each other for societies to work",
+      "Because Benjamin Franklin said so",
+      "Because the new app has many users"
+     ],
+     "answer": "B",
+     "explanation": "卡片⑧说\"for societies to work, we need to trust each other, and that means being honest\"，所以B正确。C最容易误选，因为Franklin确实说过\"honesty is the best policy\"，但作者论证社会需要诚实时依据的是信任，而不是名人名言。"
+    },
+    {
+     "q": "What is the writer's attitude at the end of the text?",
+     "options": [
+      "The writer is sure that honesty is always the best policy",
+      "The writer thinks the new app should be closed",
+      "The writer wonders whether complete honesty is always a good thing",
+      "The writer believes most people are dishonest"
+     ],
+     "answer": "C",
+     "explanation": "卡片⑩以两个问句结尾：\"do you really want to know what people think about you? Is honesty always the best policy?\"，说明作者在反思完全的诚实是否总是好事，所以C正确。A最容易误选，因为全文多次肯定诚实的重要性，但结尾恰恰对这句谚语提出了疑问。"
+    }
+   ]
+  },
+  "B2+": {
+   "questions": [
+    {
+     "q": "What does the phrase \"feather our own nest\" most likely mean in card ⑦?",
+     "options": [
+      "To make our home more comfortable",
+      "To gain benefits for ourselves",
+      "To help other members of the group",
+      "To save money for the future"
+     ],
+     "answer": "B",
+     "explanation": "该短语与\"the risk of being ostracised by the group\"构成天平的两端：一端是为自己谋利，一端是被群体排斥；结合上文\"gain an advantage over the people around us\"，可推断其义为\"为自己捞好处\"，所以B正确。A是字面意思（给自己的窝铺羽毛），\"so to speak\"已提示这里是比喻用法，因此A是最容易误选的干扰项。"
+    },
+    {
+     "q": "Why does the writer describe being honest with words as \"another matter\"?",
+     "options": [
+      "Because, unlike honesty with money, telling people what we think can cause us problems",
+      "Because there are more laws about words than about money",
+      "Because most people never say what they think",
+      "Because the anonymous app has made honesty unnecessary"
+     ],
+     "answer": "A",
+     "explanation": "卡片⑧说金钱上的诚实对社会至关重要且有法律保护；卡片⑨紧接着说\"saying what we think to someone can get us into hot water\"。\"another matter\"正是把两者对比：金钱上的诚实明确有益，言语上的诚实却可能惹麻烦，所以A正确。B最容易误选，因为卡片⑧提到了法律，但文中的法律针对的是金钱上的不诚实，并未比较言语方面的法律。"
+    },
+    {
+     "q": "What is the main purpose of the final question \"Is honesty always the best policy?!\"",
+     "options": [
+      "To prove that Benjamin Franklin was wrong",
+      "To encourage readers to download the app",
+      "To show that dishonesty is part of evolution",
+      "To make readers reconsider whether complete honesty is always desirable"
+     ],
+     "answer": "D",
+     "explanation": "全文先肯定诚实对社会的重要性，再以匿名应用为例指出言语上的诚实可能令人不适，结尾回扣开头的谚语并加问号，是在引导读者重新思考\"完全诚实是否总是最好\"，所以D正确。A过于绝对，作者只是提出疑问，并未否定这句谚语，是最容易误选的干扰项。"
+    }
+   ]
+  }
+ }
+}

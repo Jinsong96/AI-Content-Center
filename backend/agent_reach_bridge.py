@@ -44,6 +44,10 @@ PORT = int(os.environ.get("PORT") or (sys.argv[1] if len(sys.argv) > 1 else 8787
 # 默认 ../frontend/index.html；可用环境变量 FRONTEND_HTML 覆盖。
 FRONTEND_HTML = os.environ.get("FRONTEND_HTML") or os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "frontend", "index.html")
+# 分级卡片 demo 单页（/card）：与首页同一个 bridge、同一套密钥注入机制（见 _serve_index）。
+# 独立文件、独立链路，**不改动 index.html**。
+FRONTEND_CARD = os.environ.get("FRONTEND_CARD") or os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "frontend", "card.html")
 
 # 真实新闻源（均验证可用），每项 = (源名, RSS 地址, 覆盖的主题)
 # 信源清单。判定标准（2026-09-02 实测）：必须可达且条目带摘要——
@@ -3011,6 +3015,24 @@ class Handler(BaseHTTPRequestHandler):
             note_error("request.body", e, severity="warn", path=getattr(self, "path", ""))
             return {}
 
+    def _serve_template(self):
+        """导出 docx 的版式模板（frontend/template.docx）。路径写死，不接受外部参数。"""
+        fp = os.path.join(_BASE_DIR, "frontend", "template.docx")
+        if not os.path.exists(fp):
+            return self._send({"ok": False, "error": "template.docx not found"}, 404)
+        try:
+            with open(fp, "rb") as f:
+                data = f.read()
+            self.send_response(200)
+            self.send_header("Content-Type",
+                             "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+            self.send_header("Content-Length", str(len(data)))
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
+            self.wfile.write(data)
+        except Exception:
+            return self._send({"ok": False, "error": "template read failed"}, 500)
+
     def _serve_audio(self, relpath):
         """静态音频文件服务"""
         fp = os.path.join(AUDIO_DIR, os.path.basename(relpath))
@@ -3158,15 +3180,17 @@ class Handler(BaseHTTPRequestHandler):
         second_raw["_sem_bad_after"] = (bad2 if bad2 is not None else -1)
         return self._send(second_raw, 200)
 
-    def _serve_index(self):
-        """托管前端单页。Railway 单服务部署时前后端同域，API 走相对路径即可。
+    def _serve_index(self, html_path=None):
+        """托管前端单页（首页 / 分级卡片页共用）。Railway 单服务部署时前后端同域，API 走相对路径即可。
         密钥来自环境变量；环境变量缺失时回落到 frontend/config.local.js
         （见 cfg_local_get），以兼容没有环境变量配置面板的托管平台。"""
+        html_path = html_path or FRONTEND_HTML
         try:
-            with open(FRONTEND_HTML, "r", encoding="utf-8") as f:
+            with open(html_path, "r", encoding="utf-8") as f:
                 html = f.read()
         except Exception as e:
-            return self._send({"ok": False, "error": "frontend index.html unavailable: %s" % e}, 500)
+            return self._send({"ok": False,
+                               "error": "%s unavailable: %s" % (os.path.basename(html_path), e)}, 500)
         # 注到 WB_CONFIG 而不是 WB_CFG：原 HTML 第 11 行有
         # `window.WB_CFG = (window.WB_CONFIG || {})`，会把我们的注入同步到 WB_CFG。
         # 若直接写 WB_CFG，会被这条语句覆盖成空对象（这是原代码的一个老 bug）。
@@ -3187,6 +3211,7 @@ class Handler(BaseHTTPRequestHandler):
             "DIFY_WF_LICPREP": self._env_key("DIFY_WF_LICPREP"),
             "DIFY_WF_LICGEN": self._env_key("DIFY_WF_LICGEN"),
             "DIFY_WF_LITE": self._env_key("DIFY_WF_LITE"),
+            "DIFY_WF_CARD": self._env_key("DIFY_WF_CARD"),
         }
         _pairs = ",".join("%s:%s" % (k, json.dumps(v).replace("<", "\\u003c"))
                           for k, v in _envs.items())
@@ -3269,7 +3294,7 @@ class Handler(BaseHTTPRequestHandler):
             #    只改后者 ⇒ 前端能拿到 key，但代理转发时被判 unknown wf（2026-09-23 踩过）。
             keymap = {"fact": "DIFY_WF_FACT", "gen": "DIFY_WF_GEN", "main": "DIFY_WF_MAIN",
                       "licprep": "DIFY_WF_LICPREP", "licgen": "DIFY_WF_LICGEN",
-                      "lite": "DIFY_WF_LITE"}
+                      "lite": "DIFY_WF_LITE", "card": "DIFY_WF_CARD"}
             kn = keymap.get(wf)
             if not kn:
                 return self._send({"ok": False,
@@ -3301,6 +3326,12 @@ class Handler(BaseHTTPRequestHandler):
         q = dict(urllib.parse.parse_qsl(parsed.query))
         if path in ("/", "/index.html"):
             return self._serve_index()
+        if path in ("/card", "/card.html"):
+            # 分级卡片新链路（工具包提示词 + 前端代码质检），与首页相互独立
+            return self._serve_index(FRONTEND_CARD)
+        if path == "/template.docx":
+            # 导出 docx 用的版式模板（含 DocTitle / DocLevel 样式）；路径写死，不接受外部参数
+            return self._serve_template()
         if path.startswith("/audio/"):
             return self._serve_audio(path[len("/audio/"):])
         if path == "/api/tags/taxonomy":
@@ -3309,7 +3340,7 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/proxy-health":
             # 部署自检：只回「是否已配置」，绝不回密钥值
             ks = ["SF_API_KEY", "DIFY_WF_MAIN", "DIFY_WF_GEN", "DIFY_WF_FACT",
-                  "DIFY_WF_LICPREP", "DIFY_WF_LICGEN"]
+                  "DIFY_WF_LICPREP", "DIFY_WF_LICGEN", "DIFY_WF_CARD"]
             return self._send({"ok": True,
                                "configured": dict((k, bool(self._env_key(k))) for k in ks),
                                "hint": "true=已配置；false=缺环境变量，对应功能会失败"})

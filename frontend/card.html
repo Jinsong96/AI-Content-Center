@@ -1,0 +1,825 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ReadPal · 分级卡片</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
+<script src="config.local.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<script>
+/* 运行时密钥配置：真实值由服务端注入（railway：bridge 把 config.local.js 换成内联 WB_CONFIG）。
+   仓库内不含任何密钥；未注入时页面顶部会明确提示「未配置」，不静默失败。 */
+window.WB_CFG = (window.WB_CONFIG || {});
+</script>
+<style>
+:root{
+  --text:#101828; --sub:#475467; --muted:#667085;
+  --pri:#E65425; --pri-d:#D04418; --pri-t:#FFF0EB;
+  --ok:#F79009; --ok-t:#FFF9F5; --warn:#D04418; --warn-t:#FFEDE4;
+  --danger:#A32D2D; --danger-t:#FFEDE4;
+  --green:#0F7B4F; --green-t:#EBF7F1;
+  --border:#EAECF0; --bg:#F7F8FA; --card:#fff;
+  --neutral-t:#F2F4F7;
+  --font:'Inter','Noto Sans SC',-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;
+  --mono:ui-monospace,SFMono-Regular,'SF Mono',Menlo,Consolas,monospace;
+  --shadow:0 1px 2px rgba(16,24,40,.06),0 1px 3px rgba(16,24,40,.1);
+  --shadow-lg:0 12px 16px -4px rgba(16,24,40,.08),0 4px 6px -2px rgba(16,24,40,.03);
+  --r:12px;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%}
+body{font-family:var(--font);color:var(--text);background:var(--bg);overflow:hidden;font-size:14px}
+#app{display:grid;grid-template-rows:56px 1fr;height:100vh}
+
+/* ===== topbar ===== */
+#topbar{background:#fff;border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 20px;gap:12px;z-index:10}
+#topbar .logo{height:26px;padding:0 10px;border-radius:8px;background:linear-gradient(135deg,#E65425,#F79009);display:grid;place-items:center;color:#fff;font-weight:800;font-size:12px;white-space:nowrap}
+#topbar .title{font-size:14.5px;font-weight:700}
+#topbar .badge{font-size:11px;color:var(--muted);background:var(--bg);border:1px solid var(--border);padding:2px 8px;border-radius:99px;font-weight:600}
+#topbar .spacer{flex:1}
+.btn{font-family:var(--font);font-size:12.5px;font-weight:700;border-radius:9px;padding:8px 14px;cursor:pointer;border:1px solid var(--border);background:#fff;color:var(--sub);transition:all .15s;white-space:nowrap}
+.btn:hover{border-color:#D0D5DD;color:var(--text)}
+.btn.pri{background:var(--pri);border-color:var(--pri);color:#fff}
+.btn.pri:hover{background:var(--pri-d);border-color:var(--pri-d)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn.sm{font-size:11.5px;padding:6px 10px;border-radius:8px}
+
+#body{display:grid;grid-template-columns:228px minmax(0,1fr);overflow:hidden}
+/* ===== rail ===== */
+#rail{background:#fff;border-right:1px solid var(--border);overflow-y:auto;padding:20px 12px 14px}
+#rail::-webkit-scrollbar{width:0}
+.rstep{display:flex;gap:10px;align-items:center;padding:9px 10px;border-radius:8px;margin-bottom:3px;transition:background .12s}
+.rstep .dot{width:20px;height:20px;border-radius:6px;background:var(--neutral-t);color:var(--muted);font-size:11px;font-weight:800;display:grid;place-items:center;flex-shrink:0}
+.rstep .t{font-size:13px;font-weight:600;color:var(--muted)}
+.rstep.active{background:var(--pri-t)}
+.rstep.active .t{color:var(--pri);font-weight:700}
+.rstep.active .dot{background:var(--pri);color:#fff}
+.rstep.done .dot{background:var(--green-t);color:var(--green)}
+.rstep.done .t{color:var(--sub)}
+#railNote{margin-top:14px;border-top:1px solid var(--border);padding:12px 10px 4px;font-size:11.5px;line-height:1.75;color:var(--muted)}
+#railNote b{color:var(--sub);font-weight:700}
+
+/* ===== stage ===== */
+#stage{overflow-y:auto;min-width:0}
+#stage::-webkit-scrollbar{width:8px}
+#stage::-webkit-scrollbar-thumb{background:#D0D5DD;border-radius:4px}
+.wrap{max-width:1060px;margin:0 auto;padding:26px 32px 70px}
+h2{font-size:21px;font-weight:800;letter-spacing:-.01em}
+.lede{font-size:13px;color:var(--sub);line-height:1.75;max-width:760px;margin:8px 0 18px}
+.panel{background:#fff;border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--shadow);padding:20px 22px;margin-bottom:16px}
+.panel h3{font-size:14.5px;font-weight:800;margin-bottom:12px}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+
+input[type=text]{font-family:var(--font);font-size:13.5px;border:1px solid var(--border);border-radius:9px;padding:10px 12px;width:100%;outline:none;transition:border .15s}
+input[type=text]:focus{border-color:var(--pri)}
+textarea{font-family:var(--font);font-size:13px;line-height:1.8;border:1px solid var(--border);border-radius:9px;padding:12px;width:100%;min-height:230px;resize:vertical;outline:none;transition:border .15s}
+textarea:focus{border-color:var(--pri)}
+.lbl{font-size:11.5px;font-weight:700;color:var(--muted);margin-bottom:6px;letter-spacing:.02em}
+#wcInfo{font-size:11.5px;color:var(--muted);font-weight:600}
+
+.note{font-size:12.5px;line-height:1.7;border-radius:10px;padding:11px 14px;margin-top:12px}
+.note.err{background:var(--danger-t);border:1px solid #F3C9C9;color:var(--danger)}
+.note.warn{background:var(--warn-t);border:1px solid #FFDFCF;color:var(--warn)}
+.note.ok{background:var(--green-t);border:1px solid #C7E9D8;color:var(--green)}
+.note.info{background:var(--neutral-t);border:1px solid var(--border);color:var(--sub)}
+
+.spin{display:inline-block;width:12px;height:12px;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;animation:sp .7s linear infinite;vertical-align:-1px;margin-right:6px}
+@keyframes sp{to{transform:rotate(360deg)}}
+.pulse{animation:pulse 1.4s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.45}}
+
+/* 评测卡 */
+.score{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.score .big{font-size:26px;font-weight:800;line-height:1}
+.score .big.pass{color:var(--green)}
+.score .big.fail{color:var(--danger)}
+.score .meta{font-size:12.5px;color:var(--sub);line-height:1.7}
+.chip{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:700;border-radius:99px;padding:3px 10px}
+.chip.g{background:var(--green-t);color:var(--green)}
+.chip.r{background:var(--danger-t);color:var(--danger)}
+.chip.y{background:var(--warn-t);color:var(--warn)}
+.chip.n{background:var(--neutral-t);color:var(--muted)}
+
+table{width:100%;border-collapse:collapse;font-size:12.5px;margin-top:8px}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--border)}
+th{font-size:11px;font-weight:800;color:var(--muted);letter-spacing:.03em;text-transform:uppercase;background:var(--neutral-t)}
+td.num{font-family:var(--mono);font-variant-numeric:tabular-nums}
+td.bad{color:var(--danger);font-weight:700}
+td.good{color:var(--green);font-weight:700}
+
+ul.issues{list-style:none;margin-top:10px}
+ul.issues li{font-size:12.5px;line-height:1.7;padding:7px 0 7px 22px;position:relative;border-bottom:1px dashed var(--border);word-break:break-word}
+ul.issues li:last-child{border-bottom:none}
+ul.issues li::before{position:absolute;left:2px;top:7px;font-weight:800;font-size:11.5px}
+ul.issues li.e::before{content:"✗";color:var(--danger)}
+ul.issues li.w::before{content:"!";color:var(--warn)}
+
+/* tabs */
+.tabs{display:flex;gap:6px;flex-wrap:wrap;border-bottom:1px solid var(--border);padding-bottom:12px;margin-bottom:14px}
+.tab{font-family:var(--font);font-size:12.5px;font-weight:700;border:1px solid var(--border);background:#fff;color:var(--sub);border-radius:8px;padding:7px 14px;cursor:pointer;transition:all .15s}
+.tab:hover{border-color:#D0D5DD}
+.tab.on{background:var(--pri-t);border-color:#FBC9B5;color:var(--pri)}
+.tab .n{font-size:11px;color:var(--muted);font-weight:600;margin-left:5px}
+
+.cards{display:flex;flex-direction:column;gap:9px}
+.card{display:flex;gap:12px;background:#fff;border:1px solid var(--border);border-left:3px solid var(--pri);border-radius:9px;padding:12px 14px;animation:rise .3s both}
+.card .idx{font-family:var(--mono);font-size:11.5px;font-weight:700;color:var(--muted);flex-shrink:0;padding-top:2px;min-width:22px}
+.card .txt{font-size:13.5px;line-height:1.85;letter-spacing:.1px}
+.card .wc{margin-left:auto;font-size:10.5px;color:var(--muted);flex-shrink:0;padding-top:3px;font-family:var(--mono)}
+.card.src{border-left-color:var(--muted);background:#FCFCFD}
+@keyframes rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+
+.q{background:#fff;border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin-bottom:10px}
+.q .qh{font-size:13.5px;font-weight:700;line-height:1.7;margin-bottom:10px}
+.q .opts{display:flex;flex-direction:column;gap:5px}
+.q .opt{font-size:13px;line-height:1.7;color:var(--sub);padding:5px 9px;border-radius:7px}
+.q .opt.ans{background:var(--green-t);color:var(--green);font-weight:700}
+.q .exp{font-size:12.5px;line-height:1.8;color:var(--sub);margin-top:10px;padding-top:10px;border-top:1px dashed var(--border)}
+.q .exp b{color:var(--text)}
+
+/* 对照视图 */
+.cmp{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.cmp .col{background:#fff;border:1px solid var(--border);border-radius:10px;overflow:hidden}
+.cmp .hd{padding:8px 11px;font-size:11.5px;font-weight:800;background:var(--neutral-t);color:var(--sub);display:flex;justify-content:space-between}
+.cmp .bd{padding:11px;font-size:12.5px;line-height:1.8;min-height:90px}
+.cmp .bd.src{color:var(--sub);background:#FCFCFD}
+.mono{font-family:var(--mono)}
+.hint{font-size:11.5px;color:var(--muted);line-height:1.7}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="topbar">
+    <span class="logo">ReadPal</span>
+    <span class="title">分级卡片</span>
+    <span class="badge">工具包链路</span>
+    <span class="spacer"></span>
+    <button class="btn sm" id="btnJSON" disabled>导出 JSON</button>
+    <button class="btn sm" id="btnDocx" disabled>导出 Word</button>
+    <a class="btn sm" href="/" style="text-decoration:none">回主平台</a>
+  </div>
+  <div id="body">
+    <div id="rail">
+      <div class="rstep active" id="st1"><span class="dot">1</span><span class="t">导入英文原文</span></div>
+      <div class="rstep" id="st2"><span class="dot">2</span><span class="t">生成四级卡片</span></div>
+      <div class="rstep" id="st3"><span class="dot">3</span><span class="t">代码质检</span></div>
+      <div class="rstep" id="st4"><span class="dot">4</span><span class="t">导出交稿</span></div>
+      <div id="railNote">
+        <b>一次生成四档</b><br>
+        A1- / A2 / B1 由模型改写，B2+ 由代码按锚点从原文<b>逐字切</b>（模型碰不到母稿）。<br><br>
+        <b>质检全部是代码</b><br>
+        卡片数对齐 · 词数占原文比例 · 句长上下限 · 主题词必现 · 题目与引文可查 —— 判定不看 AI。<br><br>
+        <span class="mono" id="keyState"></span>
+      </div>
+    </div>
+    <div id="stage">
+      <div class="wrap">
+        <h2>导入英文原文</h2>
+        <div class="lede">粘贴一篇 B2+ 英文原文，一次产出 A1- / A2 / B1 / B2+ 四级卡片与四档各 3 道题。标题可留空。</div>
+
+        <div class="panel" id="importPanel">
+          <div class="lbl">标题（可留空）</div>
+          <input type="text" id="titleIn" placeholder="例：How honest are you?">
+          <div class="lbl" style="margin-top:16px">英文原文（B2+）<span id="wcInfo" style="margin-left:8px">0 词</span></div>
+          <textarea id="textIn" placeholder="把英文原文粘到这里（纯正文，不含标题）。"></textarea>
+          <div class="row" style="margin-top:14px">
+            <button class="btn pri" id="btnRun">生成分级卡片</button>
+            <button class="btn" id="btnCancel" style="display:none">取消</button>
+            <button class="btn" id="btnSample">填入示例原文</button>
+            <span class="hint" id="runState"></span>
+          </div>
+          <div id="runNote"></div>
+        </div>
+
+        <div id="resultPanel"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="card_check.js"></script>
+<script>
+/* ============================================================
+   ReadPal · 分级卡片（工具包链路）
+   链路：原文 → Dify（工具包提示词 + deepseek-v4-flash） → 卡片 JSON
+        → 代码质检（card_check.js） → 预览 / 导出
+   ============================================================ */
+const CFG = window.WB_CFG || {};
+const CARD_APP = { apiBase: "https://api.dify.ai/v1", appKey: CFG.DIFY_WF_CARD || "", user: "card-demo" };
+const BRIDGE_RAW = (CFG.API_BASE || "").replace(/\/$/, "");
+
+const $ = id => document.getElementById(id);
+const NUMS = ["①","②","③","④","⑤","⑥","⑦","⑧","⑨","⑩","⑪","⑫","⑬","⑭","⑮","⑯","⑰","⑱","⑲","⑳"];
+const numMark = i => (i < NUMS.length ? NUMS[i] : "(" + (i + 1) + ")");
+const esc = s => String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+const words = s => (String(s || "").match(/[A-Za-z0-9]+(?:['\u2019][A-Za-z]+)?/g) || []);
+
+const state = {
+  running: false, err: "", note: "",
+  card: null,          // 模型输出
+  report: null,        // CardCheck.run 结果
+  title: "", titleZh: "",
+  level: "A1-",
+  view: "level",       // level | compare
+  elapsed: 0, warn: "",
+  round: 0, rounds: []
+};
+let abort = null, timer = null;
+
+/* 示例原文（工具包自带的 example_honesty）—— 只为方便试用，不参与任何判定 */
+const SAMPLE = "Consuming food can be a pleasurable thing – we enjoy feasting on the mix of tastes and textures and it stops us feeling hungry too. Of course, food also gives us energy and the vitamins and minerals that our body needs. It's no wonder we spend so much time preparing and eating food. But what many of us don't consider is how our emotions are affected by what we put into our bellies.\n\nFor me, it's the unhealthy foods that put a smile on my face – chocolate, cakes and ice cream – well, I do have a sweet tooth! It might seem obvious that food that's bad for our waistline, usually makes us happy, at least in the short term. Most of us get this feeling when we use food as a quick pick-me-up. But dieticians tell us that eating bad food long term, not only makes us put on weight but can lead to other health conditions such as diabetes, and it can also affect our mental state and bring on depression.\n\nThe link between our mind and food has been looked at by scientists. They've recently found that it's the bacteria in our gut that affects our mood. It's thought we have 39 trillion of these simple, small organisms in our body. Researchers at McMaster University in Canada and University College Cork in Ireland, have found that certain 'good' bacteria help reduce anxiety in mice. And researchers at Kyushu University also found that germs help reduce stress and anxiety in mice. Experts believe that, for us humans, this means food with 'good' bacteria can improve the way we feel.\n\nMany food products are claiming to be high in this 'good' bacteria and some of the best types are homemade fermented food like miso soup, yoghurt and sauerkraut. This really makes me think twice about what I eat – maybe I should change my diet to perk me up! Doctor Michael Mosley would agree. He's been looking into this for the BBC and says the best food to cheer us up is in a \"Mediterranean diet. Olive oil; oily fish, full of omega 3, which is really good for the brain; whole grains; lots of fruits and vegetables. Sugar: terrible for you!\"\n\nSo maybe it's time to lay off the fatty and sugary things. Eating healthily may seem simple, even if the science behind it is complex. It's not rocket science but this is further evidence for the saying 'we are what we eat' – the person we are is determined by the food we eat. There are other factors that can change our mood but it seems we have some ability to improve how we feel by controlling what we put on our plate. Does your diet affect your mood?";
+
+/* 网络层失败自动重试：只有「fetch 本身抛错」（DNS 抖动 / 连接被掐）才重试，
+   HTTP 4xx/5xx 和人为取消不重试 —— 那两类重试没有意义。
+   实测踩过：api.dify.ai 偶发一次 Failed to fetch，10 秒就把整轮打回起点。 */
+async function postRetry(url, opt, tries, waitMs) {
+  let last = null;
+  for (let i = 0; i < tries; i++) {
+    try { return await fetch(url, opt); }
+    catch (e) {
+      if (e && e.name === "AbortError") throw e;
+      last = e;
+      if (i < tries - 1) await new Promise(r => setTimeout(r, waitMs));
+    }
+  }
+  throw last;
+}
+
+/* ---------- 调用 Dify（与主平台同一套：桥接层同源代理优先，直连兜底）---------- */
+async function callCard(inputs, signal) {
+  try {
+    const r = await fetch(BRIDGE_RAW + "/api/dify/workflows/run", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ wf: "card", inputs, response_mode: "blocking", user: CARD_APP.user }),
+      signal
+    });
+    const j = await r.json();
+    if (j && j.ok === false) {
+      if (/missing upstream api key/i.test(j.error || "")) {
+        throw new Error("服务端未配置 DIFY_WF_CARD 密钥：请在部署平台填入后重新部署（本地则填 frontend/config.local.js）。");
+      }
+      return { code: "upstream_error", message: (j.error || "upstream error") + (j.detail ? " · " + String(j.detail).slice(0, 200) : "") };
+    }
+    if (j && (j.data || j.code)) return j;   // Dify 原始结构
+  } catch (e) {
+    if (e && e.name === "AbortError") throw e;
+    console.warn("[分级卡片] 桥接层代理不可用，回退直连 Dify：", e && e.message);
+  }
+  if (!CARD_APP.appKey) {
+    throw new Error("AI 未运行：既无桥接层、又缺 DIFY_WF_CARD 密钥。请在 frontend/config.local.js 填入，或在部署平台配置后重新部署。");
+  }
+  const r2 = await postRetry(CARD_APP.apiBase + "/workflows/run", {
+    method: "POST",
+    headers: { "Authorization": "Bearer " + CARD_APP.appKey, "Content-Type": "application/json" },
+    body: JSON.stringify({ inputs, response_mode: "blocking", user: CARD_APP.user }),
+    signal
+  }, 3, 1500);
+  return await r2.json();
+}
+
+/* ---------- 步骤指示 ---------- */
+function setStep(n) {
+  for (let i = 1; i <= 4; i++) {
+    const el = $("st" + i);
+    el.classList.toggle("active", i === n);
+    el.classList.toggle("done", i < n);
+  }
+}
+
+/* ---------- 运行 ---------- */
+/* 最多 3 次生成：首次 + 2 次带量化差量的定点回炉。
+   依据：单次生成达标率实测 60–70%，靠"把差量带回上一环"收敛，而不是加更多节点。 */
+const MAX_ROUND = 3;
+
+/* 把代码质检的结论转成**给模型的施工指令**（不是把报告原文丢回去）。
+   要点：① 已通过的档位明确要求保持不动，避免重写把好的写坏；
+        ② 每条都带量化差量（目标词数区间 / 超了几个词），模型才改得动。 */
+function buildFixList(report, card, masterCards) {
+  const errs = (report.errs || []).map(String);
+  /* 🔴 回炉的三条硬规矩（都是实测逼出来的）：
+     ① **一次只改一类** —— 词数是一切的前提，先单独把它修到位；
+     ② **带上上一稿正文** —— 不然模型每轮重写，篇幅在 46% 与 88% 之间来回振荡；
+     ③ **单一目标 + 具体数字 + 逐卡现状** —— 只说「超上限了」它删不动（实测三轮 226/225/225
+        几乎没变）；必须给出「现在多少、要减到多少、每张卡现在几个词」。
+     已验证：预算/指令类字段确实能送达并被遵守（标记式哨兵实测 10/10 张卡照做），
+     所以篇幅对不上不是「没收到底」，是指令不够硬 + 模型输出本身方差大。 */
+  const wcErrs = errs.filter(e => e.indexOf("词数") >= 0);
+  const out = ["【上一稿未通过代码质检。请**在上一稿的基础上改**，不要重写、不要解释、只输出 JSON。】"];
+
+  const cardsOf = lv => (((report.cardsByLevel || {})[lv] || []).length)
+    ? report.cardsByLevel[lv] : ((((card || {}).levels || {})[lv] || {}).cards || []);
+
+  /* Dify 那边 fix_list 有长度上限（历史值 4000 字符）。按预算逐档附，附不下就明说 ——
+     绝不让上游 400 硬失败、也绝不静默省掉说明。 */
+  const LIMIT = 3800;
+  const attach = levels => {
+    levels.forEach(lv => {
+      const t = cardsOf(lv);
+      if (!t.length) return;
+      const blk = ["", "【" + lv + " 的上一稿（" + t.length + " 张卡）—— 就在这个基础上改】"];
+      t.forEach((c, i) => blk.push("  (" + (i + 1) + ") " + c));
+      if (out.join("\n").length + blk.join("\n").length > LIMIT) {
+        out.push("");
+        out.push("（" + lv + " 的上一稿因长度上限未附上，请按上面的量化差量自行调整）");
+        return;
+      }
+      blk.forEach(l => out.push(l));
+    });
+  };
+
+  /* 🔴 分档并行（实测逼出来的）：
+     篇幅没过关的档，本轮**只让它改篇幅**（删词和拆句掺在一起会互相抵消）；
+     而**篇幅已经过关的档，本轮就修它自己的具体问题**。
+     早先版本是「只要有篇幅错误，其他问题一律下一轮再说」—— 结果 A2 的长句被饿死：
+     每轮都有别的档篇幅不过，A2 的问题永远排不上队（实测 3 轮跑完 A2 长句仍在）。 */
+  const byLv = {};
+  errs.forEach(e => {
+    const mm = e.match(/^(A1-|A2|B1|B2\+)/);
+    const k = mm ? mm[1] : "通用";
+    (byLv[k] = byLv[k] || []).push(mm ? e.slice(k.length).replace(/^\s*/, "") : e);
+  });
+  const wcBad = {};
+  wcErrs.forEach(e => { const mm = e.match(/^(A1-|A2|B1)/); if (mm) wcBad[mm[1]] = true; });
+  const wcLv = Object.keys(wcBad);
+  if (wcLv.length) {
+    out.push("⚠️ 标了「只改篇幅」的档，本轮**只改篇幅**；没标的档篇幅已达标，**篇幅一个字都别动**。");
+  }
+  wcLv.forEach(lv => {
+    const st = (report.stats || []).find(x => x.level === lv);
+    if (!st) return;
+    const rng = (typeof CardCheck !== "undefined" && CardCheck.RATIO[lv]) || null;
+    const lo = rng ? Math.floor(rng[0] * report.origWc) : 0;
+    const hi = rng ? Math.floor(rng[1] * report.origWc) : 0;
+    const per = cardsOf(lv).map(c => CardCheck.words(c).length);
+    out.push("· " + lv + "（只改篇幅）：现在 **" + st.wc + " 词**（" + Math.round(st.ratio * 100) + "%），"
+      + "必须落到 **" + lo + "–" + hi + " 词**" + (st.wc > hi ? " —— 也就是全文要**删掉 "
+        + (st.wc - hi) + " 个词以上**，建议删到 " + Math.round((lo + hi) / 2) + " 词左右"
+        : " —— 也就是全文要**补回 " + (lo - st.wc) + " 个词以上**"));
+    out.push("    逐张卡现状：" + per.map((n, i) => "(" + (i + 1) + ")" + n).join(" ")
+      + " —— 删完再逐张数一遍");
+  });
+  Object.keys(byLv).forEach(lv => {
+    if (lv !== "通用" && wcBad[lv]) return;   // 该档本轮只改篇幅，别的问题下轮再说
+    const list = byLv[lv];
+    out.push(lv === "通用" ? "· 通篇需要修的问题："
+      : "· " + lv + " 篇幅已达标，只修这些问题（篇幅别动）：");
+    list.slice(0, 10).forEach(x => out.push("    - " + x));
+    if (list.length > 10) out.push("    -（同类问题另有 " + (list.length - 10) + " 处，一并处理）");
+  });
+  attach(wcLv.concat(Object.keys(byLv).filter(lv => lv !== "通用" && !wcBad[lv])));
+  out.push("");
+  out.push("· 只做加减，**不要把整段换一套说法重写**（重写会让篇幅弹到另一端）。");
+  out.push("✗ 不得删掉原文的核心事实，不得改变谁对谁做了什么；四档卡片数不变、第 N 张仍讲同一件事。");
+  return out.join("\n");
+}
+
+/* ── 按档取历史最优 + 按档重写（纯代码的收敛保证，不靠模型自觉）────────────
+   依据（实测）：单次生成达标率 60–70%；「整篇重写」式回炉**方差很大** ——
+   同一提示词连跑 3 次，A1- 占比能给 42% / 45% / 48%，第 2 轮修好的档第 3 轮又被改坏。
+   所以做两件事：
+     ① 回炉**只重写没过的那几档**（其余档位根本不进模型的输出范围，想改也改不到）；
+     ② 每档按「错误更少」留下最好的一版（分母不变，错误数就不会涨）。
+   两条都是代码保证的，最终交付必然不退化。 */
+const genericErrs = rep => (rep.errs || []).filter(e => !/^(A1-|A2|B1|B2\+)/.test(String(e)));
+const levelErrs = (rep, lv) => (rep.errs || []).filter(e => String(e).indexOf(lv) === 0).length;
+
+/* 本轮有「不带档位前缀」的错误（结构性问题）时整轮不可信，一档都不收 */
+function keepBest(rep, card, best) {
+  if (genericErrs(rep).length) return [];
+  const got = [];
+  ['A1-', 'A2', 'B1', 'B2+'].forEach(lv => {
+    const cards = (rep.cardsByLevel || {})[lv] || [];
+    if (lv !== 'B2+' && !cards.length) return;
+    const n = levelErrs(rep, lv);
+    if (best[lv] && best[lv].errs <= n) return;      // 手里已经有更好的一版
+    const qs = (((card.levels || {})[lv] || {}).questions) || [];
+    best[lv] = { cards: cards.slice(), questions: qs.slice(), errs: n };
+    got.push(lv);
+  });
+  return got;
+}
+
+/* 把历史最优按档覆盖回当前稿（没进 best 的档位保持当前稿） */
+function assembleBest(card, best) {
+  const keys = Object.keys(best);
+  if (!keys.length) return card;
+  const out = JSON.parse(JSON.stringify(card || {}));
+  out.levels = out.levels || {};
+  keys.forEach(lv => {
+    out.levels[lv] = out.levels[lv] || {};
+    out.levels[lv].cards = best[lv].cards.slice();
+    out.levels[lv].questions = best[lv].questions.slice();
+  });
+  return out;
+}
+
+/* 增量合并：只取「本轮点名重写」的档位，其余档位一个字都不动。
+   fixLevels 为空 = 全量替换（首次生成，或结构性问题需要整篇重来）。
+   注意母稿正文（B2+ 的 cards）永远以代码算的那份为准。 */
+function mergeCard(prev, partial, fixLevels) {
+  if (!prev || !fixLevels || !fixLevels.length) return partial;
+  const out = JSON.parse(JSON.stringify(prev));
+  out.levels = out.levels || {};
+  fixLevels.forEach(lv => {
+    const P = ((partial || {}).levels || {})[lv];
+    if (P) out.levels[lv] = { cards: (P.cards || []).slice(), questions: (P.questions || []).slice() };
+  });
+  const B = ((partial || {}).levels || {})['B2+'];
+  if (B && (B.cards || []).length) {
+    out.levels['B2+'] = out.levels['B2+'] || {};
+    out.levels['B2+'].cards = B.cards.slice();
+  }
+  return out;
+}
+
+/* 下一轮要点名重写哪几档。整轮结构性问题 ⇒ 空数组（= 整篇重来） */
+function failingLevels(rep) {
+  if (genericErrs(rep).length) return [];
+  const lv = [];
+  ['A1-', 'A2', 'B1', 'B2+'].forEach(x => { if (levelErrs(rep, x) > 0) lv.push(x); });
+  return lv;
+}
+
+/* 「本轮只输出这几档」这句话由代码写死 —— 不指望提示词自己推断出回炉范围 */
+function scopeHint(levels) {
+  return '【本轮只输出这几档】' + levels.join(' / ') + '：`levels` 里**只放列出的档位**，'
+    + '其余档位整个不要出现在 JSON 里（程序会把它们原样保留，多输出反而会把已达标的档改坏）。'
+    + '`title_en` / `title_zh` / `topic_words` 照抄上一稿，不要重选。';
+}
+
+async function run() {
+  const text = $("textIn").value.trim();
+  const title = $("titleIn").value.trim();
+  if (!text) { state.err = "还没有粘贴原文。"; renderNote(); return; }
+  if (words(text).length < 80) { state.err = "原文太短（不到 80 词），不足以切成 10 张卡。"; renderNote(); return; }
+
+  state.running = true; state.err = ""; state.warn = "";
+  state.card = null; state.report = null;
+  state.round = 0; state.rounds = []; state.elapsed = 0; state.title = title;
+  state.masterNote = "";
+  $("btnRun").disabled = true; $("btnCancel").style.display = "";
+  $("btnJSON").disabled = true; $("btnDocx").disabled = true;
+  $("resultPanel").innerHTML = "";
+  setStep(2);
+
+  const t0 = Date.now();
+  timer = setInterval(() => {
+    state.elapsed = Math.round((Date.now() - t0) / 1000);
+    $("runState").textContent = (state.round > 1 ? "第 " + state.round + " 轮 · 带上一稿差量修正中" : "生成中")
+      + " · 已等待 " + state.elapsed + " 秒";
+  }, 500);
+  $("runState").textContent = "生成中 · 已等待 0 秒";
+
+  /* ── 母稿切分：**代码做，不交给模型** ──────────────────────────────
+     实测（463 词 / 5 自然段的原文，连跑 3 次）模型给的 b2_card_starts：
+       · 个数 = 原文自然段数（5 段就只给 5 个锚点）
+       · 或给了 10 个，但**不按原文顺序排**（先段级、后段内追加）
+     两版提示词加压都改不动它 —— 四档永远对不齐。
+     代码做还有两个好处：① 每轮回炉用同一套切分，跨轮可比、可择优；
+     ② 模型能看见母稿被切成了哪 10 张，B2+ 的题目引文才可能逐字对上。 */
+  const cut = CardCheck.splitToCards(text, CardCheck.CARD_MIN);
+  if (!cut) {
+    state.running = false;
+    clearInterval(timer); timer = null;
+    $("btnRun").disabled = false; $("btnCancel").style.display = "none";
+    state.err = "原文太短：切不出 " + CardCheck.CARD_MIN + " 张卡（不足 "
+      + CardCheck.CARD_MIN + " 个句子）。请换一篇更长的原文。";
+    setStep(1); renderNote();
+    return;
+  }
+  const masterCards = cut.cards;
+  const masterBlock = masterCards.map(function (c, i) { return "[" + (i + 1) + "] " + c; }).join("\n");
+  const masterBudget = CardCheck.budgetTable(masterCards);
+  state.masterNote = "母稿 " + cut.words + " 词 / " + cut.sentences + " 句 → 代码切成 "
+    + masterCards.length + " 张卡（每张约 " + Math.round(cut.words / masterCards.length) + " 词）";
+
+  abort = new AbortController();
+  let fix = "", fixLevels = [], cur = null;
+  const best = {};            /* 各档历史最优（按错误数比，不是按轮次） */
+  try {
+    for (let round = 1; round <= MAX_ROUND; round++) {
+      state.round = round;
+      const res = await callCard({
+        master_cards: masterBlock, master_budget: masterBudget, title_in: title,
+        fix_list: fix, fix_levels: fixLevels.length ? scopeHint(fixLevels) : ""
+      }, abort.signal);
+      if (!res || res.code) throw new Error(res && res.message ? res.message : "上游返回异常");
+      const d = res.data || res;   /* 桥接层/直连都回 Dify 原始结构：{data:{status,outputs}} */
+      const status = d && d.status;
+      if (status && status !== "succeeded") {
+        throw new Error("工作流未成功（status=" + status + "）：" + String(d.error || "").slice(0, 300));
+      }
+      const out = (d && d.outputs) || {};
+      if (out.parse_warn) state.warn = out.parse_warn;
+      if (String(out.parse_ok) !== "true") {
+        throw new Error("模型输出结构不完整，未通过解析：" + (state.warn || "原因未知"));
+      }
+      const partial = JSON.parse(out.cards_json || "{}");
+      /* 首轮全量替换；回炉只收点名的档位，其余沿用上一稿 */
+      cur = mergeCard(cur, partial, fixLevels);
+      if (!state.title) state.title = out.title || partial.title_en || cur.title_en || "";
+      state.titleZh = cur.title_zh || "";
+
+      /* ===== 质检：纯代码，零 AI ===== */
+      let rep = CardCheck.run(cur, text, masterCards);
+      const rawErrs = rep.errs.length;                 /* 本轮原始错误数（诊断用） */
+      const got = keepBest(rep, cur, best);
+      state.frozen = Object.keys(best);
+      cur = assembleBest(cur, best);
+      state.card = cur;
+      rep = CardCheck.run(cur, text, masterCards);
+      state.report = rep;
+      /* scope = 本轮的「输出范围」（空 = 全量）。它是回炉机制的直接证据：
+         首轮必为空；之后每次只点名「上一轮拼装后仍有错误」的档位。 */
+      state.rounds.push({ round: round, ok: rep.ok, errs: rep.errs.length, rawErrs: rawErrs,
+                          warns: rep.warns.length, frozen: got, scope: fixLevels.slice() });
+      renderResult();          /* 每轮都刷，用户能看见逐条收敛 + 哪几档已锁历史最优 */
+      if (rep.ok || round === MAX_ROUND) break;   // 拼装后达标就停，省一轮
+      fixLevels = failingLevels(rep);
+      state.scope = fixLevels.slice();       /* 面板/探针都能看见「下一轮要重写哪几档」 */
+      fix = buildFixList(rep, cur, masterCards);
+    }
+    $("btnJSON").disabled = false; $("btnDocx").disabled = false;
+    if (state.report && state.report.ok) setStep(4);
+    $("runState").textContent = "完成 · " + state.rounds.length + " 轮 · 用时 " + state.elapsed + " 秒"
+      + (state.report && state.report.ok ? "" : "（仍有未通过项，见下方报告）");
+    renderNote();
+  } catch (e) {
+    if (e && e.name === "AbortError") {
+      state.err = "已取消。原文本与设置都还在，可以直接重试。";
+    } else {
+      state.err = (e && e.message) ? e.message : String(e);
+    }
+    if (!state.report) setStep(1);
+    $("runState").textContent = state.report ? "中断（已保留上面那一轮的结果）" : "";
+    renderNote();
+  } finally {
+    state.running = false;
+    clearInterval(timer); timer = null;
+    $("btnRun").disabled = false; $("btnCancel").style.display = "none";
+    abort = null;
+  }
+}
+
+/* ---------- 渲染：运行提示 ---------- */
+function renderNote() {
+  const box = $("runNote");
+  let h = "";
+  if (state.err) h += '<div class="note err">✗ ' + esc(state.err) + '</div>';
+  if (state.warn) h += '<div class="note warn">! 解析告警：' + esc(state.warn) + '</div>';
+  box.innerHTML = h;
+}
+
+/* ---------- 渲染：结果 ---------- */
+function renderResult() {
+  const r = state.report, card = state.card;
+  if (!r) return;
+  let h = "";
+
+  // 1. 质检报告
+  const stats = r.stats || [];
+  h += '<div class="panel"><h3>代码质检报告</h3>';
+  if (state.rounds && state.rounds.length) {
+    h += '<div class="note info" style="margin:0 0 14px">生成轮次：'
+       + state.rounds.map(r => '第' + r.round + '轮 ' + (r.ok ? '通过 ✓' : r.errs + ' 处未过')
+           + (r.frozen && r.frozen.length ? '（刷新 ' + r.frozen.join('/') + '）' : '')).join('　→　')
+       + (state.frozen && state.frozen.length
+           ? '　·　已锁历史最优：' + state.frozen.join(' / ') + '（这几档回炉时不再重写，改不坏）'
+           : (state.rounds.length > 1 ? '　（每一轮只重写没过的那几档，并带上量化差量）' : ''))
+       + '</div>';
+  }
+  if (state.masterNote) {
+    h += '<div class="note info" style="margin:0 0 10px">' + esc(state.masterNote)
+       + (r.splitNote ? '　·　' + esc(r.splitNote) : '') + '</div>';
+  }
+  h += '<div class="score"><span class="big ' + (r.ok ? "pass" : "fail") + '">' + (r.ok ? "通过" : "需修改 " + r.errs.length + " 处") + '</span>';
+  h += '<span class="chip ' + (r.ok ? "g" : "r") + '">硬错误 ' + r.errs.length + '</span>';
+  h += '<span class="chip ' + (r.warns.length ? "y" : "n") + '">告警 ' + r.warns.length + '</span>';
+  h += '<span class="meta">母稿 ' + r.origWc + ' 词 / ' + r.cardCount + ' 张卡 · 耗时 ' + state.elapsed + ' 秒<br>判定全部由代码完成，不经过任何模型</span></div>';
+
+  h += '<table><thead><tr><th>档位</th><th>卡片</th><th>词数</th><th>占原文</th><th>目标区间</th><th>平均句长</th><th>最长 / 最短</th></tr></thead><tbody>';
+  stats.forEach(s => {
+    const ratio = s.ratio * 100;
+    const spec = CardCheck.RATIO[s.level];
+    let ratioCell = '<td class="num">' + ratio.toFixed(0) + '%</td>';
+    let target = '<td class="num">—</td>';
+    if (spec) {
+      const good = ratio >= spec[0] * 100 - 0.5 && ratio <= spec[1] * 100 + 0.5;
+      ratioCell = '<td class="num ' + (good ? "good" : "bad") + '">' + ratio.toFixed(0) + '%</td>';
+      target = '<td class="num">' + Math.round(spec[0] * 100) + '–' + Math.round(spec[1] * 100) + '%（' + Math.floor(spec[0] * r.origWc) + '–' + Math.floor(spec[1] * r.origWc) + ' 词）</td>';
+    }
+    const cntGood = s.cards === r.cardCount;
+    h += '<tr><td><b>' + esc(s.level) + '</b></td>'
+       + '<td class="num ' + (cntGood ? "" : "bad") + '">' + s.cards + (cntGood ? "" : " ✗") + '</td>'
+       + '<td class="num">' + s.wc + '</td>' + ratioCell + target
+       + '<td class="num">' + s.avg.toFixed(1) + '</td>'
+       + '<td class="num">' + s.max + ' / ' + s.min + '</td></tr>';
+  });
+  h += '</tbody></table>';
+
+  if (r.errs.length) {
+    h += '<div style="margin-top:14px" class="lbl">硬错误（必须修）</div><ul class="issues">';
+    r.errs.forEach(e => { h += '<li class="e">' + esc(e) + '</li>'; });
+    h += '</ul>';
+  }
+  if (r.warns.length) {
+    h += '<div style="margin-top:14px" class="lbl">告警（可人工确认）</div><ul class="issues">';
+    r.warns.forEach(w => { h += '<li class="w">' + esc(w) + '</li>'; });
+    h += '</ul>';
+  }
+  h += '</div>';
+
+  // 2. 卡片区
+  const cards = r.cardsByLevel || {};
+  h += '<div class="panel"><h3>四级卡片</h3>';
+  h += '<div class="tabs">';
+  ["A1-", "A2", "B1", "B2+"].forEach(lv => {
+    h += '<button class="tab' + (state.view === "level" && state.level === lv ? " on" : "") + '" data-tab="' + lv + '">' + esc(lv)
+       + '<span class="n">' + ((cards[lv] || []).length) + '</span></button>';
+  });
+  h += '<button class="tab' + (state.view === "compare" ? " on" : "") + '" data-tab="__cmp">逐卡对照</button>';
+  h += '</div><div id="cardBody"></div></div>';
+
+  // 3. 题目区
+  h += '<div class="panel"><h3>题目与解析</h3><div id="quizBody"></div></div>';
+
+  $("resultPanel").innerHTML = h;
+  $("resultPanel").querySelectorAll("[data-tab]").forEach(btn => {
+    btn.onclick = () => {
+      const t = btn.getAttribute("data-tab");
+      if (t === "__cmp") { state.view = "compare"; } else { state.view = "level"; state.level = t; }
+      renderResult();
+    };
+  });
+  renderCards();
+  renderQuiz();
+  renderNote();
+}
+
+function renderCards() {
+  const box = $("cardBody");
+  if (!box) return;
+  const cards = state.report.cardsByLevel || {};
+  let h = '<div class="hint" style="margin-bottom:10px">'
+        + (state.view === "compare"
+            ? "同一张卡在四档的写法并排 —— 第 N 张讲的是同一件事，这才是本文合格的判据。"
+            : (state.level === "B2+"
+                ? "B2+ 是母稿：由代码按模型给的锚点从原文<b>逐字切</b>出来，模型改不到它。"
+                : "查看档位 " + state.level + "。"))
+        + '</div>';
+
+  if (state.view === "compare") {
+    const b2 = cards["B2+"] || [];
+    h += '<div class="cards">';
+    for (let i = 0; i < b2.length; i++) {
+      h += '<div class="cmp">';
+      ["A1-", "A2", "B1", "B2+"].forEach(lv => {
+        const raw = (cards[lv] || [])[i];
+        const inner = raw ? esc(raw) : '<span class="hint">（这一档缺第 ' + (i + 1) + ' 张）</span>';
+        const wc = raw ? words(raw).length : 0;
+        h += '<div class="col"><div class="hd"><span>' + esc(lv) + ' · ' + numMark(i) + '</span><span class="mono">' + (wc || "") + '</span></div>'
+           + '<div class="bd' + (lv === "B2+" ? " src" : "") + '">' + inner + '</div></div>';
+      });
+      h += '</div>';
+    }
+    h += '</div>';
+  } else {
+    const list = cards[state.level] || [];
+    h += '<div class="cards">';
+    list.forEach((c, i) => {
+      h += '<div class="card' + (state.level === "B2+" ? " src" : "") + '">'
+         + '<span class="idx">' + numMark(i) + '</span>'
+         + '<span class="txt">' + esc(c) + '</span>'
+         + '<span class="wc">' + words(c).length + 'w</span></div>';
+    });
+    if (!list.length) h += '<div class="hint">这一档没有卡片。</div>';
+    h += '</div>';
+  }
+  box.innerHTML = h;
+}
+
+function renderQuiz() {
+  const box = $("quizBody");
+  if (!box) return;
+  const levels = (state.card && state.card.levels) || {};
+  let h = "";
+  ["A1-", "A2", "B1", "B2+"].forEach(lv => {
+    const qs = (levels[lv] || {}).questions || [];
+    if (!qs.length) return;
+    h += '<div class="lbl" style="margin-top:14px">' + esc(lv) + ' · ' + qs.length + ' 道</div>';
+    qs.forEach((q, qi) => {
+      h += '<div class="q"><div class="qh">Q' + (qi + 1) + '. ' + esc(q.q) + '</div><div class="opts">';
+      (q.options || []).forEach((o, oi) => {
+        const L = "ABCD"[oi];
+        h += '<div class="opt' + (L === q.answer ? " ans" : "") + '">' + L + '. ' + esc(o) + (L === q.answer ? "　✓" : "") + '</div>';
+      });
+      h += '</div>';
+      if (q.explanation) h += '<div class="exp"><b>解析：</b>' + esc(q.explanation) + '</div>';
+      h += '</div>';
+    });
+  });
+  box.innerHTML = h || '<div class="hint">没有题目。</div>';
+}
+
+/* ---------- 导出 ---------- */
+function download(blob, name) {
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  document.body.appendChild(a); a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+}
+function baseName() {
+  const t = state.title || (state.card && state.card.title_en) || "分级卡片";
+  return String(t).replace(/[\\/:*?"<>|]/g, "").trim().slice(0, 60);
+}
+function exportJSON() {
+  if (!state.card) return;
+  const payload = {
+    title_en: state.card.title_en, title_zh: state.card.title_zh,
+    topic_words: state.card.topic_words, b2_card_starts: state.card.b2_card_starts,
+    levels: state.card.levels, cards_resolved: state.report.cardsByLevel,
+    quality: { ok: state.report.ok, errors: state.report.errs, warnings: state.report.warns, stats: state.report.stats }
+  };
+  download(new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" }), baseName() + ".json");
+}
+
+/* 生成 docx blob（与导出按钮同一段代码，抽出来是为了能被自动化探针直接验证） */
+async function buildDocxBlob() {
+  if (!state.card) throw new Error("还没有生成结果");
+  if (typeof JSZip === "undefined") throw new Error("JSZip 未加载（离线或 CDN 被拦）");
+  {
+    const resp = await fetch("/template.docx");
+    if (!resp.ok) throw new Error("拿不到版式模板（HTTP " + resp.status + "）");
+    const zip = await JSZip.loadAsync(await resp.arrayBuffer());
+    const doc = await zip.file("word/document.xml").async("string");
+    const iBody = doc.indexOf("<w:body>");
+    const iSect = doc.indexOf("<w:sectPr");
+    if (iBody < 0 || iSect < 0) throw new Error("模板结构异常（缺 <w:body> 或 <w:sectPr>）");
+    const head = doc.slice(0, iBody + "<w:body>".length);
+    const tail = doc.slice(iSect);
+    const x = s => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&apos;");
+    const p = (style, text) => '<w:p><w:pPr><w:pStyle w:val="' + style + '"/></w:pPr><w:r><w:t xml:space="preserve">' + x(text) + '</w:t></w:r></w:p>';
+    const cards = state.report.cardsByLevel || {};
+    const levels = (state.card.levels) || {};
+    const body = [];
+    body.push(p("DocTitle", (state.card.title_en || "") + " " + (state.card.title_zh || "")));
+    ["A1-", "A2", "B1", "B2+"].forEach(lv => {
+      body.push(p("DocLevel", lv));
+      (cards[lv] || []).forEach((c, i) => body.push(p("Normal", numMark(i) + " " + c)));
+      body.push(p("DocLevel", "题目"));
+      (((levels[lv] || {}).questions) || []).forEach((q, i) => {
+        body.push(p("Normal", "Q" + (i + 1) + ". " + q.q));
+        (q.options || []).forEach((o, j) => body.push(p("Normal", "ABCD"[j] + ". " + o)));
+        body.push(p("Normal", "答案：" + q.answer));
+        body.push(p("Normal", "解析：" + (q.explanation || "")));
+      });
+    });
+    zip.file("word/document.xml", head + body.join("") + tail);
+    return await zip.generateAsync({ type: "blob" });
+  }
+}
+async function exportDocx() {
+  try {
+    download(await buildDocxBlob(), baseName() + ".docx");
+  } catch (e) {
+    alert("导出 Word 失败：" + (e && e.message ? e.message : e));
+  }
+}
+
+/* ---------- 绑定 ---------- */
+$("textIn").addEventListener("input", () => {
+  $("wcInfo").textContent = words($("textIn").value).length + " 词";
+});
+$("btnRun").onclick = run;
+$("btnCancel").onclick = () => { if (abort) abort.abort(); };
+$("btnJSON").onclick = exportJSON;
+$("btnDocx").onclick = exportDocx;
+$("btnSample").onclick = () => {
+  $("textIn").value = SAMPLE;
+  /* 标题留空：这篇的官方标题未经核实，不替用户编一个。
+     留空也是真实场景（很多人只粘正文），链路上标题会由模型从正文推出。 */
+  $("titleIn").value = "";
+  $("wcInfo").textContent = words(SAMPLE).length + " 词";
+};
+
+/* 密钥状态（不显示值，只说有没有） */
+(function () {
+  const has = !!CARD_APP.appKey;
+  $("keyState").textContent = has ? "密钥：已注入" : "密钥：未注入（将尝试桥接层）";
+  if (!has) {
+    const n = document.createElement("div");
+    n.className = "note warn";
+    n.innerHTML = "! 本页尚未拿到 DIFY_WF_CARD 密钥。若桥接层也没起，点生成会明确报错（不会静默）。";
+    $("importPanel").appendChild(n);
+  }
+})();
+
+/* 调试钩子：供自动化探针读取运行状态；不参与页面行为 */
+window.__card = state;
+window.__cardBuildDocx = buildDocxBlob;
+</script>
+</body>
+</html>
