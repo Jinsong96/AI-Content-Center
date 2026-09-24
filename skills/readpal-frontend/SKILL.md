@@ -16,7 +16,9 @@ agent_created: true
 | 前端真源 | `frontend/index.html`（单文件，约 **78 万字符 / 763KB**，2026-09-17 起） |
 | 后端真源 | `backend/agent_reach_bridge.py`（零依赖 Python）；另有 `backend/evp_vocab_check.py` + `evp_wordlist.json` |
 | 部署 | 推 GitHub main → Railway 自动部署（约 90 秒） |
+| 线上密钥 | `os.environ` > `frontend/config.local.js`（gitignore） > `backend/keys.fallback.json`。**云端只有第一条可用**（后两个线上不存在）⇒ 新 key 必须进 Railway Variables；新 key 也要同时进 `_serve_index()` 的 `_envs` 白名单，否则前端显示「未配置」而**不报错、不写日志** |
 | 项目约定 | 仓库根 `AGENTS.md`（**动工前必读**，含 6 个已踩坑） |
+| 🔵🔴 **只管 V1**（2026-09-24 定） | 本项目两套东西：🔵 **V1 智能体** = 本技能管的 `frontend/index.html`，入口 `/`；🟢 **V2 智能体** = 分级卡片 `frontend/card.html` + `frontend/card_check.js`，入口 `/card`，**归 `cefr-card-rewrite` 技能管**。两套独立前端文件、独立 Dify 图，后端 `/` 与 `/card` 两条独立路由。**改 V2 别走本技能**，且**只改文档命名、不许动文件路径**（路径被后端写死，改名直接打挂线上） |
 
 ## 关键约束（务必遵守）
 
@@ -83,6 +85,8 @@ agent_created: true
 | `theme_audit.mjs` | 配色合规审计：遍历 12 页揪出非「黑/灰/橙红」色相 |
 | `cdp_shot.mjs` | CDP 精确视口截图：多尺寸一次出图，绕开 Chrome 最小窗口宽度限制 |
 | `ui_audit.mjs` | **可用性 / 排版客观审计**（2026-09-15 新增）：逐页量横向溢出、文字截断、点击目标尺寸、无标签控件、过小字号，并收集 JS 异常 |
+| `probe_lic_rerun_gate.mjs` | **授权链路「重跑期不许露出中间稿」回归**（2026-09-23 新增）：mock 生成/词汇校验造「超纲→超纲→通过」三轮，按帧采样 DOM，断言定稿前 0 帧文章预览，含负向对照。见硬约定 9 |
+| `probe_fact_edit.mjs` | **事实卡可改 / 可删 / 可新增回归**（2026-09-23 新增，33 项）：**界面断言与下游入参断言分成两组**（改卡必须回写 `factsCache.facts_text` + `facts_raw.facts`），含 gist 不串位/不丢失、空卡不入参、删空拦截、编辑层不泄漏。见下方「事实卡人工编辑层」 |
 
 > ⚠️ `cdp_shot.mjs` 每个尺寸只抓**一个**状态（navigate 一次 + 一次 `--eval` + 一张图）。
 > 需要在一个会话里连拍 N 个状态（改了阅读器/弹窗等有状态 UI 时的自查），
@@ -260,6 +264,8 @@ function render(){ _bigBarUsed = false; ... }   // 每次渲染复位
 > - **`.bigbar`（容器）必须恒存在** ← 这才是真正的不变式，切换条消失就是那个 bug 复现了
 > - `.bigtab` 数 = `4 − minIdx`（`level_lo=A1` → 4 个；`level_lo=B1` → 2 个），**恒 ≥ 1**
 > - 判「有没有坏」看 `.bigbar` 在不在 + `.bigtab` 是否等于上式，**不要写死 4**
+>   —— ⚠️ **lite（轻量提示词）另有收敛**：只产 3 档，`bigBarHTML()` 里多一条
+>   `if(isLite() && shownKeys().indexOf(g.big) < 0) return ''`。见「对照组必须剔除的产线控件」
 
 ### 🔴 改档位数量（12→4 档）必须同步查 CSS grid 列数（2026-09-15 踩过两次）
 
@@ -296,6 +302,43 @@ bash scripts/verify_live.sh
 
 比对删除项是否归零、新增特征是否存在。**注意线上 HTML 是 bridge 注入后的版本**，
 与源码不同（会多出 `window.WB_API_BASE=""` 和 `window.WB_CONFIG={...}` 注入行）。
+
+🔴 **「某段文案删没删掉」的核验串必须是「只在被删内容里出现」的唯一串。**
+反例（2026-09-23 踩过）：「裸产出」在页面里共 4 处 —— 1 条 JS 注释、首页卡片 `desc`（L3965）、
+流程说明（L4296）、被删的那句。拿它当判据 ⇒ 线上**永远 true**，误判「没上线」，白等两轮。
+正确姿势：① 取被删句的**尾巴连续片段**（如「这一条链路要看的正是」）；② 交叉验证**页面总长度差**
+（本次线上 `829006 → 828582`，−424 与 `atomic_replace` 报的删除字符数**完全吻合**）。
+
+⚠️ **Railway 部署偶发慢到 2–3 分钟**（惯例 90s）。第一次核验命中旧内容**先别判「部署失败」**：
+隔 ~50s 复查，看 `document.documentElement.outerHTML.length` **有没有变化**再下结论。
+
+沙箱里也能直接拉线上页（curl 是 000，走 Chrome）：
+```bash
+node tools/cdp_shot.mjs --url="https://web-production-2a16e.up.railway.app/?v=$(date +%s)" \
+  --eval="(async()=>{document.getElementById('loginOv').style.display='none';state.user={role:'produce',name:'x',sources:[]};buildRail();pickRoute('lite');await new Promise(r=>setTimeout(r,400));return document.getElementById('stage').innerText.slice(0,200);})()"
+```
+（`?v=<ts>` 防缓存；登录遮罩 id 是 `loginOv`，不藏起来截图只会拍到登录页。）
+
+### 步骤 6b · 后端接口直连验证（改了 `backend/*.py` 时必做 · 两个沙箱坑）
+
+```bash
+# 起服务：必须用「后台任务」方式，`(cmd &)` 起的进程活不过一条命令就没了
+cd readpal/backend && PORT=8799 exec python3 agent_reach_bridge.py   # run_in_background=true
+# 再单独发请求验证，不要和起服务挤在同一条命令里
+```
+
+- 🔴 **`curl` 通、`python urllib` 报 502 Bad Gateway ⇒ 是沙箱的 `HTTP_PROXY` 在作祟**
+  （环境里 `HTTP_PROXY=http://127.0.0.1:53005`，该代理不转发 127.0.0.1 的请求）。
+  不是服务坏了。绕开方式：
+  ```python
+  op = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+  op.open("http://127.0.0.1:8799/api/trends?theme=all&limit=120", timeout=300)
+  ```
+- 🔴 **`/api/trends` 是同步长请求**（首次 60–120s，命中缓存 ~55s），urllib/curl 的 timeout 要给到 300s，
+  否则会被误判成「后端无响应」。
+- ⚠️ 沙箱内**无法直连 Railway 域名**（curl / fetch 一律 000；`curl --noproxy '*'` 也 000）。
+  线上核验走 `node tools/read_live_config.mjs` —— 借本机可见 Chrome（CDP 9243）读真实页面上的 `window.WB_CONFIG`，
+  一眼看出哪个 key 是空的。这是核「Railway 环境变量有没有进容器」的最快路径。
 
 ### 步骤 7 · 端到端回归（改了共享 CSS/JS 时必做）
 
@@ -379,12 +422,15 @@ node tools/ui_audit.mjs --url=http://127.0.0.1:8899/index.html --role=produce \
 | Dify FACT 报 `material is required` | 入参字段名不对 | FACT 只传 `{material, style}`（**不要传 `level`**，见下条），material 必填 |
 | Dify 报 `level in input form must be one of the following: ['A1.1',…]` | `start.level` 是 `select`，枚举值**只有点式**；前端 `state.lvl` 是**内部下划线键**（`A1_1`）→ 2.1s/0 token/0 节点被门口打回 | **FACT 不传 `level`**（标签本就写着「可选，空则由 nodeGrade 自动判」）；**GEN 传 `nkDisp(fc.level \|\| state.lvl)`** 转点式。⚠️ 若非要传 `select` 类入参，**空串也是非法值** —— 必须整个省略该键 |
 | 以为「本地 ≠ 线上」要回拉源码 | 线上 HTML = 源码 + bridge 注入行（第 7 行 `<script>window.WB_API_BASE="";window.WB_CONFIG={…};</script>` 替换了本地的 `<script src="config.local.js"></script>`，差 234 字节） | **先归一化该行再逐行比**。归一化后若零差异 ⇒ 本地就是线上源码，别覆盖。把「部署产物」直接与源码做字节比会把注入误判成漂移 |
+| 既有回归探针突然报红，以为是自己改坏了 | 探针断言写死了**旧口径**（界面文案/只读性/按钮），而需求早已反转 | **先做基线对照**：`curl -s -o /tmp/base/index.html https://raw.githubusercontent.com/Jinsong96/AI-Content-Center/main/frontend/index.html` → 另起端口跑同一探针。**两边失败项完全一致 ⇒ 与本次改动无关**，是断言过时；只把过时断言改成反向断言（并注明日期+原因），别去「修」代码 |
 | 本地探针里 `AIWF_*.appKey` 为空、函数静默返回不报错 | 本地没有 `config.local.js`，`appKey` 空 → 函数**内部 `try/catch` 提前抛掉**，表现为「什么都没发生」 | 探针里先 `AIWF_FACT.appKey='app-PROBE'`（`const` 对象属性可改）再调用 |
 | 以为「线上新字段全缺」 | `tools/dify_run_app.py --out=xxx.json` 写的文件**顶层就是 outputs 本身**，没有再套一层 `outputs` | 读 `d['align_map']`，**不要**读 `d['outputs']['align_map']` |
 | `curl` 线上 `CONNECT tunnel failed, response 502`；`urllib` 直连超时 | 本机代理拦截 Railway 域；显式 `ProxyHandler({})` 绕代理后**仍超时** | **别在网络层绕** —— 用 CDP 从已登录的 Chrome 里 `Network.getResponseBody`（`Page.navigate` + 监听 `Network.responseReceived` 取 `requestId`）拿**原始响应体**，用 `Network.setCacheDisabled(true)` 防缓存 |
 | 手写大段 `atomic_replace` spec 容易抄错 | 人肉复制长 `old` 必然出岔 | **从远端原版派生**：拉线上文件 → 用 `difflib` 定位差异块 / 用 `索引切片` 从**本地新文件**取 `new`、从**远端旧文件**取 `old` → 断言 `r.count(old)==1` → 跑 `atomic_replace` → **与本地文件比 sha256，逐字节一致才算通过** |
+| 用「起止锚点 + 切片」生成 spec 时，删掉的**不是你想删的那块**（删完语法就错） | 锚点是**子串匹配**：想删 `  return head("09", …)`（2 空格）时，`if` 分支里 6 空格缩进的同名行**也会命中**，于是切片在分支内部就截断了，只删掉半个块 | **结束锚点必须带后面一两行**（用分支里不可能出现的后续行，如产线版才有的 `artWorkflowBar() +\n  \`<div class="validate">`），并断言 `切片.rstrip().endswith("}")`、含预期的起始特征。2026-09-23 删 s7 的 lite 分支时踩到，改完必须先 `check_js.py` |
+| 新函数「插进去了、语法也过」，运行时却 `xxx is not defined`，而且那坨函数源码**当正文渲染出来了** | 插入点落在**模板字符串内部**（`return \`…\`` 里），JS 解析依旧通过，因为那就是一段普通文本 | 锚点要选在**函数外**（如 `function wfStrip(){` 之前），不要在 `return \`…\`` 与其内部标签之间插。**判据：`node --check` 过了不算数**，必须真渲染一遍看有没有冒出源码文本 |
 | 探针读到「FACT 没有 `level_lo`/`info_points`、`gist_len=0`」 | `runGeneration()` 结束时把 **`state.live.run` 换成 GEN 的响应**，事后读它其实读的是 GEN 的 outputs | 要么在 **FACT 刚结束、GEN 未启动**时读；要么改用**穿透式记录器**（记录请求体但照常转发请求），见 `scripts/probe_live_e2e.mjs` |
-| **切到没有内容的大档后，大档切换条整条消失、点不回去** | `alignedViewHTML()` 开头的 `if(!has) return ""` —— 切换条就渲染在这一块里，被一起带走了。区间模型下（素材只到 A2.3）必然触发 | 改成 `if(!has) return h+emptyGroupHTML();`，切换条与空态卡片始终保留。**判据：任何状态下 `.bigtab` 恒为 4**。回归用 `scripts/probe_review_levels.mjs` |
+| **切到没有内容的大档后，大档切换条整条消失、点不回去** | `alignedViewHTML()` 开头的 `if(!has) return ""` —— 切换条就渲染在这一块里，被一起带走了。区间模型下（素材只到 A2.3）必然触发 | 改成 `if(!has) return h+emptyGroupHTML();`，切换条与空态卡片始终保留。**判据：`.bigbar` 恒存在；`.bigtab` 数 = `4 − minIdx`（lite 走 `shownKeys()` ⇒ 3）。⚠️ 别再写「恒为 4」——2026-09-23 起 lite 是 3** |
 | 想改切换条位置，怕出两条 | 它是 `_bigBarUsed` 一次性闸门 | **不必复制**：在目标位置先调一次 `bigBarOnce()` 占住闸门，原位置那次自动返回空串 |
 | 大文件 PUT 失败 | 上传偶发 `IncompleteRead` | 重试 4 次 × 3s |
 | 窄屏截图右侧被切、像布局溢出 | `chrome --window-size` 受最小窗口宽度限制（420 ⭢ 实际 vw≈500） | 用 `node tools/cdp_shot.mjs --sizes=...`（CDP Emulation） |
@@ -437,7 +483,7 @@ node tools/ui_audit.mjs --url=http://127.0.0.1:8899/index.html --role=produce \
 **关键函数**：`licState()` 状态中枢 · `licensedPanelHTML()` 导入面板 · `licPrepOne()` 跑图 A ·
 `licConfirmHTML()` 确认页 · `licRunGen()` 跑图 B · `licSegBad()` 每段是否算不合格 · `licTotalHTML()` 全文行。
 
-### 🔴 五条硬约定（改这里之前逐条核）
+### 🔴 硬约定（改这里之前逐条核）
 
 1. **不勾精简 = 逐字保留原文**。正文由图 A 的 code 节点硬取原文，**前端不做任何"复原/拼接/兜底改写"**。
    分段只移动切分点 —— 所有段拼起来必须与原文逐字一致（`probe_graphA_band.mjs` 会验）。
@@ -473,6 +519,25 @@ node tools/ui_audit.mjs --url=http://127.0.0.1:8899/index.html --role=produce \
 8. ⚠️ **展示类数字不许用 `licSegRange().n`** —— 那个 n 被 `LIC_REF_MIN/MAX`（6–30）夹过，
    只作 `licRange()` 防脏值用。段数跑出该范围时「N 段 × 每段词数 = 区间」会变成假话。
    `licTotalHTML()` 已改成按 `st.prep.segs.length` 现算（`lo/hi` 也一并现算）。
+
+9. 🔴 **多轮重跑期间 UI 必须停在等待页，不许露出中间稿**（2026-09-23 修，Bryan 实测反馈）：
+   生成后有三层校验（字数 / 句长 / 超纲），任一不达标就整篇重跑（`licRunGen` 的 `MAX_REGEN=2`）。
+   旧实现每一轮都立刻 `state.live.status="done"` + `applyLive()` ⇒ 下一轮开头的
+   `licSetBusy()+render()` 会把「马上要被替换掉的中间稿」渲染成完整文章预览页 ——
+   用户能读、能点「进入 AI 校验」，读到一半才被告知「质量不达标，自动重跑」。
+   **正确时序：等待页 →（全部重跑结束、版本定稿）→ 文章预览 → 分段/校对页。**
+   现行做法：
+   - 只有定稿（达标 / 用尽重跑次数）才 `status="done"`；
+   - 重跑分支先清 `GEN = {}`（连带 `state.words12 / state.meta12`）、`state.live.run = null`、
+     `status="running"`，并**重置 `t0/elapsed`**（不重置进度条会顶在 90% 像卡死）再 `continue`；
+   - `licRunGen` **开跑处也清一次旧稿** —— 否则接第 2 篇母稿时 s6 会拿上一篇的文章冒充本次结果；
+   - 普通链路 `runGeneration` 的超纲重跑分支同样处理；
+   - 等待文案用 `licState().busy`（重跑时它是「质量不达标，自动重跑第 N 次（字数/句长/超纲原因）」），
+     是**替换** s6 那句固定 runTxt，不新增 DOM 元素。
+   **回归**：`tools/probe_lic_rerun_gate.mjs`（真跑 DOM，10 项断言 + 负向对照）。
+   对照组实测：修复前 3 项失败、24 帧违规；修复后 10/10。
+   ⚠️ 写这类断言别用「读代码顺不顺」判断 —— 泄漏只发生在「某一轮 render 的瞬间」，
+   必须按帧采样（本探针 60ms 一帧 + 记录 `status` / `GEN` / `.gentabs` / `#s6run`）。
 
 ### 「母稿导入 → 文章生产」通审：历史问题清单（2026-09-22 记）
 
@@ -555,9 +620,29 @@ node tools/ui_audit.mjs --url=http://127.0.0.1:8899/index.html --role=produce \
 ### 回归
 
 ```bash
-cd frontend && python3 -m http.server 8899 &
+cd frontend && python3 -m http.server 8899 &   # 必须 run_in_background，(cmd &) 活不过一条命令
 node tools/probe_lic_flow.mjs --url=http://127.0.0.1:8899/index.html --port=9242   # 62 项断言
+node tools/probe_lic_rerun_gate.mjs --url=http://127.0.0.1:8899/index.html --port=9244  # 10 项断言（生成期 UI 闸门）
+node tools/probe_fact_edit.mjs --url=http://127.0.0.1:8899/index.html --port=9250  # 33 项断言（事实卡可改/可删/可新增）
 ```
+
+> ✅ **`probe_lic_flow.mjs` 基线已是 62/62**（2026-09-23 全部收敛完毕）。
+>
+> 2026-09-22/23 那轮「授权链路轻量化」改掉了一批界面元素，探针没跟着改，曾一度停在 **51/62**。
+> 当时的判别法值得复用：把远端 `main` 的 `frontend/index.html` 拉一份到 `/tmp`、另起端口跑
+> 同一个探针 —— **两边失败项完全一致** ⇒ 与本次改动无关，是断言自己过时了。
+>
+> 那 11 条的归因（**改断言前先照这张表对号，别当成真 bug 去改代码**）：
+> - **纯文案过时（2 条）**：「开始预处理」→「开始分段」；确认页按钮 →「确认，进入下一步」。
+>   `onclick` 目标（`licRunPrep` / `licGoGen`）都没变 —— 只改字面量，别动逻辑。
+> - **功能按需求删除，断言要反转成「不该出现」（9 条）**：`.liccalc` 的「偏短/偏长/常规区间」
+>   提示文字（只留 `warn` 黄底 class，`tooShort` 已作为死变量删除）；顶部红条 `.licneed`
+>   现在只在 `st.err` 时渲染；「已就绪，可以开始预处理」—— `.licok` 只剩 CSS、零渲染引用；
+>   20 段提示与「仍然继续生成」按钮（`grep 仍然继续生成` = 0）；大意核对全过时不报警。
+>
+> 🔴 **段数跑出常规区间 10–15：Bryan 2026-09-23 拍板「保持静默」** ——
+> 不出提示、不给确认按钮、也不阻断生成。所以对应断言是**反向**的（「不该出现」）。
+> 看到这条静默别当成 bug 去补提示，是有意为之。
 
 其中 **1b / 1c 两组专治「改了状态不重绘」**（见硬约定 7），**全程不许调 `render()`**：
 - **1b**：真实 `change` 事件改档位 / 勾精简 → 就绪红条、行内预估、底部按钮三处必须立刻变。
@@ -567,6 +652,213 @@ node tools/probe_lic_flow.mjs --url=http://127.0.0.1:8899/index.html --port=9242
 ⚠️ **`waitBtn()` 渲染的不是 `<button>`** —— 断言「底部不可点」要用
 `!!document.querySelector(".nextbar button") === false` + `.nextbar` 文案含「请先补全」，
 抓 `.nextbar button` 的 `textContent` 只会拿到空串（踩过一次）。
+
+## 轻量提示词链路（第五入口 · 2026-09-24 起 = **骨架锁定生产链路**）
+
+**2026-09-24 定位变更**：原先是「裸跑图 C」的对照实验入口，实测**段数对齐率只有 62%**、
+逐段词数完全不分级（A1- 19–59 词/段）⇒ Bryan 报障后拍板接骨架。现在这条链是：
+**定骨架（图 A）→ 人工确认 → 逐段生成（图 C，提示词一字不改）→ 代码校验段数 + 不齐带差量回炉**。
+对照实验的使命已完成（它证明了单次盲跑的天花板），不要再往回退。
+
+图 = 图 C（`tools/build_graphC.py`）+ 借用的图 A（`licprep`，`need_simplify:"false"`）。
+
+### 🔴 骨架注入块 = 三段拼装，**缺【逐段篇幅】就会每段写长一倍**
+
+```js
+/* liteRun() 里，骨架只作为**输入文本**拼进 master_text —— 图 C 的提示词一个字不改 */
+skelBlock =
+  "【段落骨架】下面是母稿按大意切好的 N 段（每段一行）。\n"
++ "你改写时必须严格沿用这 N 段：段数必须正好 N 段，第 i 段只讲骨架第 i 段的事，不得合并、不得拆分、不得调换顺序。\n\n"
++ "1. …\n2. …\nN. …\n\n"
++ perLine + "\n\n";        // ← 【逐段篇幅】A1- 每段 11–14 词；A2 每段 20–22 词。按段分别控制，不卡全文字数。
+```
+
+**真模型实测（`tools/probe_lite_skel_e2e.mjs`，母稿 311 词）**：
+
+| 输入块 | 段数 | 每段词数 |
+|---|---|---|
+| 只有【段落骨架】 | 11/11/11 ✅ 对齐 | A1- `[20,14,19,25,27,30,26,27,28,25,23]` ❌ 只 1/11 落带 |
+| 骨架 + 【逐段篇幅】 | 11/11/11 ✅ 对齐 | A1- 11/11 落带（13–14 词/段）、A2 11/11 落带 |
+
+⇒ 模型默认按「压缩但不减段」处理；**不告诉它每段多长，它就不会压到位**。
+`perLine` 的数值取自 `LIC_PER_PARA`（与图 B `nodeValidate` 的 PER 表同源），别另写死一份。
+
+⚠️ **这两个探针里逐字复制了同一段拼装逻辑，改前端必须同步改，否则探针就失去意义**：
+`tools/probe_lite_skel_e2e.mjs` 的 `skelBlock()`、`tools/probe_lite_skeleton.mjs` 的断言。
+
+### 三个探针 + 一个大意核对（改 lite 后按顺序跑）
+
+```bash
+node tools/probe_lite_skeleton.mjs      # 本地静态服务 + stub，验前端逻辑（51 条）
+node tools/probe_lite_route.mjs         # 旧回归，无骨架时的向后兼容退化路径（42 条）
+node tools/probe_lite_skel_e2e.mjs --rounds=2   # 借真实 Chrome 直连 Dify，验真模型（段数/逐段词数）
+node tools/probe_lite_skel_online.mjs   # 打开线上页真点按钮，走 Railway 桥接层（13 条）
+node tools/check_gist_align.mjs         # 借事实检查图核对「第 i 段大意对第 i 段」（代码判不了语义）
+```
+
+### 🔴 判据只有一个：`isLicLike()` / `isLite()`
+
+lite 与 licensed 是**同一种东西**——「吃一篇文章、吐几档改写稿」，所以共用 `state.lic`
+状态机与生成后的全部渲染页（预览 / 校对 / 审核 / 入库）。全站判断入口**只准**写：
+
+```js
+function isLicLike(){ return state.route === "licensed" || state.route === "lite"; }
+function isLite(){ return state.route === "lite"; }
+```
+
+❌ 不要再散写 `state.route === "licensed"`。**再加同类入口时，只改这两个 helper + 下面三处。**
+
+### 加同类入口的必查清单（四处，少一处就是空白页 / 点了没反应 / 目标档位变错）
+
+| 处 | licensed 的前提 | lite 的前提 |
+|---|---|---|
+| `s0()` 底部按钮分派 | `licState().prep`（分段已确认） | `licState().prep` **有骨架** ⇒ 骨架确认页；否则 ⇒ 导入面板（底按钮「定骨架」） |
+| `s6()` 顶部「生成文章」分支 | `!!licState().prep` | 看 `liteHasText()`；lite 走完骨架页进来就该给「生成」按钮 |
+| `s7()` AI 校验页 | 有 `validation_json` 渲染校验表 | **这一页在 lite 下整条不存在**（2026-09-23 起）：不再渲染任何说明，改由 `go()` 把 idx 8 改送到 9 |
+| **档位收敛** | 恒 4 档 | **`shownKeys()`** ⇒ 3 档。不改 ⇒ 空 B2+ 列 / 空 tab / 空 pill，页头还写「4 档对照」 |
+
+> 🔴 **新入口的档位范围若与产线四档不同，必须走 `shownKeys()`，不许在渲染函数里写死数字。**
+> 四条产线链路与 lite **共用同一批渲染函数**（`bigBarHTML` / `alignBodyHTML` / `quizAlignedHTML` /
+> `alignModeBarHTML` / `s12` 标题），写死 3 会把产线页面一起砍掉。
+
+`artFlowSteps()` / `intakeBackBar()` / `pickRoute()` / `applyLive()` 的标题锁定 /
+`updateLiveProgress()` 的进度分母，一律走 `isLicLike()`。
+
+### 六个必须知道的实现细节
+
+1. **母稿（B1）有骨架时 = 骨架段本身**：图 C 不返回母稿，`liteRun()` 把
+   `articles_json.B1` / `paras_json.B1` 覆盖成骨架的 N 段（**不是另切一份**）—— 这样四档段数
+   天然一致。只有**没骨架**（异常退化路径）才退回 `liteMasterParas()` 按原空行切。
+   （理由：B1 有 3 道题，没有对应文章可看，用户看不懂题目指向哪里。）
+2. **`state.live.licN` = 骨架段数**（有骨架时）。无骨架才退回模型实际段数（`paras_json.A1` 长度），
+   最后兜底才是 `expectedParaCount()` 的默认 **12**。
+   ⚠️ 曾经的口径是「一律取模型实际段数」—— 那等于**让模型自己当裁判**，正是段数不对齐那个 bug 的老口径。
+3. **回炉是异常兜底，不是主路径**：生成后**用代码**比 A1- / A2 段数与骨架是否相等，
+   不齐 → 把量出来的差量（「A1- 段数：现在是 2 段，必须正好 3 段」）拼进下一轮 `master_text`，
+   首轮 + 2 轮共 **3 次**上限；仍不齐 → 写 `state.live.skelWarn` + `console.warn` + toast，
+   **不阻断**（照常落 idx 7，让用户逐段审核时手动处理）。
+   ❌ 绝不允许静默：段数不齐必须说出来。
+4. **`liteInput()` 绝不能整页 `render()`** —— textarea 被重建，正在输入的人丢光标（同 `licSetSeg` 的教训）。
+   要切底部按钮就调 `liteRefreshBar()`，它只 `replaceChild` 那一个节点。
+5. **`parse_ok !== "true"` 必须显式拦下**（错误条 + 重试按钮），不能让它生成一篇「什么都没有」的空壳。
+   `parse_warn` 里会带缺档 / 题数不对 / answer 越界 / 已知外的题型等具体原因。
+6. **`GEN[k]` 没有 `text` 字段** —— 结构是 `{title, by, cover, paras: [[段落], …], metrics, used}`。
+   正文只能由 `paras` 拼回来（`paras.map(p => Array.isArray(p) ? p.join(" ") : p).join(" ")`）。
+   写断言时若习惯性取 `GEN.A1.text` ⇒ 恒为空 ⇒ 会误报「A1 与 A2 内容相同」这种假缺陷（踩过一次）。
+7. **「返回改母稿」只清骨架，不清正文**（`liteBackToInput()`）：清 `prep` / `confirmed` / `err`，
+   保留 `liteText` / `liteTitle` —— 用户改一两个词不用重贴几千字。
+
+### 🔴 对照组必须剔除的产线控件（2026-09-23 实测 4 处泄漏）
+
+Bryan 口径：*「这个极简版本，只有这些提示词，原来所有的分级标准、检验标准和字数约束等都不对它起作用，都不需要有。」*
+**核查方法：不看代码下结论，生成完成态下逐页取真实 DOM。**
+
+| # | 位置 | 症状 | 处理 |
+|---|---|---|---|
+| 1 | `s6()` 生成完成页 | **写作风格条漏进来了**。点它 → `setStyle()` → `runGeneration()`，跑的是**四档产线主链路**（不是图 C）⇒ 对照组用户点一下模型输出就被换掉。**这是功能性错误，不只是显示不对** | lite 下不渲染 `styleBarHTML()` |
+| 2 | 同上 · 侧栏 4 指标 | 标签写死「AI 校验得分（本档 8 项）」「蓝思值 · 区间」「篇幅 · 目标 128–172 词」，前两个对 lite 恒为「—」/假区间 | 标签按 lite 口径出；`applyLive` 里 `metrics[0]` 换成「段数 · 实测」 |
+| 3 | 同上 · 事实卡引用面板 | lite 不抽事实，面板却写「运行 AI 工作流后展示事实卡」——已经运行过了，等于骗人 | lite 下整块不渲染 |
+| 4 | 档位条 / 对齐网格 / 题目对照 / 审核页标题 | 产线按四档铺 ⇒ 空 B2+ 列、空 tab、空 pill，「4 档对照」「4 档练习题」「逐段原文 · 4 档对齐」 | 走 `shownKeys()` |
+
+```js
+/* 本链路实际有产出的档位。非 lite 恒返回全 4 档 —— 产线行为一字不改。 */
+function shownKeys(){
+  if(!isLite()) return allKeys();
+  const ks = allKeys().filter(function(k){ return GEN[k] && GEN[k].paras && GEN[k].paras.length; });
+  return ks.length ? ks : allKeys();      /* 还没生成时仍给全档，避免空页 */
+}
+```
+
+**有意不动的地方**（别顺手一起删）：
+- **段数 / 段落对齐**：这不是「字数约束」，而是**提示词自己写明的核心要求**（「所有版本保持段落数和段落内容对齐」）。
+  保留 3 档对齐视图与段落校对页，只把脚注从「AI 切分 + 人工校对」改成 lite 口径。
+- **`expectedParaCount()`** 仍取模型实际段数（`state.live.licN`），不落回默认 12。
+
+### 🔴 某一步在某个入口下「整条不存在」时，必须三处一起收口（2026-09-23 建）
+
+lite 是对照组，不跑任何质量校验 —— Bryan 要求把 **AI 校验页连同「本链路不做质量校验」那句说明一起删掉**
+（此前那句说明是为了防空白页而保留的，**口径已反转**）。删一个步骤**远不止删那段文案**：
+
+| 处 | 改法 | 漏了会怎样 |
+|---|---|---|
+| `artFlowSteps()` | `if(!isLite()) steps.push({idx:8,…})` —— **不是**隐藏，是这一步不进列表 | 顶部步骤条仍写 5 步、还摆着一个点过去没东西的节点 |
+| `go()` | `if(isLite() && i===8) i = 9;` | 任何入口（原底部按钮 / 底部工作流条）落到 8 ⇒ 渲染出产线版的空校验页（**空白页**，正是原来最想避免的） |
+| `wfStrip()` → `wfStages()` | lite 过滤掉该节点 | 底部「完整工作流」里还留着它，点了被静默改送 —— 一句说不通的空跳转 |
+| `s7()` | 删掉 lite 分支（**保留产线分支**） | 留着就是那段要删的文案 |
+
+> ⚠️ **`artFlowSteps()` 会自动重编号**（`no:String(i+1)`），所以少一步不用手工改编号；
+> 但**页头步骤号（`head("09",…)`）是硬编码的产线号**，lite 下本来就和步骤条不同名，别去同步它。
+>
+> **负向对照必须有**：`state.route="licensed"` 时 `go(8)` 必须仍停在 8 ——
+> 否则说明「改送 9」被写成了全局规则，把产线的 AI 校验页一起干掉了（探针第 ⑪ 项就在测这个）。
+
+### 🔴 页面索引 ≠ 步骤号（写探针取页面时必查）
+
+`render()` 的分派数组是 `fns=[s0,s1,s2,s3,sMaterialBank,s4,s5,s6,s7,s9,s12,sArticleBank]`，
+而各页 `head()` 里印的步骤号是另一套：
+
+| 页面 | `go(idx)` 索引 | 页头步骤号 |
+|---|---|---|
+| 内容生成 | **7** | 08 |
+| AI 校验 | **8** | 09 |
+| 段落校对 | **9** | 10 |
+| 逐段审核 | **10** | 11 |
+| 文章库 | **11** | — |
+
+另外**内容生成页没有 `.bigtab`**（它只有 `.gentab`），档位条只在段落校对 / 逐段审核出现。
+第一版 e2e 探针就因为这两条取错页面，报了两个假失败。
+
+### 硬约定 10 · 新增一个工作流（wf）必须同时改 **两处**
+
+`backend/agent_reach_bridge.py` 里有两个**各自独立**的白名单，漏一个就出半死状态：
+
+| 位置 | 作用 | 漏掉的症状 |
+|---|---|---|
+| `_serve_index()` 的 `_envs` | 把 key 注入首页 `window.WB_CONFIG` | 前端显示「服务端未配置 XXX 密钥」 |
+| `/api/dify/workflows/run` 的 `keymap` | wf 名 → 环境变量名，代理转发用 | **前端拿得到 key，一点生成就 `unknown wf (expect …)` 400** |
+
+🔴 **2026-09-23 踩的就是第二个**（加 `lite` 时只改了 `_envs`）。
+**为什么本地探针没抓到**：桥接层没起（本地 8787 没跑）⇒ `difyCall` 静默回退直连 `api.dify.ai`，
+**压根没走代理** ⇒ `keymap` 一行都没执行。
+⇒ 教训：**「本地跑通了」不等于代理路径跑通了**；涉及代理的功能，回归必须真起桥接层。
+
+```bash
+node tools/probe_bridge_wf.mjs      # 真起后端 + 逐个 wf 打空 inputs
+```
+断言分两组：已知 wf 不许回 `unknown wf`、且不许回 `missing upstream api key`（= key 真的取到了）；
+负向对照：乱写的 wf 必须回 `unknown wf` + 400。
+用 `BRIDGE_FILE=backend/_mut_xxx.py` 可指一份变异体，验证探针真的会红（变异体**必须放 `backend/` 下**，
+否则 `_BASE_DIR` 推导错、连 config 都读不到，报错性质就变了）。
+
+### 回归
+
+```bash
+python3 tools/check_js.py frontend/index.html <node>
+node tools/probe_lite_route.mjs        # 42 项（含 3 条负向，stub 掉网络 ⇒ 快、可反复跑）
+node tools/probe_graphC_parse.mjs      # 24 项（解析节点单测，不依赖浏览器）
+node tools/probe_lic_flow.mjs          # 64 项：改了 isLicLike 的覆盖面后必跑
+node tools/probe_bridge_wf.mjs         # 15 项：真起桥接层，验每个 wf 都能被代理转发
+                                       #   ⚠️ 新增/改名任何工作流**必跑**（见硬约定 10）
+```
+
+**真调 Dify 的端到端**（改完图 C / lite 链路后跑一次，验证「真的能出文章」而不只是 UI 不报错）：
+
+```bash
+# 前置：frontend/config.local.js 必须有 DIFY_WF_LITE
+cd frontend && python3 -m http.server 8899 --bind 127.0.0.1 &   # 必须后台起
+cd .. && node tools/probe_lite_e2e.mjs                          # 43 项 / ~30–40s，真跑图 C
+```
+
+它会验：密钥注入 → 5 个入口 → 三档文章建起来 → 段数一致 → B1 = 用户粘贴的原文 →
+A1/A2 确实不同且 A1 更短 → 三档题配额（语言/文本/逻辑/认知）→ 后续每页非空白 →
+**idx 8 AI 校验页已删除**（`go(8)` 落到 9、无旧说明、步骤条 4 步、底部条无该节点）→
+**第 5 组「产线约束未泄漏」**（无 `.stylebar` / 无 `.factused` / 侧栏不提「AI 校验得分 / 蓝思 / 目标」/
+档位条 3 个 / 无空 B2+ 列 / 文案写「3 档」）+ **1 条负向对照**（`state.route="licensed"` 时仍给 4 档）。
+**注意它是「真花钱真耗时」的**，不要放进每次改动的必跑清单。
+
+⚠️ **写负向对照前必须先把状态复位**：例如验证「抽掉 `liteRefreshBar` 后按钮不切换」，
+要先把正文置空 + `render()` 让页面回到等待态，否则按钮停在上一次已经变可点的状态，
+**抽不抽掉刷新函数都是 clickable=true** —— 对照测的是残留，不是变异（踩过一次）。
 
 ## 前端骨架速查（2026-09-10 现状）
 
@@ -584,7 +876,7 @@ node tools/probe_lic_flow.mjs --url=http://127.0.0.1:8899/index.html --port=9242
 | 色变量语义名 | `--tone-1*`（原 `--teal*`）/ `--tone-2*`（原 `--purple*`）/ `--neutral-t:#F2F4F7`。**改名是为了防后人照名字加绿/紫** |
 | 校对草稿 | `DRAFT_KEY='wb_para_draft_v1'`；`queueDraftSave()` 700ms 防抖 → `beforeunload` 兜底；`applyLive()` 末尾 `restoreParaDraft()`；指纹 = `material.length + ':' + material.slice(0,80)` |
 | 运行进度 | `runPct(est,nodes,nodeEst)` 双因子取大、封顶 96%；`runOverdue(est)` 超 115% 提示；`GEN_EST=150` / `FACT_NODE_EST=9` / `GEN_NODE_EST=21`；`cancelLiveRun()`（`AbortController`，catch 识别 `AbortError`） |
-| 4 档视图 | `alignModeBarHTML()` / `setAlignMode('grid'\|'single')` / `alignBodyHTML()`；`alignedViewHTML()` = `bigBarOnce()` + 模式条 + 正文。**判据：任何状态 `.bigtab` 恒为 4** |
+| 4 档视图 | `alignModeBarHTML()` / `setAlignMode('grid'\|'single')` / `alignBodyHTML()`；`alignedViewHTML()` = `bigBarOnce()` + 模式条 + 正文。**判据：`.bigbar` 恒存在，`.bigtab` = `4 − minIdx`；档数/列数/pill 数一律走 `shownKeys()`（lite=3 / 产线=4），别写死 4** |
 | 文章库导出 | JSZip CDN（jsdelivr 3.10.1，`exportArticles` 内 `typeof JSZip === "undefined"` 降级 toast）；一篇 = 1 个 zip，内含 `文章.md` + `题目.md`；批量 = 1 个 zip 平铺 2N 文件、标题重名加短 ID。**MD 格式**：文章 `# 标题` → 每档 `# A1/A2/B1/B2` + 段落空行分隔（后端按空行切段、按 `#` 切档）；题目每题「题干 + A/B/C/D + 答案 + 解析」。只对 `artStatus(a)==="approved"` 开放。后续加音频（`a.audio`）/封面（`a.coverDataUrl`）进 zip 即可 |
 | 统一返回按钮 | 全站左上角，由 `render()` 注入 `backBarHTML()`；顶层页 `0/4/5/11` 不显示 |
 | 返回落点 | `backTarget()` + `goResolve()` 复刻 `go()` 跳步 → 严禁直接写 `go(cur-1)` |
@@ -814,6 +1106,11 @@ avoid_words: JSON.stringify({ A1: ["medal","athlete"], A2: [...], ... })
 > （Dify 的 UA / 频率风控 + 网络抖动）。走同源代理稳定得多，且密钥不出浏览器。
 > 三个 `AIWF` 常量**仍保留**（作为回退分支用），不是死代码了。
 > 代理报 `missing upstream api key` 时，是 Railway 环境变量缺 `DIFY_WF_*`，不是密钥失效。
+>
+> 🔴 **Railway 变量编辑是「暂存」的**：改完左上角会出现 `Apply N changes`，**不点就不生效** ——
+> 页面显示变量值已填好、但运行中的容器读到的仍是旧环境（2026-09-23 卡在这里：截图里值清清楚楚，线上却是空串）。
+> 排查顺序：① 点 Apply / 看 Deployments 有没有新条目 → ② 变量名逐字符比对（大小写/首尾空格）
+> → ③ 确认加在当前 service + 当前 environment → ④ `node tools/read_live_config.mjs` 复验。
 
 **探测通路是否正常**：用空 inputs 打工作流，拿到 `400 invalid_param` 就说明**通路 + key 都正常**。
 
@@ -910,6 +1207,41 @@ GEN `f4462032-2919-49e0-b123-bb5160c96c28`（MAIN `466e1815-…` 是死资产）
 ## 定制热点 / 自定义信源（2026-09-14 · 步 1 已上线）
 
 方案文档 `readpal/docs/27`、`docs/28`（§8 步 1 落地记录）。**改这条链路前先读 docs/28 §8。**
+
+### 🔴 交付配比：今日头条优先 / CGTN 30% / 其余补齐（2026-09-23 · 改 `fetch_trends` 前必看）
+
+**真源**：`agent_reach_bridge.py` 的 `TRENDS_QUOTA` + `trend_group()` + `_pick_by_quota()`。
+
+| 常量 | 值 | 为什么是这个值 |
+|---|---|---|
+| `TRENDS_QUOTA` | `{"toutiao":0.50,"cgtn":0.30}` | 其余 = 剩下的 20%，不单独配 |
+| `TOUTIAO_HOTBOARD_LIMIT` | 50 | 头条热榜**总共只有 50 条**，全量取回才谈得上 ~32 条可用 |
+| `TOUTIAO_FETCH_WORKERS` | 8 | A1(文章 JSON)/A2a(话题页 SSR) 都是纯 HTTP，串行 50 条实测 48s → 并发 16s |
+| `CGTN_PER_SOURCE_LIMIT` | 12 | CGTN 只有 5 个栏目源，套用 `PER_SOURCE_LIMIT=4` 最多凑 20 条 < 36 条配额 |
+| `QUOTA_POOL_FACTOR` | 1.35 | 候选池冗余；取 1.5 时首次耗时逼近 100s（超前端「约 50–90 秒」文案） |
+
+**三条硬约束，缺一条配比就落不了地：**
+
+1. **按源截断的上限必须按分组给**（`_SRC_CAP`）。`PER_SOURCE_LIMIT=4` 是为 40+ 个来源做的
+   多样性保护，一并套给头条/CGTN 会**当场把自己的配额卡死** —— 实测头条被压到 8 条、
+   CGTN 20 条，**配比改成多少都看不出效果**（这是改之前头条只占 7% 的真凶）。
+2. **配额只能在「无可用正文筛选之后」施加**。提前到排序截断那一步，后面被无正文闸门筛掉的份额
+   会凭空消失，最终比例必然漂掉。所以是两阶段：放大候选池 → 补正文 → 筛 → `_pick_by_quota()` 精挑。
+3. **分组判据是信源前缀，不是内容类别** —— 一篇文章讲什么跟它由谁发布无关。
+   头条条目的 `source` 会被补正文改写成「今日头条 · 各家媒体」，所以必须
+   `startswith("今日头条")` 而非等值比较。
+
+**头条做不到 50%，这是硬天花板**（Bryan 已知情，拍板「保总数 120 条」）：
+热榜 50 条 → 拦掉视频型 + 无正文后实测 **32~33 条**。
+缺的份额全部由「其余」补 —— **绝不拿别的源冒充头条，也不为了比例好看把列表截短**（那是拿假供给骗人）。
+
+**块顺序 = 界面顺序**：头条块 → CGTN 块 → 其余块。前端 `state.realHots.filter(hasUsableText)`
+**只过滤不重排**，所以后端返回什么顺序，老师就看到什么顺序。CGTN 块内走 `_round_robin()` 轮转，
+让 5 个栏目交替出现（实测 8/7/7/7/7），而不是同一栏目连排十几条。
+
+**实测（2026-09-23，limit=120）**：改前 8/18/81 条（7%/17%/76%）→ 改后 33/36/51 条（28%/30%/42%）。
+CGTN 精确 30%。耗时：首次（清缓存）~120s / 命中缓存 ~54s。
+旧的 `SOURCE_BOOST={"CGTN":10}` heat 加权已随配额制撤掉（硬配额下它只会影响组内顺序，等于失效）。
 
 ### 交付链路上有一条隐形闸门：`hasUsableText`
 
@@ -1032,6 +1364,92 @@ URL_=https://web-production-2a16e.up.railway.app/ node tools/probe_para_edit.mjs
 通用教训：**编辑类回调「落到哪」必须有断言，取不到宁可报错也不能静默返回。**
 静默失败的代价是「用户以为改好了」，比直接报错严重得多。
 （同族的还有 `runGeneration()` 的 TDZ —— 抛错被 `catch` 吞成「没反应」。）
+
+### 🔴 事实卡人工编辑层（2026-09-23 · 改 `liveFacts` / `curFacts` / `s4` / `factsSyncToCache` 前必看）
+
+需求（Bryan）：热点搜集的**事实分段抽完卡之后，教研要能就地改、删事实卡**。
+
+**只改界面 = 改了没用**。GEN 真正吃的是 `state.factsCache` 里的三样东西：
+
+| GEN 入参 | 谁在用 | 编辑后必须同步 |
+|---|---|---|
+| `gist` / `gist_lines` | A1 / A2 低档的段落骨架 | 不改（事实卡不涉及） |
+| `facts_text` | 骨架兜底（`facts_raw` 缺失时） | ✅ `"N. <en>"` 逐行重建 |
+| `facts_raw.facts[].en` | **B1 / B2+ 高档素材的真源** —— GEN 的 `nodeClean.buildGistSkeleton` 逐条读它现拼 | ✅ 必须回写 |
+
+设计（三条硬约束，少一条就是静默失败）：
+
+1. **编辑层是事实卡的唯一真源**：`liveFacts()` 优先返回 `state.factsEdit`，
+   于是事实卡渲染、`factCiteHTML`（段落下方 F1/F2 引用标签）、s6 溯源面板一并生效 ——
+   **只加一层渲染分支、不动 `liveFacts()` 的话，另外两处会继续显示旧事实**。
+2. **编辑层与 `liveOut().facts_json` 同源同命**：`liveFacts()` 里必须带
+   `if(state.factsEdit && o && o.facts_json)` 这个门。否则 `state.live` 被清空
+   （换素材 / 切入口 / 打开文章库）后，编辑层会把**上一批的卡冒充成当前素材的事实卡**。
+   另在 `startLiveRun()` 开跑时清 `factsEdit/factsEditOrig/factsDirty`（新一批卡不能套旧一批的改动）。
+3. **删卡会让 1-based 编号整体前移** → 已产出的 `fact_map` / `unused_facts` 立刻失准，
+   必须清掉（`factMap=null; unusedFacts=[]`）并置脏。**错的溯源比没有溯源更坏** ——
+   校对页会继续按旧编号标「被引用 P1」。
+
+三个易错点：
+
+- **`gist` 归属号只存在于 `facts_raw`，`facts_json` 里没有**。编辑层每条要带 `gi`（从
+  `facts_raw.facts[i].gist` 搬），回写时按 `gi` 重建；**不能按下标 `facts_raw.facts[i] = ed[i]`** ——
+  删过卡之后下标已错位，会把细节挂到错的大意上（对应探针里「gist 不串位」那条断言）。
+- **「是否被人工改过」要用 `oid`（AI 原稿下标）认身份，不能比位置**：删卡后下标前移，
+  按位置比会把**没改过**的卡全标成「人工修订」。
+- 改过的卡不能再显示 `AUTO` + 置信度（那是 AI 的产出），改显「人工修订」徽标；
+  同理删掉 `senref`（锚点/交叉验证已不成立）——**别让人以为人改的东西是 AI 判的**。
+
+#### 新增事实卡（2026-09-23 · Bryan：把一条过长的事实拆成两条）
+
+入口 = 每张卡操作区的 `编辑 / ＋新增 / 删除`，`factInsertAfter(i)` 在**该卡后面**插入一张空卡。
+
+🔴 两个都不能省的约束：
+
+1. **新卡必须继承原卡的 `gi`（gist 归属号）**。GEN 侧 `nodeClean.buildGistSkeleton` 是
+   `parseInt(f && f.gist, 10)` 把每张卡挂到第 N 条大意下，**NaN 不匹配任何大意** ⇒
+   该卡既不进 `gist_fact_map`、也进不了高档「细节池」—— 界面上加得进去、生成时**被静默丢弃**。
+   追加到列表末尾而不继承就是这下场。而本功能的真实用途是「拆一条过长的事实」，
+   拆出来的两半本来就该挂在同一条大意下 ⇒ 继承即正确。
+2. **插在中间 ⇒ 它后面所有编号 +1** ⇒ `factMap` / `unusedFacts` 作废。
+   但**只在保存成功时清**（`factEditSave` 里看 `wasNew`）；不能在插入时就清 ——
+   点了新增又取消，会把本来正确的溯源白清掉。
+
+空卡清理（不清就会多出一条空事实、后面编号全错位）：
+
+- `factsSyncToCache()` **只回写有内容的卡**（`filter(f => f.en || f.zh)`）—— 最后一道闸门；
+- `_factCloseEditing()`：收编辑态时，若这张新卡还空着就 `splice` 掉；
+- `factEditStart` / `factDelete` / `factInsertAfter` **都要先调它**，且必须
+  **先抓 `target` 引用、再收、再用 `indexOf(target)` 重新定位** ——
+  收的过程会摘掉空卡、下标会整体前移，直接沿用旧 `i` 会删错/编辑错一张卡。
+- 新卡用 `isNew` 标记，**不能靠 `factIsEdited`**：新卡没有 AI 原稿，
+  `factsEditOrig[oid]` 取不到，认不出来 → 徽标会错标成「人工修订」、meta 行会退回显示 `AUTO`。
+
+**边界**：
+- 编辑/删除入口只在 `hasLive && !running` 时给（兜底态是按句拆出来的假卡，改了没有下游可写）；
+- 至少保留 1 张卡（删光 = 高档无米下锅，静默产出残次文章）；
+- 已产出文章后再改卡 → `factsDirty` 置脏，s4 露黄条「已生成的文章不会自动更新」；
+  `runGeneration` 成功一轮后自动清脏。
+
+**回归探针**：`node tools/probe_fact_edit.mjs`（33 项，含负向对照）
+```bash
+cd frontend && python3 -m http.server 8899 --bind 127.0.0.1   # 另开终端
+node tools/probe_fact_edit.mjs --url=http://127.0.0.1:8899/index.html --port=9250
+```
+> 负向对照已验证过灵敏度：把两处 `factsSyncToCache()` 调用去掉重跑 → **5 条「下游入参」断言全红**，
+> 而所有界面断言照旧全绿 —— **这正是「只在渲染层叠加」的 bug 形态**，肉眼绝对看不出来。
+> 写这类探针时，**「界面变了」和「入参变了」必须分成两组断言**，只测前者等于没测。
+> 第二组对照（新增事实卡）：把 `gi: target.gi` 去掉重跑 → **只有「继承 gist」那 1 条红**（32/33）。
+>
+> ⚠️ 两个写探针的坑：
+> - **转义层级**：`SETUP` 是 JS 模板串，里面必须写 `split("\\n")`。写成 `"\n"` 会被 Node
+>   先展开成**真实换行**塞进字符串 → 浏览器侧 `SyntaxError: Invalid or unexpected token`。
+>   症状是「探针一启动就报语法错、一条断言都没跑」，不是断言失败。
+>   判别法：`node --check` 通过、但 CDP evaluate 报错 ⇒ 错的是**拼出来的那段代码**，不是文件本身。
+> - **断言基准要算清**：连续两次「新增」时，第二次的基准是「第一次已保存后的状态」而非初始状态
+>   （取消后应回到 `ai.n + 1`，不是 `ai.n`）。本探针就写错过一次，表现是**代码明明对、断言却红**。
+>   看到断言红先怀疑自己的口径，但**必须先实测再下结论** —— 当时是用临时 CDP 脚本打印
+>   `factEditIdx / isNew / editLen / gi` 才定案的，没有靠读代码猜。
 
 ### 「界面内容凭空消失」类问题的查法
 

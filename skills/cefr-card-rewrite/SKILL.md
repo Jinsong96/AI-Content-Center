@@ -16,6 +16,22 @@ agent_created: true
 
 > 教研原版工具包以 **B2+ 为母稿**、输出 A1-/A2/B1/B2+ 四级；本项目母稿是 **B1**，只有三级。口径差异见第四节。
 
+## 〇、在 ReadPal 仓库里的落点（2026-09-24 补）
+
+本技能的判据已经被移植并上线，落到 ReadPal 的 **V2 智能体**：
+
+| 项 | 落点 |
+|---|---|
+| 线上入口 | `https://web-production-2a16e.up.railway.app/card` |
+| 前端实现 | `frontend/card.html`（页面）+ `frontend/card_check.js`（质检，`build_cards.py` 的判据逐条移植成浏览器端 JS，**纯代码判定、零 AI 调用**） |
+| Dify 图真源 | `tools/build_card_graph.py`（产物 `dify_graphs/card.new.json`） |
+| 回归探针 | `tools/probe_card_check.mjs`（离线 51 项）· `tools/probe_card_parse.mjs`（解析 8 项）· `tools/probe_card_page.mjs`（端到端 30 项） |
+| 上手约定 | 仓库根 `AGENTS.md`（**动工前必读**）；安全上线流程走 `readpal-frontend` 技能那套（探针 → API 直传 → 线上核验） |
+
+⚠️ **两处口径别混**：线上 V2 是 **B2+ 为母稿的四级版**（与工具包一致）；本文档后续章节讲的「B1 母稿 → 三级」是**线下交稿**口径。
+线上 V2 的字数用的是「占母稿词数百分比 + 句数硬上限」，不是工具包的绝对词数区间。
+🔴 线上 V2 **不存任何历史**（无 localStorage），刷新即丢、换设备不带走 —— 要留存请及时导出 Word。
+
 ## 二、工作区结构
 
 ```
