@@ -3962,9 +3962,9 @@ const ROUTES = [
    descEn:"Import licensed B1 / B2 master texts (BBC, publisher series) and generate <b>downward only</b>: B2 → B1 + A2 + A1-, B1 → A2 + A1-. The master itself is saved too. No fact extraction — paragraph-by-paragraph rewrite.",
    items:["BBC","超级阅读力","一次多篇","按需精简"], itemsEn:["BBC","Publisher series","Batch import","Optional condensing"]},
   {id:"lite", ico:"", color:"#E65425", name:"轻量提示词", nameEn:"Lite Prompt",
-   desc:"<b>对照实验入口</b>：只用一段约 400 字的极简提示词（不含分级规格、不含校验规则、不分段预处理）把 B1 母稿向下生成 A1- / A2 两档，并为 A1- / A2 / B1 三档各出 3 道题。用来观察模型在极简提示词下的<b>裸产出质量</b>，不与产线链路的结果混用。",
-   descEn:"<b>A/B experiment entry</b>: one ~400-character prompt only (no grading specs, no validation rules, no segmentation pass) turns a B1 master into A1- / A2, plus 3 exercises for each of A1- / A2 / B1. Used to observe <b>raw model output quality</b> under a minimal prompt.",
-   items:["极简提示词","两档生成","三档出题","实验对照"], itemsEn:["Minimal prompt","Two levels","Nine exercises","A/B experiment"]},
+   desc:"导入 B1 母稿，<b>先按大意定段落骨架</b>（可确认、可编辑、可删减、可一键重切），再用一段约 400 字的极简提示词把母稿逐段向下生成 A1- / A2 两档，并为 A1- / A2 / B1 三档各出 3 道题。段数与母稿一致、第 i 段对第 i 段由代码校验，不齐自动回炉。",
+   descEn:"Import a B1 master, <b>lock its paragraph skeleton first</b> (confirm / edit / trim / one-click re-segment), then a ~400-character minimal prompt rewrites it downward into A1- / A2, plus 3 exercises for each of A1- / A2 / B1. Paragraph count and 1:1 alignment are validated by code, with automatic re-runs when they are off.",
+   items:["极简提示词","骨架锁定","两档生成","三档出题"], itemsEn:["Minimal prompt","Locked skeleton","Two levels","Nine exercises"]},
 ];
 /* 公版书素材源面板（内置固定测试书目，离线可用）*/
 function sePanelHTML(){
@@ -4332,8 +4332,8 @@ function liteStatHTML(){
   const text = String(licState().liteText || "");
   const wc = licWordCount(text), ps = liteMasterParas(text).length;
   if(!wc) return '<span style="color:var(--sub)">' + L("还没粘贴正文","No text yet") + "</span>";
-  return L("正文 <b>" + wc + "</b> 词　·　按原文切成 <b>" + ps + "</b> 段（母稿原样入库为 B1）",
-           "<b>" + wc + "</b> words　·　<b>" + ps + "</b> paragraphs (master saved as B1)");
+  return L("正文 <b>" + wc + "</b> 词　·　预计切 <b>" + ps + "</b> 段（骨架定好后，母稿原样入库为 B1）",
+           "<b>" + wc + "</b> words　·　about <b>" + ps + "</b> paragraphs (master saved as B1 once the skeleton is locked)");
 }
 function liteAddFile(inp){
   const f = (inp && inp.files && inp.files[0]) || null;
@@ -4361,7 +4361,7 @@ function litePanelHTML(){
   return `<div id="litePanel" style="background:#fff;border:1px solid var(--border2);border-radius:12px;padding:18px 20px">
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px">
       <b style="font-size:15px">${L("轻量提示词 · 母稿导入","Lite Prompt · Master intake")}</b>
-      <span class="tint" style="background:#FFF0EB;color:#D04418">${L("对照实验","A/B experiment")}</span>
+      <span class="tint" style="background:#FFF0EB;color:#D04418">${L("骨架锁定","Locked skeleton")}</span>
     </div>
     <div class="licimp">
       <div class="licimp-c">
@@ -4383,23 +4383,174 @@ function litePanelHTML(){
     <div id="liteStat" class="liccalc" style="margin-top:14px">${liteStatHTML()}</div>
   </div>`;
 }
-/* 极简入口底部的启动按钮（直接跑图 C，没有「先分段再确认」这一步） */
+/* 极简入口底部的启动按钮（第一步是「定骨架」→ 确认页 → 才生成） */
 function liteEmbarkBtn(){
   if(!liteHasText()) return waitBtn(L("请先粘贴或上传母稿正文","Paste or upload the master text first"));
   const st = licState();
   if(st.busy) return `<div class="licbusy"><span class="spin" style="width:22px;height:22px;border-width:2px"></span>
       <span style="flex-shrink:0">${esc(st.busy)}</span>
       <span class="lic-bar"><i></i></span></div>`;
-  return `<div class="nextbar" id="liteBar"><button class="btn" onclick="liteRun()">${L("生成 A1- / A2 与题目","Generate A1- / A2 + exercises")} →</button></div>`;
+  return `<div class="nextbar" id="liteBar"><button class="btn" onclick="litePrep()">${L("定骨架（按大意分段）","Lock the skeleton")} →</button></div>`;
 }
-/* 极简入口的错误出口：解析失败/调用失败都有明确报错 + 原地重试（不静默、不留白） */
+/* 极简入口的错误出口：解析失败/调用失败都有明确报错 + 原地重试（不静默、不留白）。
+   重试按钮按出错阶段分流：骨架阶段（errStage="prep"）→ 重新切分；生成阶段 → 重试生成。 */
 function liteStatusHTML(){
   const st = licState();
   if(!st.err) return "";
+  const isPrep = st.errStage === "prep";
   return `<div class="licneed">${L("出错了：","Failed: ")}${esc(st.err)}
-    <button class="btn sec" style="margin-left:10px;padding:3px 12px;font-size:12px" onclick="liteRun()">${L("重试生成","Retry")}</button></div>`;
+    <button class="btn sec" style="margin-left:10px;padding:3px 12px;font-size:12px" onclick="${isPrep ? "litePrep()" : "liteRun()"}">${isPrep ? L("重新切分","Re-segment") : L("重试生成","Retry")}</button></div>`;
 }
-/* 极简链路的唯一一次调用：图 C。不重跑、不校验 —— 拿到什么就是什么。 */
+
+/* ========== 轻量提示词链路：定骨架（图 A）→ 人工确认 → 逐段生成（图 C） ==========
+   2026-09-24 Bryan 拍板：lite 从「裸产出对照实验」改成「骨架锁定」的生产链路。原话
+   「demo 存在的意义就是质量和效率…质量上至少保证和 GPT 对话模式生成的一样，或者更好；
+     效率就是减少人工，流程还可以标准化，哪怕换成普通老师去跑也一样」。
+
+   四个环节，缺一不可：
+   ① 定骨架：调图 A（need_simplify=false）—— 按大意切、**逐字保留原文**，段数与母稿一致。
+      实测这一步把「段数对齐率」从单次盲跑的 ~62% 拉到结构保证。
+   ② 确认页：可改 / 可删 / 可合并 / 可一键重切（复用授权链路的 lic* 分段编辑函数）。
+   ③ 生成：骨架只作为**输入文本**拼进 master_text —— **图 C 一个字不改**（这是「发挥 GPT
+      本身能力」的落点：约束进输入，提示词不动）。
+   ④ 校验：生成后**用代码**比对 A1-/A2 段数是否等于骨架段数，不齐就带量出来的差量回炉
+      （上限 3 次），仍不齐则明确报警 —— 绝不静默。
+
+   ⚠️ 刻意**不做**「保留清单」（主题词/专名/数字那份）：实测清单不成体系反而有害 ——
+   只保护主题词+专名时 A1- 保真度 90% → 81%（模型拿被保护的 gut bacteria 去替掉没被保护的
+   39 trillion）。等抽取补齐、清单成体系之后再上。 */
+
+/* 调图 A 定骨架。与授权链路**同一张图、同一个 licprep 代理**，只是 need_simplify 恒为 false。 */
+async function litePrep(){
+  const st = licState();
+  const text = String(st.liteText || "").trim();
+  if(!text){ toast(L("请先粘贴或上传母稿正文","Paste or upload the master text first")); return; }
+  if(licBusyBlocked("prep")) return;
+  st.errStage = "prep"; st.err = null;
+  st.prep = null; st.gen = null; GEN = {};
+  licSetBusy(st, L("正在按大意定骨架（保留原文，只做分段，约 20–60 秒）…",
+                   "Locking the skeleton (kept verbatim, segmentation only, ~20–60s)…"));
+  render();
+  try {
+    _runAbort = new AbortController();
+    /* style 不传：need_simplify=false 时图 A 用不到它（style 只在精简分支生效）。
+       title 传空串是合法的 —— 图 A 内部有兜底，且正文里本就不该再含标题。 */
+    const data = await difyCall("licprep", {
+      material: text.slice(0, 20000),
+      level: "B1",
+      need_simplify: "false",
+      title: String(st.liteTitle || "").trim().slice(0, 500)
+    }, AIWF_LICPREP.user, _runAbort.signal);
+    _runAbort = null;
+    if(data && data.data && (data.data.status === "succeeded" || data.data.outputs)){
+      const o = data.data.outputs || {};
+      const segs = licParseSegs(o.segments_json);
+      if(segs === null){
+        st.err = L("骨架解析失败（分段结果不是合法 JSON）—— 可以点「重新切分」再试一次。",
+                   "Skeleton JSON could not be parsed — try “Re-segment” again.");
+      } else if(!segs.length){
+        st.err = L("没有分出任何段落 —— 通常是母稿正文太短或格式异常，请检查正文后重试。",
+                   "No paragraphs came back — usually the master text is too short or malformed.");
+      } else {
+        st.prep = { id: "lite", level: "B1", segs: segs, simplified: false,
+                    masterText: String(o.master_text || ""),
+                    rawWordCount: parseInt(o.word_count, 10) || 0,
+                    segNote: String(o.seg_note || ""), fallback: false, ok: true,
+                    outOfBand: parseInt(o.out_of_band, 10) || 0,
+                    warn: String(o.warn || "") };
+        st.confirmed = false;
+      }
+    } else {
+      st.err = licCallFail(data);
+    }
+  } catch(e){
+    _runAbort = null;
+    st.err = (e && (e.name === "AbortError" || /abort/i.test(String(e.message))))
+      ? L("已取消本次切分","Segmentation cancelled")
+      : L("网络错误：","Network error: ") + (e && e.message);
+  }
+  licClearBusy(st);
+  render();
+  if(st.prep) toast(L("骨架已就绪：切成 " + st.prep.segs.length + " 段 —— 确认或改动后再生成",
+                      "Skeleton ready: " + st.prep.segs.length + " paragraphs — confirm or edit, then generate"));
+}
+
+/* 骨架确认页。与授权链路 licConfirmHTML 同源，但**去掉只属于授权链路的控件**
+   （多篇队列、上一篇/下一篇、精简模式提示）—— lite 一次只跑一篇、永远是保留原文模式。 */
+function liteSkelHTML(){
+  const st = licState();
+  if(!st.prep) return "";
+  const P = st.prep, r = licSegRange(), band = licBand(r), N = P.segs.length;
+  const okN = N >= LIC_SEG_OK_LO && N <= LIC_SEG_OK_HI;
+  const rows = P.segs.map(function(p, i){
+    const k = licWordCount(p), bad = licSegBad(k, r);
+    return `<div class="licseg">
+      <div class="licsegh"><span class="licno">${("0" + (i + 1)).slice(-2)}</span>
+        <span class="licsegw${bad ? " warn" : ""}" id="licSegW${i}">${L(k + " 词", k + " words")}</span>
+        <span class="licsegt">${L("目标 " + band[0] + "–" + band[1] + " 词","aim " + band[0] + "–" + band[1] + " words")}</span>
+        <button class="licmini" onclick="licMergeSeg(${i})"${i >= N - 1 ? " disabled" : ""}>${L("合并下一段","Merge next")}</button>
+        <button class="licmini danger" onclick="licDelSeg(${i})">${L("删除","Delete")}</button>
+      </div>
+      <textarea rows="3" spellcheck="false" oninput="licSetSeg(${i},this.value)">${esc(p)}</textarea>
+    </div>`;
+  }).join("");
+  const busy = st.busy ? `<div class="licbusy"><span class="spin" style="width:22px;height:22px;border-width:2px"></span>
+      <span style="flex-shrink:0">${esc(st.busy)}</span>
+      <span class="lic-bar"><i></i></span></div>`
+    : `<div class="nextbar" style="justify-content:flex-start;gap:10px;flex-wrap:wrap">
+      <button class="btn" onclick="liteRun()">${L("确认，生成 A1- / A2 与题目","Confirm, generate A1- / A2 + exercises")} →</button>
+      <button class="btn sec" onclick="litePrep()">${L("重新切分","Re-segment")}</button>
+      <button class="btn sec" onclick="liteBackToInput()">← ${L("返回改母稿","Back to the master")}</button>
+      <span class="hint">${L("生成后到「文章生产」查看各档校对与逐段审核。","Results appear under “Article Production” for proofreading.")}</span>
+    </div>`;
+  return `<div id="liteSkel" style="background:#fff;border:1px solid var(--border2);border-radius:12px;padding:18px 20px">
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px">
+      <b style="font-size:15px">${L("确认段落骨架","Confirm the paragraph skeleton")}</b>
+      <span class="tint" style="background:#FFF0EB;color:#D04418">${L("骨架锁定","Locked skeleton")}</span>
+      <span class="tint neutral">${esc(nkDisp(P.level))} ${L("母稿","master")}</span>
+      <span class="tint neutral">${L("保留原文","Text kept as-is")}</span>
+      <span class="tint neutral">${L(N + " 段", N + " paragraphs")}</span>
+    </div>
+    <p style="color:var(--sub);margin:0 0 12px;font-size:13px;line-height:1.7">
+      ${L("骨架决定后面每一档「第几段讲第几件事」，<b>母稿正文逐字保留</b>。词数越界的段会标出来，可以改、删、合并；不满意就点「重新切分」。确认后 A1- / A2 会严格按这 " + N + " 段逐段改写。",
+          "The skeleton fixes what each paragraph is about in every level; <b>the master text is kept verbatim</b>. Out-of-band paragraphs are flagged — edit, delete or merge them, or hit “Re-segment”. After confirming, A1- / A2 follow these " + N + " paragraphs one by one.")}
+    </p>
+    ${okN ? "" : '<div class="licneed"><b>' + L("段数不在常规区间　","Paragraph count out of the usual band　") + "</b>"
+        + L("现在是 " + N + " 段，常规是 " + LIC_SEG_OK_LO + "–" + LIC_SEG_OK_HI + " 段。可以继续，也可以点「重新切分」或手动合并几段。",
+            "Currently " + N + " paragraphs (usual band " + LIC_SEG_OK_LO + "–" + LIC_SEG_OK_HI + "). You may continue, re-segment, or merge some manually.") + "</div>"}
+    ${P.outOfBand ? '<div class="licneed">' + L("有 " + P.outOfBand + " 段跑出了合格带（通常是「一整句话超长、无处可切」），上面标红的那几行可以手动改。",
+        P.outOfBand + " paragraph(s) fell outside the band (usually one very long sentence that cannot be split). The flagged rows can be edited.") + "</div>" : ""}
+    ${P.warn ? '<div class="licneed">' + esc(P.warn) + "</div>" : ""}
+    <div style="font-size:12.5px;color:var(--sub);margin-bottom:12px;line-height:1.9" id="licSegTot">${licTotalHTML()}</div>
+    <div style="margin-top:6px">${rows}</div>
+    ${busy}
+  </div>`;
+}
+/* 从骨架页退回导入面板：清掉骨架，母稿正文与标题保留（不用重贴） */
+function liteBackToInput(){
+  const st = licState();
+  st.prep = null; st.confirmed = false; st.err = null; st.errStage = "lite";
+  render();
+}
+
+/* 回炉反馈：把「哪一档现在几段、必须几段」量出来再交给模型 —— 差量，不是空话。
+   （形态是"回合"：拿上一轮的真实产出量差，而不是笼统地说"请对齐"。） */
+function liteFixBlock(paras, wantN){
+  const out = [L("【你上一轮的产出不合格，请整篇重做】","[Your previous output was rejected — redo the whole thing]")];
+  [["A1", "A1-"], ["A2", "A2"]].forEach(function(pair){
+    const arr = (paras && paras[pair[0]]) || [];
+    if(arr.length !== wantN)
+      out.push("- " + pair[1] + " " + L("段数：现在是 " + arr.length + " 段，必须正好 " + wantN + " 段。",
+        "paragraph count: currently " + arr.length + ", must be exactly " + wantN + "."));
+  });
+  out.push(L("重新按【段落骨架】逐段改写：段数必须与骨架相同，第 i 段只讲骨架第 i 段的事，不得合并、不得拆分、不得调换顺序。",
+             "Rewrite paragraph by paragraph following the skeleton: same paragraph count, paragraph i must cover what skeleton paragraph i covers — no merging, no splitting, no reordering."));
+  out.push(L("输出与上次**完全相同的 JSON 结构**（A1- 与 A2 两篇 + A1-/A2/B1 各 3 道题）。",
+             "Output the exact same JSON structure as before (A1- and A2 articles + 3 exercises each for A1-/A2/B1)."));
+  return out.join("\n");
+}
+
+/* 轻量链路的唯一一次生成：图 C。骨架只拼进 master_text —— ★ 图 C 本身一个字不改。 */
 async function liteRun(){
   const st = licState();
   const text = String(st.liteText || "").trim();
@@ -4408,6 +4559,21 @@ async function liteRun(){
   if(licBusyBlocked("gen")) return;
   const t0 = Date.now();
   const label = title || L("粘贴的母稿","Pasted master");
+  const segs = st.prep ? st.prep.segs.map(function(x){ return String(x == null ? "" : x).trim(); }).filter(function(x){ return x; }) : [];
+  const SKEL_N = segs.length;
+  const skelBlock = SKEL_N
+    ? "【段落骨架】下面是母稿按大意切好的 " + SKEL_N + " 段（每段一行）。\n"
+      + "你改写时必须严格沿用这 " + SKEL_N + " 段：段数必须正好 " + SKEL_N + " 段，"
+      + "第 i 段只讲骨架第 i 段的事，不得合并、不得拆分、不得调换顺序。\n\n"
+      + segs.map(function(s, i){ return (i + 1) + ". " + s; }).join("\n") + "\n\n"
+    : "";
+  const BUDGET = 20000;
+  /* 骨架块**优先完整保留**，母稿按剩余额度截断 —— 反过来会把骨架切一半，结构约束就废了。 */
+  const buildInput = function(extra){
+    const head = (extra ? extra + "\n\n" : "") + skelBlock;
+    if(head.length >= BUDGET) return head.slice(0, BUDGET + 2000);
+    return head + text.slice(0, BUDGET - head.length);
+  };
   /* 开跑即清上一稿：否则 s6 会渲染成文章预览页，用户以为已经生成好了（同 licRunGen 的教训） */
   GEN = {}; state.words12 = {}; state.meta12 = {}; state.quiz = {}; state.quizShow = {};
   state.live = { status: "running", material: text.slice(0, 4800), label: label, book: "",
@@ -4415,53 +4581,100 @@ async function liteRun(){
   licSetBusy(st, L("正在用轻量提示词生成 A1- / A2 与 9 道题（约 40–90 秒）…",
                    "Generating A1- / A2 and 9 exercises from the lite prompt (~40–90s)…"));
   st.errStage = "lite"; st.err = null; render();
+
+  const MAX_TRIES = 3;   /* 首轮 + 2 轮回炉。回炉是**异常兜底**，主路径应当一轮就过。 */
+  let data = null, ok = false, tries = 0, lastParas = null, lastBad = "", skelWarn = "";
   try {
-    _runAbort = new AbortController();
-    const data = await difyCall("lite", { master_text: text.slice(0, 20000), title_in: title.slice(0, 300), level: "B1" },
-                                AIWF_LITE.user, _runAbort.signal);
-    _runAbort = null;
-    if(!(data && data.data && (data.data.status === "succeeded" || data.data.outputs))){
-      st.errStage = "lite"; st.err = licCallFail(data); licClearBusy(st); render(); return;
+    for(let attempt = 0; attempt < MAX_TRIES; attempt++){
+      tries = attempt + 1;
+      if(attempt){
+        licSetBusy(st, L("正在回炉（第 " + (attempt + 1) + " 次生成；上一次 " + lastBad + "）…",
+                         "Re-running (attempt " + (attempt + 1) + "; last time " + lastBad + ")…"));
+        render();
+      }
+      _runAbort = new AbortController();
+      const r = await difyCall("lite", { master_text: buildInput(attempt ? liteFixBlock(lastParas, SKEL_N) : ""),
+                                         title_in: title.slice(0, 300), level: "B1" },
+                               AIWF_LITE.user, _runAbort.signal);
+      _runAbort = null;
+      if(!(r && r.data && (r.data.status === "succeeded" || r.data.outputs))){
+        st.errStage = "lite"; st.err = licCallFail(r); licClearBusy(st); render(); return;
+      }
+      const o = r.data.outputs || {};
+      if(String(o.parse_ok || "") !== "true"){
+        lastBad = L("输出不是合法 JSON","output was not valid JSON");
+        if(attempt < MAX_TRIES - 1) continue;
+        st.errStage = "lite";
+        st.err = L("模型输出没能解析成结构化结果（", "Model output could not be parsed (")
+                + (String(o.parse_warn || "").trim() || L("未说明原因","no reason reported"))
+                + L("）—— 已重试 " + tries + " 次仍失败。", ") — retried " + tries + " times without success.");
+        licClearBusy(st); render(); return;
+      }
+      data = r;
+      try { lastParas = JSON.parse(o.paras_json || "{}"); } catch(e){ lastParas = null; }
+      /* ④ 段数校验：**纯代码**，不给 AI（AI 判这层会漏、会抖）。只在有骨架时校验。 */
+      if(SKEL_N){
+        const bad = [];
+        [["A1", "A1-"], ["A2", "A2"]].forEach(function(pair){
+          const arr = (lastParas && Array.isArray(lastParas[pair[0]])) ? lastParas[pair[0]] : [];
+          if(arr.length !== SKEL_N) bad.push(pair[1] + " " + arr.length + "/" + SKEL_N);
+        });
+        if(bad.length){
+          lastBad = L("段数不齐：", "paragraph count off: ") + bad.join(L("、", ", "));
+          if(attempt < MAX_TRIES - 1) continue;         /* 带差量回炉 */
+          skelWarn = lastBad;                            /* 到头了仍不齐 → 收下并报警，不阻断 */
+        }
+      }
+      ok = true; break;
     }
+    if(!ok || !data){ licClearBusy(st); render(); return; }
+
     const o = data.data.outputs || {};
-    /* 解析失败必须显式拦下 —— 否则会产生一篇「看着生成了、其实什么都没有」的空白页 */
-    if(String(o.parse_ok || "") !== "true"){
-      st.errStage = "lite";
-      st.err = L("模型输出没能解析成结构化结果（", "Model output could not be parsed (")
-              + (String(o.parse_warn || "").trim() || L("未说明原因","no reason reported")) + L("）","）")
-              + L("　—— 这本身就是这次实验的有效结果，可以重试一次看是否偶发。",
-                  " — this itself is a valid result of the experiment; retry once to see if it is intermittent.");
-      licClearBusy(st); render(); return;
-    }
-    /* 母稿（B1）注入：前端本地按原文段落补齐，applyLive 会一并建成 GEN["B1"] */
+    /* 母稿（B1）注入：**有骨架时直接用骨架当 B1** —— 这样四档段数天然一致
+       （骨架就是母稿的切分，不是另切一份）。没骨架（异常路径）才退回本地按空行切。 */
     (function(){
       try {
         const A = JSON.parse(o.articles_json || "{}"), P = JSON.parse(o.paras_json || "{}");
-        const mp = liteMasterParas(text);
+        const mp = SKEL_N ? segs : liteMasterParas(text);
         if(mp.length){ A.B1 = mp.join("\n\n"); P.B1 = mp;
           o.articles_json = JSON.stringify(A); o.paras_json = JSON.stringify(P); }
       } catch(e){ /* 两个 JSON 的解析失败在上面 parse_ok 分支已经拦下，这里只是兜底 */ }
     })();
     st.gen = data;
     st.confirmed = true;
-    /* expectedParaCount() 读 state.live.licN —— lite 没有「母稿段数」这个概念（A1/A2 的段数
-       由模型按提示词自行决定，未必等于母稿段数），所以取模型实际产出档的段数，
-       否则段落对齐视图会拿一个凭空来的 12 段当基准。 */
-    let _nSeg = 12;
-    try {
-      const _P = JSON.parse(o.paras_json || "{}");
-      const _a = _P.A1 || _P.A2;
-      if(_a && _a.length) _nSeg = _a.length;
-    } catch(e){ /* 解析失败已在 parse_ok 分支拦下 */ }
+    /* expectedParaCount() 读 state.live.licN。有骨架 ⇒ 基准就是**骨架段数**（不再"取模型
+       实际产出档的段数"—— 那等于让模型自己当裁判，正是段数不对齐那个 bug 的老口径）。 */
+    let _nSeg = SKEL_N;
+    if(!_nSeg){
+      try {
+        const _P = JSON.parse(o.paras_json || "{}");
+        const _a = _P.A1 || _P.A2;
+        if(_a && _a.length) _nSeg = _a.length;
+      } catch(e){ /* 兜底 */ }
+    }
+    if(!_nSeg) _nSeg = 12;
     state.live = { status: "done", material: text.slice(0, 4800), label: label, book: "",
-                   run: data, err: null, t0: t0, elapsed: Math.max(1, Math.round((Date.now() - t0) / 1000)), licN: _nSeg };
+                   run: data, err: null, t0: t0, elapsed: Math.max(1, Math.round((Date.now() - t0) / 1000)),
+                   licN: _nSeg, skelWarn: skelWarn };
     state.liveSel = ""; state.liveCustom = "";
     state.extracted = true; state.validated = true; state.reviewed = false;
     applyLive();
     licClearBusy(st);
     const warn = String(o.parse_warn || "").trim();
-    if(warn) toast(L("已生成（解析提示：","Generated (parser notes: ") + warn + "）");
-    else toast(L("已用轻量提示词生成 A1- / A2 与题目，正在进入文章生产…","Generated from the lite prompt — opening Article Production…"));
+    if(skelWarn){
+      /* 绝不静默：段数不齐必须说出来，并给出回去重试的路径（骨架页的「确认，生成」可再点一次）。 */
+      console.warn("[lite] 段数校验未通过：", skelWarn);
+      toast(L("已生成，但**段数没对齐**：" + skelWarn + "。骨架基准是 " + SKEL_N + " 段 —— 可以回上一步点「确认，生成」再跑一次，或在文章生产页逐段审核时手动处理。",
+              "Generated, but paragraph counts are off: " + skelWarn + " (skeleton baseline: " + SKEL_N + "). Go back and hit “Confirm, generate” again, or fix manually during paragraph review."));
+    } else if(warn){
+      toast(L("已生成（解析提示：","Generated (parser notes: ") + warn + "）");
+    } else {
+      toast(SKEL_N
+        ? L("已按 " + SKEL_N + " 段骨架生成 A1- / A2 与题目，正在进入文章生产…",
+            "Generated from the " + SKEL_N + "-paragraph skeleton — opening Article Production…")
+        : L("已用轻量提示词生成 A1- / A2 与题目，正在进入文章生产…",
+            "Generated from the lite prompt — opening Article Production…"));
+    }
     go(7);
   } catch(e){
     _runAbort = null;
@@ -4472,7 +4685,6 @@ async function liteRun(){
     licClearBusy(st); render();
   }
 }
-
 /* ========== 授权链路：跑图 A（预处理）→ 人工确认 → 跑图 B（向下生成） ==========
    一次可导入多篇，所以这里是**队列**：逐篇 预处理 → 确认 → 生成，做完一篇再进下一篇。
    ⚠️ 不能用数组下标定位条目 —— 删除/重排会让下标错位（同 paraEdit 的教训）。一律用 a.id。 */
@@ -4964,8 +5176,8 @@ function s0(){
     /* 图 A 跑完 → 停在确认页（需求：分段后停一下让人确认），不再回到导入面板 */
     body = licStatusHTML() + (licState().prep ? licConfirmHTML() : licensedPanelHTML());
   }else if(state.route === "lite"){
-    /* 极简链路没有预处理环节，导入面板始终是它自己（跑完后直接进文章生产页） */
-    body = liteStatusHTML() + litePanelHTML();
+    /* 定骨架前 → 导入面板；定骨架后 → 骨架确认页（可改 / 删 / 合并 / 一键重切） */
+    body = liteStatusHTML() + (licState().prep ? liteSkelHTML() : litePanelHTML());
   }
   const licLike = isLicLike();
   const headTitle = state.route === "licensed" ? L("CEFR分级","CEFR Grading")
@@ -4973,7 +5185,7 @@ function s0(){
   let bottom;
   if(state.route === "trend") bottom = nextBtn("进入热点搜集","To trend discovery");
   else if(state.route === "licensed") bottom = licState().prep ? "" : licEmbarkBtn();
-  else if(state.route === "lite") bottom = liteEmbarkBtn();
+  else if(state.route === "lite") bottom = licState().prep ? "" : liteEmbarkBtn();
   else bottom = s0EmbarkBtn();
   return head("01", headTitle) +
     (licLike ? "" : matWorkflowBar()) +
@@ -5020,7 +5232,7 @@ function pickRoute(id){
   if(id==="owned"){ setTimeout(()=>{ const p=$("#bankPanel"); if(p){ p.scrollIntoView({behavior:"smooth", block:"center"}); p.classList.add("glow"); setTimeout(()=>p.classList.remove("glow"), 1600);} }, 120); }
   if(id==="public"){ setTimeout(()=>{ const p=$("#sePanel"); if(p){ p.scrollIntoView({behavior:"smooth", block:"center"}); p.classList.add("glow"); setTimeout(()=>p.classList.remove("glow"), 1600);} }, 120); }
   if(id==="licensed"){ setTimeout(()=>{ const p=$("#licPanel"); if(p){ p.scrollIntoView({behavior:"smooth", block:"center"}); p.classList.add("glow"); setTimeout(()=>p.classList.remove("glow"), 1600);} }, 120); }
-  if(id==="lite"){ setTimeout(()=>{ const p=$("#litePanel"); if(p){ p.scrollIntoView({behavior:"smooth", block:"center"}); p.classList.add("glow"); setTimeout(()=>p.classList.remove("glow"), 1600);} }, 120); }
+  if(id==="lite"){ setTimeout(()=>{ const p=$("#litePanel") || $("#liteSkel"); if(p){ p.scrollIntoView({behavior:"smooth", block:"center"}); p.classList.add("glow"); setTimeout(()=>p.classList.remove("glow"), 1600);} }, 120); }
 }
 /* ---- 自有素材库（《用英文讲好中国故事》）---- */
 function renderBank(){
