@@ -4561,11 +4561,22 @@ async function liteRun(){
   const label = title || L("粘贴的母稿","Pasted master");
   const segs = st.prep ? st.prep.segs.map(function(x){ return String(x == null ? "" : x).trim(); }).filter(function(x){ return x; }) : [];
   const SKEL_N = segs.length;
+  /* 🔴【逐段篇幅】必须写进输入 —— 2026-09-24 真模型实测（tools/probe_lite_skel_e2e.mjs）：
+     只给骨架、不给篇幅时，A1- 段数能对齐（11/11/11 一次过），但每段会写成 20–30 词
+     （规格 11–14）—— 模型默认按「压缩但不减段」处理，不告诉它每段多长它就不压到位。
+     数值取自 LIC_PER_PARA（与图 B nodeValidate 的 PER 表同源），不另写死一份。
+     ⚠️ 这行**不是改图 C 的提示词**，是输入侧喂料（Bryan 2026-09-24 拍板的「约束进输入」）。 */
+  const perLine = (function(){
+    const a1 = LIC_PER_PARA.A1 || [11, 14], a2 = LIC_PER_PARA.A2 || [20, 22];
+    return "【逐段篇幅】A1- 每段 " + a1[0] + "–" + a1[1] + " 词；A2 每段 " + a2[0] + "–" + a2[1]
+         + " 词。按段分别控制，不卡全文字数。";
+  })();
   const skelBlock = SKEL_N
     ? "【段落骨架】下面是母稿按大意切好的 " + SKEL_N + " 段（每段一行）。\n"
       + "你改写时必须严格沿用这 " + SKEL_N + " 段：段数必须正好 " + SKEL_N + " 段，"
       + "第 i 段只讲骨架第 i 段的事，不得合并、不得拆分、不得调换顺序。\n\n"
       + segs.map(function(s, i){ return (i + 1) + ". " + s; }).join("\n") + "\n\n"
+      + perLine + "\n\n"
     : "";
   const BUDGET = 20000;
   /* 骨架块**优先完整保留**，母稿按剩余额度截断 —— 反过来会把骨架切一半，结构约束就废了。 */

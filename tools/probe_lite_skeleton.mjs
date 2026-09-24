@@ -173,6 +173,10 @@ const SETUP = `(async()=>{
   out.genHasNumbered=gm.indexOf("\\n1. ")>=0&&gm.indexOf("\\n2. ")>=0&&gm.indexOf("\\n3. ")>=0;
   out.genSkelHead=gm.slice(0,110).replace(/\\s+/g," ");
   out.genHasNoKeepList=gm.indexOf("保留清单")<0&&gm.indexOf("必须保留")<0;
+  /* 逐段篇幅：2026-09-24 真模型实测 —— 漏了这行，段数能对齐但每段会写成 20–30 词（规格 11–14）。
+     所以它必须**在骨架列表之后**出现，且带 A1-/A2 两档区间。 */
+  out.genPerLine=(gm.match(/【逐段篇幅】A1- 每段 11–14 词；A2 每段 20–22 词。按段分别控制，不卡全文字数。/g)||[]).length;
+  out.genPerLineAfterSkel=gm.indexOf("【逐段篇幅】")>gm.indexOf("3. ");
   out.genTitleIn=gc[0]?gc[0].inputs.title_in:"";
   out.b1Paras=(GEN.B1&&GEN.B1.paras)?GEN.B1.paras.length:0;
   out.b1First=(GEN.B1&&GEN.B1.paras)?String(GEN.B1.paras[0][0]||"").slice(0,44):"";
@@ -308,6 +312,8 @@ async function main() {
   ok('含「段数必须正好 3 段」', o.genHasCountRule);
   ok('含逐段编号 1./2./3.', o.genHasNumbered);
   ok('第一版不带保留清单（刻意不做）', o.genHasNoKeepList);
+  ok('带【逐段篇幅】且区间正确（A1- 11–14 / A2 20–22）', o.genPerLine === 1, String(o.genPerLine));
+  ok('【逐段篇幅】排在骨架列表之后', o.genPerLineAfterSkel === true, String(o.genPerLineAfterSkel));
   ok('标题仍单独传', o.genTitleIn === MASTER_TITLE, String(o.genTitleIn));
 
   console.log('\n[4] 母稿档取骨架 ⇒ 四档段数一致');
