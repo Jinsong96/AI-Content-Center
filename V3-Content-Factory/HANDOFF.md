@@ -1,13 +1,14 @@
 # HANDOFF —— 交接快照
 
 > 一页纸告诉你：现在在哪、东西在哪、下一步干什么。
-> 快照时间：2026-09-29 00:40（GMT+8）
+> 快照时间：2026-09-29 07:50（GMT+8）
 
 ---
 
 ## 1. 一句话状态
 
-**V3 已实现、已部署、前端 UI 已定稿**。唯一未决的硬项是**裁判 v0 的实际准确率**（需要用 DeepSeek 跑一次、对照金标准填计分表）。
+**V3 已实现、已部署、前端 UI 已定稿、代码与全部文档已推上 GitHub。**
+唯一未决的硬项是**裁判 v0 的实际准确率**（需要用 DeepSeek 跑一次、对照金标准填计分表）。
 
 ---
 
@@ -18,10 +19,38 @@
 | 线上地址 | `https://graded-reading-factory.app.workbuddy.host/` |
 | 应用名（部署平台内） | 一鹿知 · 内容生产平台 |
 | 应用 ID | `wbapp_ht8T4x4I5dDuv5iZhcZ8fT` |
-| 本地目录 | `V3-Content-Factory/`（本仓库内） |
+| 本地目录 | 见下方「⚠️ 双副本」 |
 | 管理入口 | WorkBuddy「设置 → 数据管理 → 应用」 |
 
 > 重新发布 = 用本地 `V3-Content-Factory/` 目录重新部署一次。密钥不在服务器，线上首访需要各自填一次自己的 API key（存浏览器 localStorage）。
+
+### ⚠️ 双副本（改代码前必读）
+
+同一份 V3 代码在本机存在**两份**。**以仓库副本为唯一权威**，开发副本只是"给发布工具用的镜像"：
+
+| 副本 | 路径 | 角色 |
+|---|---|---|
+| **仓库副本（权威）** | `<仓库>/V3-Content-Factory/` | **所有编辑都在这里做**，git 跟踪，跨设备同步的那一份 |
+| 开发副本（镜像） | `~/WorkBuddy/2026-09-28-20-54-27/V3-Content-Factory/` | 发布工具 `localDir` 指向的目录。**只读用，不在这里改** |
+
+**为什么不能改开发副本**：它不在 git 里，改了不推就等于没改；而且文档只在仓库副本里。
+
+**为什么不能把发布目录换成仓库副本**：发布工具是**按目录**认应用的 —— 换目录会创建一个**新应用、新链接**，现有分享链接上的内容不会更新。所以开发副本的位置不要动。
+
+**标准流程**（顺序不能反）：
+
+```bash
+# 1) 在仓库副本改 → 本地跑通
+cd AI-Content-Center/V3-Content-Factory && python3 app.py 8801
+# 2) 镜像到开发副本（--exclude 必须带上）
+rsync -a --exclude '__pycache__' --exclude '*.pyc' \
+  AI-Content-Center/V3-Content-Factory/ V3-Content-Factory/
+# 3) 提交推送
+cd AI-Content-Center && git add -A && git commit -m "..." && git push
+```
+
+> 2026-09-29 已用逐文件 md5 校验过：两份 36 个文件**完全一致**。
+> 之所以存在两份，是因为开发副本的路径被写死进了发布记录（`.wbapp_….genie` 的 `localDir`）。
 
 ---
 
@@ -96,10 +125,18 @@ python3 seed.py              # 导入示例数据
 
 | 需要什么 | 用途 | 状态 |
 |---|---|---|
-| GitHub 登录（gh auth 或 PAT） | 推代码 | ❌ 本机未登录 |
+| GitHub 登录 | 推代码 | ✅ 2026-09-29 已推送（commit `10c482b`）。**用了临时 PAT，未落盘、未登录 gh**；换设备要重新配 |
 | 生成模型 API key（GPT 系） | 模型 A | 只在浏览器 localStorage，未记录 |
 | 裁判模型 API key（DeepSeek 系） | 模型 B | 同上 |
 | Dify 控制台 | 只与 V1 旧链路有关 | ❌ 未登录 |
+
+**推送命令备忘**（本机直连 github 的 git 协议不通，**必须走 7890 代理，且必须用小写变量**）：
+
+```bash
+GH_PAT='<token>' GIT_ASKPASS=/tmp/.ghaskpass GIT_TERMINAL_PROMPT=0 \
+  http_proxy=http://127.0.0.1:7890 https_proxy=http://127.0.0.1:7890 \
+  git -c credential.helper= push https://x-access-token@github.com/Jinsong96/AI-Content-Center.git main
+```
 
 ---
 
