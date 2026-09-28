@@ -1,11 +1,15 @@
 # ReadPal · AI 英语分级阅读平台
 
-**一个仓库，两套东西，各自独立运行。**
+**一个仓库，三套东西，各自独立运行。**
 
 | | 名称 | 线上入口 | 前端入口文件 | 干什么 |
 |---|---|---|---|---|
 | 🔵 | **V1 智能体**<br>内容生产后台 | `/` | `frontend/index.html` | 从热点 / 自有版权 / 公版书采集英文素材 → 敏感筛查 → 事实抽取 → 四档分级改写 → 人工逐段审核 → 文章库。产出可发布的文章，配套封面、音频、阅读题。用户是教研 + 市场运营，驱动是「内容库缺什么」。 |
 | 🟢 | **V2 智能体**<br>分级卡片 | `/card` | `frontend/card.html` | 贴一篇英文原文（B2+ 母稿）→ 一次产出 **A1- / A2 / B1 / B2+ 四档分级卡片**，每档 3 道题 + 解析 → 纯代码质检 → 不达标自动带差量回炉重跑 → 导出 Word。 |
+| 🟣 | **V3 智能体**<br>**一鹿知 · 内容生产平台** | `https://graded-reading-factory.app.workbuddy.host/` | `V3-Content-Factory/public/index.html` | **与上面两套完全隔离的新项目**（2026-09-29 加入）。分级阅读内容工厂：英文原文 → 四级文章 + 一套题（每级 3 题）+ 质检报告。**15 类确定性脚本 + 异源模型裁判，全链路只 2 次模型调用**。零第三方依赖。 |
+
+> **V3 是独立项目。** 代码全在 [`V3-Content-Factory/`](V3-Content-Factory/)，有自己的 `AGENTS.md` / `README.md` / `HANDOFF.md` / `docs/`。
+> **要接手 V3，直接看 [`V3-Content-Factory/AGENTS.md`](V3-Content-Factory/AGENTS.md) 和 [`docs/00-需求澄清实录-grill-me.md`](V3-Content-Factory/docs/00-需求澄清实录-grill-me.md)**，不要按 V1/V2 的方式改它。
 
 线上地址：
 

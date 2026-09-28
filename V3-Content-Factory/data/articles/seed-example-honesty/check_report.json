@@ -1,0 +1,68 @@
+{
+  "stats": [
+    {
+      "level": "A1-",
+      "words": 175,
+      "ratio": 0.395,
+      "avg_sent": 6.5,
+      "max_sent": 10,
+      "min_sent": 4,
+      "cards": 10
+    },
+    {
+      "level": "A2",
+      "words": 242,
+      "ratio": 0.5463,
+      "avg_sent": 10.1,
+      "max_sent": 16,
+      "min_sent": 6,
+      "cards": 10
+    },
+    {
+      "level": "B1",
+      "words": 321,
+      "ratio": 0.7246,
+      "avg_sent": 14.0,
+      "max_sent": 20,
+      "min_sent": 6,
+      "cards": 10
+    },
+    {
+      "level": "B2+",
+      "words": 443,
+      "ratio": 1.0,
+      "avg_sent": 22.1,
+      "max_sent": 44,
+      "min_sent": 6,
+      "cards": 10
+    }
+  ],
+  "errors": [
+    {
+      "rule": "proper_noun_missing",
+      "level": "A1-",
+      "target": "article",
+      "message": "A1- 未保留原文中的人名 “Franklin”",
+      "params": {
+        "name": "Franklin"
+      },
+      "hint": "关键人名必须保留：可写成 “Graves, a scientist” 这种形态（原名 + 同位语说明身份），不能泛化成 “A scientist”。此条为启发式判断，如非关键人名可忽略。",
+      "hint_key": "proper_noun_missing"
+    },
+    {
+      "rule": "proper_noun_missing",
+      "level": "A1-",
+      "target": "article",
+      "message": "A1- 未保留原文中的人名 “Graves”",
+      "params": {
+        "name": "Graves"
+      },
+      "hint": "关键人名必须保留：可写成 “Graves, a scientist” 这种形态（原名 + 同位语说明身份），不能泛化成 “A scientist”。此条为启发式判断，如非关键人名可忽略。",
+      "hint_key": "proper_noun_missing"
+    }
+  ],
+  "warnings": [],
+  "passed": false,
+  "error_count": 2,
+  "warning_count": 0
+}

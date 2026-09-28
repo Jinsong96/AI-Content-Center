@@ -1,0 +1,7 @@
+{
+  "findings": [],
+  "conclusion": "示例数据未跑语义裁判，点「L2 重跑裁判」可执行。",
+  "p0_count": 0,
+  "p1_count": 0,
+  "not_run": true
+}

@@ -16,6 +16,7 @@
 | 线上站点 | Railway，推 GitHub 后**自动部署**（约 90 秒） |
 | 🔵 **V1 智能体** | 内容生产后台，入口 `/`。前端真源 `frontend/index.html`（单文件，约 91 万字节，所有页面 / JS / CSS 全在里面） |
 | 🟢 **V2 智能体** | 分级卡片，入口 `/card`。`frontend/card.html` + `frontend/card_check.js`（质检判据 = 教研工具包原判据）；Dify App「ReadPal · 分级卡片」（图真源 `tools/build_card_graph.py`） |
+| 🟣 **V3 智能体** | **一鹿知 · 内容生产平台**（分级阅读内容工厂），代码在 **`V3-Content-Factory/`**。**与 V1/V2 完全隔离的独立项目**，有自己的 `AGENTS.md` / `README.md` / `HANDOFF.md` / `docs/`。**动 V3 之前先读 `V3-Content-Factory/AGENTS.md`** |
 | 后端真源 | `backend/agent_reach_bridge.py`（零依赖标准库，同时托管前端） |
 | Dify 真源 | 线上 FACT / GEN 工作流；**仓库 `dify_graphs/` 里的图可能落后于线上**（见坑 18） |
 | 部署文档 | `RAILWAY_DEPLOY.md`（含 10 条故障排查） |
@@ -23,6 +24,23 @@
 | 自带工具 | `tools/`（源码镜像 / 原子替换 / JS 校验 / API 直传 / 端到端回归 / 精确视口截图 / Dify 图生成器与拼装器 / 节拍实验） |
 
 **禁止**：复制 `index.html` 到别处改（会分叉）。所有会话都改仓库里那一份。
+
+### 🟣 V3 是与 V1/V2 完全隔离的独立项目（2026-09-29 增补）
+
+> **如果你是为 V3 来的，看到这里就可以停了 —— 直接去读 [`V3-Content-Factory/AGENTS.md`](V3-Content-Factory/AGENTS.md)。**
+> 本文件（根目录 `AGENTS.md`）讲的 V1/V2 链路与 V3 **没有任何代码共用、没有任何接口耦合**，不要混着改。
+
+| | V1（入口 `/`） | V2（入口 `/card`） | **V3（`V3-Content-Factory/`）** |
+|---|---|---|---|
+| 干什么 | 内容生产后台 | 分级卡片 | **分级阅读内容工厂**：原文 → 四级文章 + 一套题 + 质检报告 |
+| 技术栈 | 单文件前端 + bridge + Dify | 同上 | **零依赖 Python 标准库 + 单文件前端**（不用 Dify） |
+| 质检 | AI 自评 | 教研工具包原判据 | **15 类确定性脚本 + 异源模型裁判** |
+| 模型调用 | 8 个工作流 | Dify 图 | **全链路只 2 次**（生成 1 + 裁判 1） |
+| 部署 | Railway | 同上 | WorkBuddy 托管 |
+
+产品名：**一鹿知 · 内容生产平台**（代码代号 `V3-Content-Factory`）。
+V3 的硬约束 / 架构 / 已知坑 / 需求澄清全过程全在该目录内（`AGENTS.md` · `HANDOFF.md` · `docs/00`~`docs/07`）。
+**不要在根文档里重复或改补充 V3 的内容。**
 
 ### V1 / V2 命名（2026-09-24 定）
 

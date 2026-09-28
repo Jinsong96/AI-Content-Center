@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# macOS
+.DS_Store
+._*
+
+# 日志与临时文件
+*.log
+
+# 生产时生成的其它文章（只保留示例数据，保证新克隆开箱有内容）
+V3-Content-Factory/data/articles/*
+!V3-Content-Factory/data/articles/seed-example-honesty/
+
+# 密钥绝不入库
+.env
+.env.json
+*.key
+**/keys.fallback.json

@@ -1,0 +1,2440 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light" data-lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>一鹿知 · 内容生产平台</title>
+<meta name="description" content="把一篇英文原文变成四个难度的分级阅读材料，机器质检，人工审校。">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" media="print" onload="this.media='all'"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&family=Noto+Sans+SC:wght@400;500;700&display=swap">
+<style>
+/* ============================================================================
+   设计定调 —— 极简 · 纸感（Editorial Minimal）
+   受众：教研老师、产品负责人、验收领导。核心任务：多级对照 + 质检数据审阅。
+   记忆点：一张卡在四个难度下的写法纵向对齐，一眼看出哪一级偏了。
+   字体：JetBrains Mono（展示/数字）× Noto Sans SC（界面）× Newsreader（英文正文）
+   配色：白纸 + 墨黑文字 + 单一克制的赤陶色强调；只有明暗两套变量，其余全部复用
+   尺度：字号与栏宽随视口轻微放大（clamp），大屏不空旷、小屏不挤
+   ==========================================================================*/
+
+:root {
+  --font-ui: "Noto Sans SC", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --font-read: "Newsreader", "Iowan Old Style", Georgia, "Songti SC", serif;
+
+  /* 字号：随视口放大，到 18/22px 封顶 */
+  --fs-xs:   clamp(12px,  .18vw + 9.6px, 14px);
+  --fs-sm:   clamp(13px,  .32vw + 8.4px, 15.5px);
+  --fs-base: clamp(15px,  .50vw + 7.6px, 18px);
+  --fs-lg:   clamp(16px,  .55vw + 8.2px, 19.5px);
+  --fs-read: clamp(17px,  .62vw + 8.2px, 22px);
+
+  --r-sm: 4px; --r-md: 8px; --r-lg: 14px;
+  --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px; --s5: 24px; --s6: 40px; --s7: 64px;
+
+  --ease: cubic-bezier(.16, 1, .3, 1);
+  --fast: 160ms; --base: 320ms;
+
+  /* 布局：栏宽随视口伸缩，避免大屏两侧空出大片留白 */
+  --header-h:  clamp(56px, 3.2vw, 70px);
+  --aside-w:   clamp(238px, 14.5vw, 312px);
+  --panel-w:   clamp(316px, 19.5vw, 424px);
+  --pad-page:  clamp(20px, 2.2vw, 48px);
+  --maxw-desk: 1380px;
+  --maxw-edit: 1060px;
+}
+
+/* 明主题（默认）—— 白纸 + 墨黑 + 赤陶强调 */
+:root, [data-theme="light"] {
+  --bg: #f2f2f0;
+  --surface: #ffffff;
+  --surface-2: #f7f7f5;
+  --surface-3: #ececea;
+  --line: rgba(23, 23, 26, .085);
+  --line-2: rgba(23, 23, 26, .17);
+  --text: #17181a;
+  --text-2: #5c5f66;
+  --text-3: #8c8f96;
+  --accent: #c2410c;
+  --accent-ink: #ffffff;
+  --on-ok: #ffffff;
+  --ok: #15803d;
+  --warn: #a16207;
+  --err: #b42318;
+  --p0: #b42318;
+  --p1: #a16207;
+  --sh1: 0 1px 2px rgba(23,23,26,.05), 0 1px 3px rgba(23,23,26,.05);
+  --sh2: 0 16px 40px -12px rgba(23,23,26,.20), 0 2px 8px rgba(23,23,26,.06);
+  --glow: rgba(194, 65, 12, .07);
+  color-scheme: light;
+}
+
+/* 暗主题 —— 中性墨黑，同一套强调色 */
+[data-theme="dark"] {
+  --bg: #121214;
+  --surface: #1a1a1d;
+  --surface-2: #232327;
+  --surface-3: #2d2d32;
+  --line: rgba(235, 235, 240, .09);
+  --line-2: rgba(235, 235, 240, .19);
+  --text: #ececef;
+  --text-2: #a3a6ad;
+  --text-3: #74777e;
+  --accent: #ff8340;
+  --accent-ink: #1a1005;
+  --on-ok: #08130a;
+  --ok: #4ec16b;
+  --warn: #e2b33c;
+  --err: #f0616a;
+  --p0: #f0616a;
+  --p1: #e2b33c;
+  --sh1: 0 2px 8px rgba(0,0,0,.34);
+  --sh2: 0 16px 40px rgba(0,0,0,.48);
+  --glow: rgba(255, 131, 64, .10);
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+
+html, body { height: 100%; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: var(--fs-base);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 氛围层：顶部一层极淡的暖光 + 细网格，压在最底层，不干扰阅读 */
+body::before {
+  content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 0;
+  background: radial-gradient(64rem 30rem at 50% -16%, var(--glow), transparent 70%);
+}
+body::after {
+  content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 0; opacity: .55;
+  background-image:
+    linear-gradient(var(--line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--line) 1px, transparent 1px);
+  background-size: 64px 64px;
+  mask-image: radial-gradient(70rem 34rem at 50% 0%, #000 8%, transparent 72%);
+}
+[data-theme="dark"] body::after { opacity: .8; }
+
+.mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+
+/* 通用小标签：大写 + 字距 */
+.tag {
+  font-family: var(--font-mono); font-size: var(--fs-xs); font-weight: 500;
+  letter-spacing: .12em; text-transform: uppercase; color: var(--text-3);
+}
+
+/* ---------------------------------------------------------------- 顶栏 */
+header {
+  position: relative; z-index: 3;
+  height: var(--header-h); flex: 0 0 var(--header-h);
+  display: flex; align-items: center; gap: clamp(12px, 1.4vw, 28px);
+  padding: 0 clamp(16px, 1.8vw, 36px);
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+  backdrop-filter: blur(14px);
+  border-bottom: 1px solid var(--line);
+}
+.brand { display: flex; align-items: center; gap: 10px; flex: 0 0 auto; }
+.brand-mark {
+  width: 24px; height: 24px; border: 2px solid var(--accent); border-radius: 3px;
+  position: relative; flex: 0 0 auto;
+}
+.brand-mark::after {
+  content: ""; position: absolute; inset: 5px; background: var(--accent);
+  border-radius: 1px;
+}
+.brand h1 {
+  margin: 0; font-family: var(--font-mono); font-size: var(--fs-lg); font-weight: 700;
+  letter-spacing: .01em; white-space: nowrap;
+}
+.brand .sub { color: var(--text-3); font-size: var(--fs-xs); font-family: var(--font-mono); }
+
+.crumb {
+  flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: var(--s3);
+  color: var(--text-2); font-size: var(--fs-sm);
+}
+.crumb .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.crumb .sep { color: var(--text-3); }
+
+.head-actions { display: flex; align-items: center; gap: var(--s2); flex: 0 0 auto; }
+
+/* ---------------------------------------------------------------- 按钮 */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  min-height: clamp(34px, 2.2vw, 42px); padding: 0 clamp(12px, .9vw, 18px);
+  font-family: var(--font-ui); font-size: var(--fs-sm); font-weight: 500;
+  color: var(--text); background: var(--surface-2);
+  border: 1px solid var(--line-2); border-radius: var(--r-md);
+  cursor: pointer; white-space: nowrap;
+  transition: background var(--fast) ease-out, border-color var(--fast) ease-out,
+              color var(--fast) ease-out, transform var(--fast) ease-out;
+}
+.btn:hover { background: var(--surface-3); border-color: var(--text-3); }
+.btn:active { transform: translateY(1px); }
+.btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.btn[disabled] { opacity: .45; cursor: not-allowed; }
+.btn[disabled]:hover { background: var(--surface-2); border-color: var(--line-2); }
+
+.btn-primary {
+  background: var(--accent); color: var(--accent-ink);
+  border-color: transparent; font-weight: 700;
+}
+.btn-primary:hover { background: color-mix(in srgb, var(--accent) 86%, #000); border-color: transparent; }
+.btn-primary[disabled]:hover { background: var(--accent); }
+
+.btn-ghost { background: transparent; border-color: transparent; color: var(--text-2); }
+.btn-ghost:hover { background: var(--surface-2); color: var(--text); }
+
+.btn-danger { color: var(--err); border-color: color-mix(in srgb, var(--err) 40%, transparent); }
+.btn-danger:hover { background: color-mix(in srgb, var(--err) 12%, transparent); border-color: var(--err); }
+
+.btn-icon { width: clamp(34px, 2.2vw, 42px); padding: 0; }
+
+.btn-sm { min-height: clamp(28px, 1.8vw, 34px); padding: 0 clamp(10px, .75vw, 14px); font-size: var(--fs-xs); }
+
+/* ---------------------------------------------------------------- 状态徽章 */
+.badge {
+  display: inline-flex; align-items: center; gap: 6px;
+  height: clamp(22px, 1.5vw, 27px); padding: 0 clamp(8px, .6vw, 12px);
+  font-family: var(--font-mono); font-size: var(--fs-xs); font-weight: 500;
+  letter-spacing: .05em;
+  border: 1px solid var(--line-2); border-radius: 999px; color: var(--text-2);
+  white-space: nowrap;
+}
+.badge .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex: 0 0 auto; }
+.badge-ok { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 42%, transparent); background: color-mix(in srgb, var(--ok) 7%, transparent); }
+.badge-warn { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 42%, transparent); background: color-mix(in srgb, var(--warn) 7%, transparent); }
+.badge-err { color: var(--err); border-color: color-mix(in srgb, var(--err) 42%, transparent); background: color-mix(in srgb, var(--err) 7%, transparent); }
+.badge-accent { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 46%, transparent); background: color-mix(in srgb, var(--accent) 7%, transparent); }
+
+/* ---------------------------------------------------------------- 布局 */
+main { position: relative; z-index: 1; flex: 1 1 auto; min-height: 0; min-width: 0; display: flex; }
+
+aside.library {
+  flex: 0 0 var(--aside-w); width: var(--aside-w);
+  border-right: 1px solid var(--line);
+  display: flex; flex-direction: column; min-height: 0;
+  background: var(--surface);
+}
+.lib-head { padding: var(--s4) var(--s4) var(--s3); display: flex; flex-direction: column; gap: var(--s2); }
+.lib-list { flex: 1 1 auto; overflow-y: auto; padding: 0 var(--s3) var(--s4); }
+
+.doc-item {
+  width: 100%; text-align: left; display: block;
+  padding: clamp(10px, .8vw, 15px) var(--s4); margin-bottom: 3px;
+  background: transparent; border: 1px solid transparent; border-radius: var(--r-md);
+  color: inherit; font: inherit; cursor: pointer;
+  transition: background var(--fast) ease-out, border-color var(--fast) ease-out;
+}
+.doc-item:hover { background: var(--surface-2); }
+.doc-item:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.doc-item[aria-current="true"] {
+  background: var(--surface-2); border-color: var(--line-2);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+.doc-item .t { font-size: var(--fs-sm); font-weight: 600; line-height: 1.4; }
+.doc-item .t-zh { font-size: var(--fs-xs); color: var(--text-3); margin-top: 2px; }
+.doc-item .m { display: flex; align-items: center; gap: 6px; margin-top: var(--s2); flex-wrap: wrap; }
+
+.stage { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+
+/* ---------------------------------------------------------------- 工具条 */
+.toolbar {
+  flex: 0 0 auto; display: flex; align-items: center; gap: var(--s3);
+  padding: var(--s3) var(--pad-page); border-bottom: 1px solid var(--line);
+  background: color-mix(in srgb, var(--surface) 70%, transparent);
+  backdrop-filter: blur(10px);
+  flex-wrap: wrap;
+}
+.seg { display: inline-flex; border: 1px solid var(--line-2); border-radius: var(--r-md); overflow: hidden; }
+.seg button {
+  min-height: clamp(30px, 2vw, 38px); padding: 0 clamp(11px, .9vw, 18px); border: 0; background: transparent;
+  color: var(--text-2); font: 500 var(--fs-sm)/1 var(--font-ui); cursor: pointer;
+  border-right: 1px solid var(--line);
+  transition: background var(--fast) ease-out, color var(--fast) ease-out;
+}
+.seg button:last-child { border-right: 0; }
+.seg button:hover { background: var(--surface-2); color: var(--text); }
+.seg button[aria-pressed="true"] { background: var(--text); color: var(--surface); }
+.seg button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.toolbar .spacer { flex: 1 1 auto; }
+
+/* ---------------------------------------------------------------- 编辑区 */
+.editor { flex: 1 1 auto; overflow-y: auto; padding: var(--s5) var(--pad-page) var(--s7); }
+.editor-inner { max-width: var(--maxw-edit); margin: 0 auto; }
+
+.card-block {
+  border: 1px solid var(--line); border-radius: var(--r-lg);
+  background: var(--surface); box-shadow: var(--sh1);
+  margin-bottom: var(--s4); overflow: hidden;
+  transition: border-color var(--fast) ease-out, box-shadow var(--base) var(--ease);
+}
+.card-block.flash { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent); }
+.card-head {
+  display: flex; align-items: center; gap: var(--s3);
+  padding: clamp(9px, .8vw, 14px) clamp(14px, 1.1vw, 22px); border-bottom: 1px solid var(--line);
+  background: var(--surface-2);
+  position: sticky; top: 0; z-index: 2;
+}
+.card-head .no {
+  font-family: var(--font-mono); font-size: var(--fs-xs); font-weight: 700;
+  color: var(--text-3); letter-spacing: .08em;
+}
+.card-head .flags { display: flex; gap: 5px; flex-wrap: wrap; }
+
+.lvl-row {
+  display: grid; grid-template-columns: clamp(54px, 4vw, 72px) 1fr auto;
+  gap: var(--s3); padding: clamp(12px, 1vw, 20px) clamp(14px, 1.1vw, 22px);
+  border-bottom: 1px solid var(--line);
+}
+.lvl-row:last-child { border-bottom: 0; }
+.lvl-row.b2 { background: var(--surface-2); }
+
+.lvl-code {
+  font-family: var(--font-mono); font-size: var(--fs-xs); font-weight: 700;
+  letter-spacing: .04em; padding-top: 9px; color: var(--text-2);
+}
+.lvl-row.b2 .lvl-code { color: var(--text-3); }
+.lvl-row[data-level="A1-"] .lvl-code { color: var(--accent); }
+
+.lvl-body { min-width: 0; }
+.lvl-body .readonly {
+  font-family: var(--font-read); font-size: var(--fs-read); line-height: 1.66;
+  color: var(--text); padding: 9px 0; white-space: pre-wrap; word-break: break-word;
+}
+.lvl-row.b2 .lvl-body .readonly {
+  color: var(--text-2); font-size: calc(var(--fs-read) * .95);
+}
+
+textarea.card-text, textarea.q-text, input.q-inp {
+  width: 100%; display: block;
+  background: transparent; color: var(--text);
+  border: 1px solid transparent; border-radius: var(--r-sm);
+  padding: 9px 11px; margin: -1px 0;
+  font-family: var(--font-read); font-size: var(--fs-read); line-height: 1.66;
+  resize: none; overflow: hidden;
+  transition: background var(--fast) ease-out, border-color var(--fast) ease-out;
+}
+textarea.card-text:hover, textarea.q-text:hover, input.q-inp:hover { background: var(--surface-2); }
+textarea.card-text:focus, textarea.q-text:focus, input.q-inp:focus {
+  outline: none; border-color: var(--accent);
+  background: var(--surface); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 15%, transparent);
+}
+.lvl-row.saving textarea.card-text { border-color: var(--warn); }
+.lvl-row.saved textarea.card-text { border-color: var(--ok); transition: border-color var(--fast) ease-out; }
+.lvl-actions { display: flex; flex-direction: column; gap: 5px; align-items: flex-end; }
+
+/* 题目 */
+.q-block { margin-top: var(--s2); }
+.q-title {
+  display: flex; align-items: center; gap: var(--s3);
+  margin: var(--s6) 0 var(--s4); padding-bottom: var(--s2);
+  border-bottom: 1px solid var(--line-2);
+}
+.q-title h2 { margin: 0; font-family: var(--font-mono); font-size: var(--fs-sm); font-weight: 700; letter-spacing: .08em; }
+.q-title .rule { flex: 1 1 auto; height: 1px; background: var(--line); }
+
+.q-card {
+  border: 1px solid var(--line); border-radius: var(--r-lg);
+  padding: clamp(14px, 1.1vw, 22px) clamp(14px, 1.1vw, 24px);
+  margin-bottom: var(--s3); background: var(--surface); box-shadow: var(--sh1);
+}
+.q-card .q-head { display: flex; align-items: center; gap: var(--s3); margin-bottom: var(--s2); }
+.q-num { font-family: var(--font-mono); font-size: var(--fs-xs); font-weight: 700; color: var(--text-3); letter-spacing: .06em; }
+.q-stem { font-size: var(--fs-lg); }
+.opt-row { display: grid; grid-template-columns: clamp(22px, 1.6vw, 30px) 1fr; gap: var(--s2); align-items: start; margin: 4px 0; }
+.opt-key {
+  font-family: var(--font-mono); font-size: var(--fs-xs); font-weight: 700;
+  color: var(--text-3); padding-top: 12px;
+}
+.opt-row.is-answer .opt-key { color: var(--ok); }
+.opt-row.is-answer input { color: var(--ok); font-weight: 500; }
+input.q-inp { font-family: var(--font-ui); font-size: var(--fs-base); line-height: 1.6; padding: 9px 11px; }
+.qa-meta { display: flex; align-items: center; gap: var(--s3); margin-top: var(--s3); padding-top: var(--s3); border-top: 1px dashed var(--line-2); }
+.qa-meta .ans { display: flex; gap: 5px; }
+.ans-key {
+  width: clamp(28px, 2vw, 36px); height: clamp(28px, 2vw, 36px);
+  border: 1px solid var(--line-2); border-radius: var(--r-sm);
+  background: transparent; color: var(--text-2); cursor: pointer;
+  font: 700 var(--fs-xs) var(--font-mono);
+  transition: all var(--fast) ease-out;
+}
+.ans-key:hover { border-color: var(--text-3); color: var(--text); }
+.ans-key[aria-pressed="true"] { background: var(--ok); border-color: var(--ok); color: var(--on-ok); }
+.ans-key:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.expl { margin-top: var(--s2); }
+.expl textarea { font-family: var(--font-ui); font-size: var(--fs-sm); line-height: 1.6; color: var(--text-2); }
+
+/* ---------------------------------------------------------------- 质检面板 */
+aside.panel {
+  flex: 0 0 var(--panel-w); width: var(--panel-w);
+  border-left: 1px solid var(--line);
+  display: flex; flex-direction: column; min-height: 0;
+  background: var(--surface);
+}
+.panel-head {
+  padding: var(--s4) clamp(16px, 1.2vw, 24px); border-bottom: 1px solid var(--line);
+  display: flex; align-items: center; gap: var(--s2);
+}
+.panel-head h2 { margin: 0; font-family: var(--font-mono); font-size: var(--fs-sm); font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
+.panel-head .spacer { flex: 1 1 auto; }
+.panel-body { flex: 1 1 auto; overflow-y: auto; padding: var(--s4) clamp(16px, 1.2vw, 24px) var(--s6); }
+
+.sec { margin-bottom: var(--s5); }
+.sec-head { display: flex; align-items: center; gap: var(--s2); margin-bottom: var(--s3); }
+.sec-head h3 { margin: 0; font-size: var(--fs-sm); font-weight: 600; }
+.sec-head .count { font-family: var(--font-mono); font-size: var(--fs-xs); color: var(--text-3); }
+
+.stat-table { width: 100%; border-collapse: collapse; font-family: var(--font-mono); font-size: var(--fs-xs); }
+.stat-table th, .stat-table td { padding: 6px 6px; text-align: right; border-bottom: 1px solid var(--line); }
+.stat-table th:first-child, .stat-table td:first-child { text-align: left; }
+.stat-table th { color: var(--text-3); font-weight: 500; font-size: var(--fs-xs); letter-spacing: .05em; text-transform: uppercase; }
+.stat-table td { color: var(--text-2); }
+.stat-table tr.over td { color: var(--err); }
+.stat-table tr.b2 td { color: var(--text-3); }
+
+.issue {
+  display: block; width: 100%; text-align: left;
+  padding: clamp(10px, .8vw, 14px) clamp(11px, .85vw, 15px); margin-bottom: 7px;
+  background: var(--surface-2); border: 1px solid var(--line);
+  border-left-width: 3px; border-radius: var(--r-md);
+  color: inherit; font: inherit; cursor: pointer;
+  transition: border-color var(--fast) ease-out, transform var(--fast) ease-out;
+}
+.issue:hover { border-color: var(--line-2); transform: translateX(2px); }
+.issue:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.issue[data-sev="P0"], .issue[data-sev="error"] { border-left-color: var(--p0); }
+.issue[data-sev="P1"], .issue[data-sev="warning"] { border-left-color: var(--p1); }
+.issue .top { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
+.issue .loc { font-family: var(--font-mono); font-size: var(--fs-xs); font-weight: 700; color: var(--text-2); letter-spacing: .04em; }
+.issue .rule { font-family: var(--font-mono); font-size: var(--fs-xs); color: var(--text-3); margin-left: auto; }
+.issue .msg { font-size: var(--fs-sm); line-height: 1.55; color: var(--text); }
+.issue .pair { margin-top: 6px; font-size: var(--fs-sm); line-height: 1.55; }
+.issue .pair .src { color: var(--text-3); }
+.issue .pair .dst { color: var(--text-2); }
+.issue .tiny { font-size: var(--fs-xs); color: var(--text-3); margin-top: 4px; }
+
+.empty {
+  padding: var(--s5); text-align: center; color: var(--text-3); font-size: var(--fs-sm);
+  border: 1px dashed var(--line-2); border-radius: var(--r-md);
+}
+
+.panel-foot {
+  padding: var(--s4) clamp(16px, 1.2vw, 24px); border-top: 1px solid var(--line);
+  display: flex; flex-direction: column; gap: 7px; background: var(--surface-2);
+}
+.panel-foot .row { display: flex; gap: 7px; }
+.panel-foot .btn { flex: 1 1 0; }
+
+/* ---------------------------------------------------------------- 工作台 */
+.desk { flex: 1 1 auto; overflow-y: auto; padding: var(--s6) var(--pad-page) var(--s7); }
+.desk-inner { max-width: var(--maxw-desk); margin: 0 auto; }
+.desk-head { display: flex; align-items: flex-end; gap: var(--s4); margin-bottom: var(--s6); flex-wrap: wrap; }
+.desk-head .lead { flex: 1 1 380px; }
+.desk-head h2 { margin: 0 0 6px; font-size: clamp(24px, 1.35vw + 14px, 34px); font-weight: 500; letter-spacing: -.015em; }
+.desk-head p { margin: 0; color: var(--text-2); font-size: var(--fs-sm); }
+
+.metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(clamp(160px, 11vw, 220px), 1fr)); gap: var(--s4); margin-bottom: var(--s6); }
+.metric {
+  padding: clamp(16px, 1.3vw, 26px) clamp(16px, 1.3vw, 28px);
+  border: 1px solid var(--line); border-radius: var(--r-lg);
+  background: var(--surface); box-shadow: var(--sh1);
+}
+.metric .k { font-family: var(--font-mono); font-size: var(--fs-xs); letter-spacing: .1em; text-transform: uppercase; color: var(--text-3); }
+.metric .v {
+  font-family: var(--font-mono); font-size: clamp(30px, 2vw + 14px, 46px); font-weight: 700;
+  line-height: 1.1; margin-top: 8px; letter-spacing: -.03em;
+}
+.metric .v.ok { color: var(--ok); }
+.metric .v.err { color: var(--err); }
+.metric .n { font-size: var(--fs-xs); color: var(--text-3); margin-top: 3px; }
+
+.desk-sec { margin-bottom: var(--s3); }
+.desk-sec h3 { font-size: var(--fs-base); font-weight: 600; }
+
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 380px), 1fr)); gap: var(--s4); }
+.doc-card {
+  display: flex; flex-direction: column; gap: var(--s4); text-align: left;
+  padding: clamp(18px, 1.4vw, 30px); border: 1px solid var(--line); border-radius: var(--r-lg);
+  background: var(--surface); box-shadow: var(--sh1);
+  color: inherit; font: inherit; cursor: pointer;
+  transition: border-color var(--fast) ease-out, transform var(--base) var(--ease), box-shadow var(--base) var(--ease);
+}
+.doc-card:hover { border-color: var(--line-2); transform: translateY(-3px); box-shadow: var(--sh2); }
+.doc-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.doc-card .en { font-family: var(--font-read); font-size: clamp(19px, .85vw + 12px, 27px); line-height: 1.35; }
+.doc-card .zh { font-size: var(--fs-sm); color: var(--text-2); }
+.doc-card .row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: auto; }
+
+/* ---------------------------------------------------------------- 模态 */
+dialog {
+  border: 1px solid var(--line-2); border-radius: var(--r-lg);
+  background: var(--surface); color: var(--text);
+  padding: 0; width: min(720px, calc(100vw - 40px));
+  box-shadow: var(--sh2);
+}
+dialog::backdrop { background: rgba(23, 23, 26, .42); backdrop-filter: blur(4px); }
+.dlg-head {
+  display: flex; align-items: center; gap: var(--s3);
+  padding: var(--s4) clamp(20px, 1.8vw, 34px); border-bottom: 1px solid var(--line);
+  position: sticky; top: 0; background: var(--surface); z-index: 1;
+}
+.dlg-head h2 { margin: 0; font-family: var(--font-mono); font-size: var(--fs-sm); font-weight: 700; letter-spacing: .08em; }
+.dlg-head .spacer { flex: 1 1 auto; }
+.dlg-body { padding: clamp(20px, 1.8vw, 34px); max-height: min(72vh, 720px); overflow-y: auto; }
+.dlg-foot { display: flex; gap: var(--s2); justify-content: flex-end; padding: var(--s4) clamp(20px, 1.8vw, 34px); border-top: 1px solid var(--line); }
+
+.field { margin-bottom: var(--s4); }
+.field > label { display: block; font-size: var(--fs-sm); font-weight: 500; margin-bottom: 6px; }
+.field .hint { font-size: var(--fs-xs); color: var(--text-3); margin-top: 5px; line-height: 1.55; }
+.field input[type=text], .field input[type=password], .field textarea, .field select {
+  width: 100%; min-height: clamp(34px, 2.3vw, 42px); padding: 8px 12px;
+  background: var(--surface); color: var(--text);
+  border: 1px solid var(--line-2); border-radius: var(--r-md);
+  font-family: var(--font-mono); font-size: var(--fs-sm);
+  transition: border-color var(--fast) ease-out;
+}
+.field textarea { font-family: var(--font-read); font-size: calc(var(--fs-read) * .9); line-height: 1.65; min-height: 220px; resize: vertical; }
+.field input:focus, .field textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 15%, transparent); }
+.field-row { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s3); }
+
+.group {
+  border: 1px solid var(--line); border-radius: var(--r-lg);
+  padding: clamp(16px, 1.3vw, 26px); margin-bottom: var(--s4);
+  background: var(--surface-2);
+}
+.group > .gh { display: flex; align-items: center; gap: var(--s2); margin-bottom: var(--s3); }
+.group > .gh span { font-family: var(--font-mono); font-size: var(--fs-xs); font-weight: 700; letter-spacing: .09em; text-transform: uppercase; color: var(--text-2); }
+
+.probe { display: flex; align-items: center; gap: var(--s2); margin-top: 6px; font-size: var(--fs-sm); min-height: 20px; }
+.probe.ok { color: var(--ok); }
+.probe.err { color: var(--err); }
+
+.steps { display: flex; flex-direction: column; gap: 3px; margin-bottom: var(--s4); }
+.step {
+  display: flex; align-items: center; gap: var(--s3);
+  padding: clamp(9px, .8vw, 14px) clamp(11px, .9vw, 16px);
+  border-radius: var(--r-md); color: var(--text-3); font-size: var(--fs-sm);
+}
+.step .mark {
+  width: clamp(20px, 1.5vw, 26px); height: clamp(20px, 1.5vw, 26px);
+  border: 1px solid var(--line-2); border-radius: 50%; flex: 0 0 auto;
+  display: grid; place-items: center; font-size: var(--fs-xs);
+}
+.step.active { background: var(--surface-2); color: var(--text); }
+.step.active .mark { border-color: var(--accent); border-width: 2px; }
+.step.done { color: var(--text-2); }
+.step.done .mark { background: var(--ok); border-color: var(--ok); color: var(--on-ok); }
+.step.fail .mark { background: var(--err); border-color: var(--err); color: #fff; }
+
+.progress { height: 4px; background: var(--surface-3); border-radius: 2px; overflow: hidden; margin-bottom: var(--s4); }
+.progress > i { display: block; height: 100%; background: var(--accent); transition: width var(--base) var(--ease); }
+
+.toast-wrap { position: fixed; bottom: var(--s5); right: var(--s5); z-index: 50; display: flex; flex-direction: column; gap: 7px; align-items: flex-end; }
+.toast {
+  padding: 11px 16px; border: 1px solid var(--line-2); border-radius: var(--r-md);
+  background: var(--surface); box-shadow: var(--sh2);
+  font-size: var(--fs-sm); max-width: 400px;
+  animation: toast-in var(--base) var(--ease);
+}
+.toast.ok { border-left: 3px solid var(--ok); }
+.toast.err { border-left: 3px solid var(--err); }
+@keyframes toast-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+
+/* 必须放在组件规则之后：aside.panel 的 display:flex 会盖掉 [hidden] 的默认样式 */
+[hidden] { display: none !important; }
+
+/* 入场：一次编排好的序列，三组错峰 */
+.reveal { opacity: 0; transform: translateY(14px); }
+.reveal.in { opacity: 1; transform: none; transition: opacity var(--base) var(--ease), transform var(--base) var(--ease); }
+.reveal:nth-child(2) { transition-delay: 70ms; }
+.reveal:nth-child(3) { transition-delay: 140ms; }
+.reveal:nth-child(4) { transition-delay: 210ms; }
+
+/* ---------------------------------------------------------------- 响应式 */
+@media (max-width: 1240px) {
+  :root { --panel-w: clamp(300px, 26vw, 360px); }
+}
+@media (max-width: 1040px) {
+  /* 三栏改为纵向堆叠，由 main 统一滚动 */
+  main { flex-direction: column; overflow-y: auto; }
+  aside.library {
+    flex: 0 0 auto; width: auto; border-right: 0;
+    border-bottom: 1px solid var(--line); max-height: 32vh;
+  }
+  .lib-list { display: flex; gap: 8px; overflow-x: auto; padding-bottom: var(--s2); }
+  .doc-item { min-width: 220px; margin-bottom: 0; }
+  /* 堆叠后 stage 必须按内容撑高，否则 flex:1 + overflow:hidden 会把它压成 0 高 */
+  .stage { flex: 0 0 auto; overflow: visible; }
+  .editor { flex: 0 0 auto; overflow: visible; padding: var(--s4) var(--s4) var(--s6); }
+  /* 级别切换条跟随滚动，长文里不必回到顶部切难度 */
+  .toolbar { position: sticky; top: 0; z-index: 4; }
+  aside.panel {
+    flex: 0 0 auto; width: auto; border-left: 0; border-top: 1px solid var(--line);
+  }
+  .panel-body { max-height: none; }
+  /* 仍保留「级别 | 正文 | 操作」三列，只收窄轨道；动作换行会撑出大片空白 */
+  .lvl-row {
+    grid-template-columns: clamp(46px, 6vw, 58px) 1fr auto;
+    gap: var(--s2); padding: var(--s3) var(--s3) var(--s4);
+  }
+  .lvl-actions { flex-direction: row; align-items: flex-start; }
+  .field-row { grid-template-columns: 1fr; }
+}
+@media (max-width: 700px) {
+  /* 真窄屏：级别标签 + 正文 + 操作 竖排，避免正文被压成一条 */
+  .lvl-row { grid-template-columns: 1fr; gap: 6px; padding: var(--s3); }
+  .lvl-code { padding-top: 0; }
+  .lvl-actions { flex-direction: row; justify-content: flex-end; }
+  .opt-row { grid-template-columns: 24px 1fr; }
+  .metric .v { font-size: clamp(28px, 8vw, 38px); }
+}
+
+@media (max-width: 620px) {
+  header { gap: var(--s2); padding: 0 var(--s3); }
+  .brand .sub { display: none; }
+  /* 当前文章名在编辑区已可见，小屏让位给操作按钮，避免顶栏把整页撑宽 */
+  .crumb { display: none; }
+  .head-actions { gap: 6px; }
+  #btn-settings { padding: 0 10px; font-size: var(--fs-xs); }
+  .desk { padding: var(--s5) var(--s3) var(--s6); }
+  .metrics { grid-template-columns: 1fr 1fr; }
+  .card-head { padding: 12px var(--s3); }
+  .lvl-row { padding: var(--s3); }
+  .q-card { padding: var(--s3); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .001ms !important; animation-iteration-count: 1 !important;
+    transition-duration: .001ms !important;
+  }
+  .reveal { opacity: 1; transform: none; }
+}
+
+/* ---------------------------------------------------------------- 语言 */
+/* 英文界面优先用拉丁字体：Noto Sans SC 含拉丁字形，但排英文偏宽、字重偏轻 */
+[data-lang="en"] {
+  --font-ui: "Inter", "Noto Sans SC", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+/* 英文产品名比中文长得多，单独收窄，否则顶栏会被撑开 */
+[data-lang="en"] .brand h1 { font-size: clamp(12.5px, .62vw + 8px, 17px); letter-spacing: -.01em; }
+[data-lang="en"] .desk-head h2 { letter-spacing: -.02em; }
+[data-lang="en"] .doc-card .en { font-size: clamp(18px, .7vw + 12px, 25px); }
+/* 英文需要更大的行高才不挤 */
+[data-lang="en"] .lvl-body .readonly,
+[data-lang="en"] textarea.card-text,
+[data-lang="en"] .issue .msg { line-height: 1.7; }
+
+/* 顶栏的紧凑分段控件（主题 / 语言）：只用符号或短标签 */
+.seg-compact button {
+  min-height: clamp(28px, 1.9vw, 34px);
+  padding: 0 clamp(7px, .5vw, 11px);
+  font-family: var(--font-mono); font-size: var(--fs-xs); font-weight: 600;
+  letter-spacing: .04em;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.seg-compact button svg { display: block; }
+
+/* 对话框内的说明段与勾选行（原先写在 style 属性里，抽出来便于统一排版） */
+.dlg-lead { margin: 0 0 20px; font-size: var(--fs-sm); color: var(--text-2); line-height: 1.65; }
+.chk {
+  display: flex; gap: 8px; align-items: flex-start; margin-top: 6px;
+  font-size: var(--fs-sm); font-weight: 400; cursor: pointer;
+}
+.chk input { width: auto; min-height: auto; margin: 4px 0 0; flex: 0 0 auto; }
+
+@media (max-width: 720px) {
+  /* 顶栏多了两组控件，窄屏先让品牌文字收敛，保证 390px 下不横向溢出 */
+  header { gap: var(--s2); }
+  .brand { gap: 7px; }
+  .brand .sub { display: none; }
+  .brand h1 { font-size: var(--fs-base); }
+  [data-lang="en"] .brand h1 { font-size: 12.5px; }
+}
+</style>
+</head>
+<body>
+<h2 class="sr-only" data-i18n="sr.title">一鹿知 · 内容生产平台：把英文原文改写为四个难度的分级阅读材料，机器质检、人工审校、导出成品。</h2>
+
+<header>
+  <div class="brand">
+    <span class="brand-mark" aria-hidden="true"></span>
+    <h1 data-i18n="app.name">一鹿知</h1>
+    <span class="sub" data-i18n="app.sub">· 内容生产平台</span>
+  </div>
+  <div class="crumb">
+    <span class="sep">/</span>
+    <span class="name" id="crumb-name" data-i18n="nav.desk">工作台</span>
+    <span id="crumb-badge"></span>
+  </div>
+  <div class="head-actions">
+    <div class="seg seg-compact" role="group" id="seg-theme" data-i18n-aria="nav.theme.group">
+      <button type="button" data-theme-set="light" data-i18n-title="nav.theme.light" data-i18n-aria="nav.theme.light" title="浅色" aria-label="浅色">
+        <svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+          <circle cx="8" cy="8" r="3.4" stroke="currentColor" stroke-width="1.3"/>
+          <path d="M8 .9v1.9M8 13.2v1.9M.9 8h1.9M13.2 8h1.9M2.9 2.9l1.4 1.4M11.7 11.7l1.4 1.4M13.1 2.9l-1.4 1.4M4.3 11.7l-1.4 1.4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+        </svg>
+      </button>
+      <button type="button" data-theme-set="dark" data-i18n-title="nav.theme.dark" data-i18n-aria="nav.theme.dark" title="深色" aria-label="深色">
+        <svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+          <path d="M13.7 9.7A5.9 5.9 0 0 1 6.3 2.3a5.9 5.9 0 1 0 7.4 7.4Z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>
+        </svg>
+      </button>
+    </div>
+    <div class="seg seg-compact" role="group" id="seg-lang" data-i18n-aria="nav.lang.group">
+      <button type="button" data-lang-set="zh" data-i18n-title="nav.lang.zh" title="中文">中文</button>
+      <button type="button" data-lang-set="en" data-i18n-title="nav.lang.en" title="English">EN</button>
+    </div>
+    <button class="btn" id="btn-settings" data-i18n="nav.settings">模型设置</button>
+  </div>
+</header>
+
+<main>
+  <aside class="library" data-i18n-aria="lib.aria">
+    <div class="lib-head">
+      <div class="tag" data-i18n="lib.title">文章库</div>
+    </div>
+    <div class="lib-list" id="lib-list" role="list"></div>
+  </aside>
+
+  <section class="stage" id="stage" aria-live="polite"></section>
+
+  <aside class="panel" id="panel" data-i18n-aria="panel.aria" hidden>
+    <div class="panel-head">
+      <h2 data-i18n="panel.title">质检</h2>
+      <span class="spacer"></span>
+      <span id="panel-summary"></span>
+    </div>
+    <div class="panel-body" id="panel-body"></div>
+    <div class="panel-foot">
+      <div class="row">
+        <button class="btn btn-sm" id="btn-check" data-i18n="panel.btn.check">L1 重跑质检</button>
+        <button class="btn btn-sm" id="btn-judge" data-i18n="panel.btn.judge">L2 重跑裁判</button>
+      </div>
+      <button class="btn btn-sm btn-primary" id="btn-fix" data-i18n="panel.btn.fix">一键自动修复</button>
+      <button class="btn btn-sm" id="btn-export" data-i18n="panel.btn.export">导出 docx</button>
+    </div>
+  </aside>
+</main>
+
+<!-- 模型设置 -->
+<dialog id="dlg-settings">
+  <div class="dlg-head">
+    <h2 data-i18n="set.title">模型设置</h2>
+    <span class="spacer"></span>
+    <button class="btn btn-ghost btn-sm" data-close data-i18n="set.close">关闭</button>
+  </div>
+  <div class="dlg-body">
+    <p class="dlg-lead" data-i18n-html="set.intro">
+      密钥只保存在这台设备的浏览器里，每次请求随请求体转发给模型服务，<strong>不写入服务器磁盘、不进代码仓库</strong>。
+      两家都用 OpenAI 兼容接口，所以填任意兼容服务都可以。
+    </p>
+
+    <div class="group">
+      <div class="gh"><span data-i18n="set.gen">模型 A · 生成</span><span id="gen-state"></span></div>
+      <div class="field">
+        <label for="gen-url" data-i18n="set.url">接口地址</label>
+        <input type="text" id="gen-url" placeholder="https://api.openai.com/v1" autocomplete="off" spellcheck="false">
+        <div class="hint" data-i18n-html="set.url.hint">只填到版本号，程序会自动拼 <code>/chat/completions</code>。</div>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label for="gen-model" data-i18n="set.model">模型名</label>
+          <input type="text" id="gen-model" placeholder="gpt-4o" autocomplete="off" spellcheck="false">
+        </div>
+        <div class="field">
+          <label for="gen-key" data-i18n="set.key">API Key</label>
+          <input type="password" id="gen-key" placeholder="sk-..." autocomplete="off">
+        </div>
+      </div>
+      <button class="btn btn-sm" data-probe="generate" data-i18n="set.probe">测试连接</button>
+      <div class="probe" id="gen-probe"></div>
+    </div>
+
+    <div class="group">
+      <div class="gh"><span data-i18n="set.judge">模型 B · 裁判</span><span id="judge-state"></span></div>
+      <div class="field">
+        <label for="judge-url" data-i18n="set.url">接口地址</label>
+        <input type="text" id="judge-url" placeholder="https://api.deepseek.com/v1" autocomplete="off" spellcheck="false">
+        <div class="hint" data-i18n-html="set.judge.hint">建议用与生成模型<strong>不同来源</strong>的模型，避免自己检查自己的偏差。</div>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label for="judge-model" data-i18n="set.model">模型名</label>
+          <input type="text" id="judge-model" placeholder="deepseek-reasoner" autocomplete="off" spellcheck="false">
+        </div>
+        <div class="field">
+          <label for="judge-key" data-i18n="set.key">API Key</label>
+          <input type="password" id="judge-key" placeholder="sk-..." autocomplete="off">
+        </div>
+      </div>
+      <button class="btn btn-sm" data-probe="judge" data-i18n="set.probe">测试连接</button>
+      <div class="probe" id="judge-probe"></div>
+    </div>
+
+    <div class="field" style="margin-bottom:0">
+      <label data-i18n="set.limits">自动修复轮次上限</label>
+      <div class="hint" id="limits-hint" style="margin-top:6px"></div>
+    </div>
+  </div>
+  <div class="dlg-foot">
+    <button class="btn" data-close data-i18n="set.cancel">取消</button>
+    <button class="btn btn-primary" id="btn-save-settings" data-i18n="set.save">保存</button>
+  </div>
+</dialog>
+
+<!-- 新建生产 -->
+<dialog id="dlg-new">
+  <div class="dlg-head">
+    <h2 data-i18n="new.title">新建生产</h2>
+    <span class="spacer"></span>
+    <button class="btn btn-ghost btn-sm" data-close data-i18n="set.close">关闭</button>
+  </div>
+  <div class="dlg-body" id="new-form">
+    <div class="field">
+      <label for="new-text" data-i18n="new.text.label">英文原文（B2+）</label>
+      <textarea id="new-text" data-i18n-ph="new.text.ph" placeholder="把英文原文整段粘贴进来。程序会把它切成 10 张卡，向下生成 A1- / A2 / B1 三个难度，并为四个难度各出 3 道题。"></textarea>
+      <div class="hint"><span id="new-count">0</span><span data-i18n="new.count.tail"> 个词 · 至少 60 个词 · 等级由你人工判定，系统不会质疑</span></div>
+    </div>
+    <div class="field">
+      <label data-i18n="new.opt">生产选项</label>
+      <label class="chk">
+        <input type="checkbox" id="new-judge" checked>
+        <span data-i18n="new.judge">生成后跑语义裁判（模型 B，会产生一次额外调用）</span>
+      </label>
+    </div>
+  </div>
+  <div class="dlg-body" id="new-progress" hidden>
+    <div class="progress"><i id="prog-bar" style="width:0%"></i></div>
+    <div class="steps" id="prog-steps"></div>
+    <div id="prog-result"></div>
+  </div>
+  <div class="dlg-foot">
+    <button class="btn" data-close data-i18n="set.close">关闭</button>
+    <button class="btn btn-primary" id="btn-start" data-i18n="new.start">开始生产</button>
+  </div>
+</dialog>
+
+<div class="toast-wrap" id="toasts" aria-live="polite" aria-atomic="false"></div>
+
+<script>
+"use strict";
+/* ============================================================================
+   状态：单一来源。所有视图都由它派生渲染，避免多处 DOM 互相打架。
+   ==========================================================================*/
+const LS_KEY = "v3.modelConfig";
+/* 主题键带 .v2：早期版本把 "dark" 写进过 localStorage，沿用旧键会让
+   「默认浅色」对老访客永远不生效。换键 = 一次性让旧值失效。 */
+const LS_THEME = "v3.theme.v2";
+const LS_LANG = "v3.lang";
+
+const state = {
+  view: "desk",            // desk | editor
+  articles: [],
+  article: null,
+  mode: "compare",         // compare | 单级
+  level: "A1-",
+  showQuestions: true,
+  config: loadConfig(),
+  limits: { max_check_rounds: 3, max_judge_rounds: 2 },
+  polling: null,
+};
+
+/* ============================================================================
+   文案：中英两套。所有面向人的字符串都从这里取，不在渲染函数里写死。
+   ==========================================================================*/
+const I18N = {
+  zh: {
+    "app.name": "一鹿知",
+    "app.sub": "· 内容生产平台",
+    "app.title": "一鹿知 · 内容生产平台",
+    "app.desc": "把一篇英文原文变成四个难度的分级阅读材料，机器质检，人工审校。",
+    "sr.title": "一鹿知 · 内容生产平台：把英文原文改写为四个难度的分级阅读材料，机器质检、人工审校、导出成品。",
+
+    "nav.desk": "工作台",
+    "nav.untitled": "未命名",
+    "nav.settings": "模型设置",
+    "nav.new": "新建生产",
+    "nav.theme.group": "主题",
+    "nav.theme.light": "浅色",
+    "nav.theme.dark": "深色",
+    "nav.lang.group": "语言",
+    "nav.lang.zh": "中文",
+    "nav.lang.en": "English",
+    "nav.lang.switched": "已切换到中文",
+
+    "lib.aria": "文章库",
+    "lib.title": "文章库",
+    "lib.empty": "还没有文章",
+    "lib.none": "还没有文章。点「新建生产」，粘一篇英文原文进来。",
+
+    "desk.h2": "工作台",
+    "desk.lead": "一篇英文原文进来，四个难度的分级阅读材料出去。形式层由脚本判定，内容层由异源模型裁判，你只处理机器修不动的部分。",
+    "desk.new": "新建生产",
+    "desk.m.total": "文章总数",
+    "desk.m.total.n": "含示例数据",
+    "desk.m.passed": "形式质检通过",
+    "desk.m.passed.n": "0 错误的篇数",
+    "desk.m.blocked": "待处理",
+    "desk.m.blocked.n": "仍有问题的篇数",
+    "desk.m.pending": "进行中",
+    "desk.m.pending.n": "未完成的篇数",
+    "desk.lib": "内容库",
+    "desk.count": "{n} 篇",
+    "desk.words": "{n} 词",
+
+    "badge.passed": "质检通过",
+    "badge.issues": "{n} 处问题",
+    "badge.unchecked": "未质检",
+    "badge.pass": "通过",
+    "badge.seed": "示例",
+    "badge.form.pass": "形式通过",
+    "badge.form.issues": "{n} 处形式问题",
+
+    "editor.mode.compare": "四级对照",
+    "editor.mode.b2": "B2+ 原文",
+    "editor.cards": "{n} 张卡",
+    "editor.hideq": "隐藏题目",
+    "editor.showq": "显示题目",
+    "editor.card": "卡 {n}",
+    "editor.source.tag": "原文",
+    "editor.rewrite": "重写",
+    "editor.rewrite.card": "只重写这一张卡",
+    "editor.splitfail": "（切卡未匹配到原文）",
+    "editor.empty": "这篇文章还没有内容。",
+    "editor.empty.hint": "点右侧「一键自动修复」尝试生成。",
+    "editor.aria.card": "{lv} 第 {n} 张卡",
+
+    "q.title": "{lv} 题目",
+    "q.count": "{n} 题",
+    "q.kind.low": "语境词义 · 细节",
+    "q.kind.b1": "细节 · 原因 · 态度",
+    "q.kind.b2": "比喻义 · 段落关系 · 写作意图",
+    "q.stem.aria": "{lv} 第 {n} 题题干",
+    "q.opt.aria": "{lv} 第 {n} 题选项 {k}",
+    "q.expl.aria": "{lv} 第 {n} 题解析",
+    "q.answer": "答案",
+    "q.answer.group": "正确答案",
+
+    "who.A1-": "小学生",
+    "who.A2": "初中生",
+    "who.B1": "高中生",
+    "who.B2+": "高中以上",
+
+    "panel.aria": "质检面板",
+    "panel.title": "质检",
+    "panel.form": "形式校验",
+    "panel.form.sub": "脚本 · 15 类",
+    "panel.judge": "语义裁判",
+    "panel.judge.sub": "模型 B · 只判不改",
+    "panel.notchecked": "尚未质检",
+    "panel.noerr": "没有硬性问题",
+    "panel.warn": "提示",
+    "panel.judge.none": "尚未跑语义裁判。",
+    "panel.judge.none.hint": "点下方「L2 重跑裁判」执行。",
+    "panel.judge.ok": "未发现语义问题",
+    "panel.judge.notrun": "未跑裁判",
+    "panel.judge.unknown": "该类型不在预设枚举内，请人工判断",
+    "panel.judge.src": "原文：",
+    "panel.judge.dst": "改写：",
+    "panel.stat.level": "级别",
+    "panel.stat.words": "词数",
+    "panel.stat.ratio": "占比",
+    "panel.stat.avg": "均句长",
+    "panel.stat.max": "最长",
+    "panel.btn.check": "L1 重跑质检",
+    "panel.btn.judge": "L2 重跑裁判",
+    "panel.btn.fix": "一键自动修复",
+    "panel.btn.export": "导出 docx",
+
+    "issue.article": "全篇",
+    "issue.card": "卡 {n}",
+    "issue.q": "题 {n}",
+
+    "set.title": "模型设置",
+    "set.close": "关闭",
+    "set.cancel": "取消",
+    "set.save": "保存",
+    "set.intro": "密钥只保存在这台设备的浏览器里，每次请求随请求体转发给模型服务，<strong>不写入服务器磁盘、不进代码仓库</strong>。两家都用 OpenAI 兼容接口，所以填任意兼容服务都可以。",
+    "set.gen": "模型 A · 生成",
+    "set.judge": "模型 B · 裁判",
+    "set.url": "接口地址",
+    "set.url.hint": "只填到版本号，程序会自动拼 <code>/chat/completions</code>。",
+    "set.model": "模型名",
+    "set.key": "API Key",
+    "set.probe": "测试连接",
+    "set.judge.hint": "建议用与生成模型<strong>不同来源</strong>的模型，避免自己检查自己的偏差。",
+    "set.limits": "自动修复轮次上限",
+    "set.limits.hint": "形式层最多 {a} 轮，语义层最多 {b} 轮；超出上限就停下来标「待人工」，不会无限重试烧额度。",
+    "set.saved": "已保存到本机浏览器",
+    "probe.testing": "测试中…",
+    "probe.ok": "连接正常 · 模型回复：{reply}",
+
+    "new.title": "新建生产",
+    "new.text.label": "英文原文（B2+）",
+    "new.text.ph": "把英文原文整段粘贴进来。程序会把它切成 10 张卡，向下生成 A1- / A2 / B1 三个难度，并为四个难度各出 3 道题。",
+    "new.count.tail": " 个词 · 至少 60 个词 · 等级由你人工判定，系统不会质疑",
+    "new.opt": "生产选项",
+    "new.judge": "生成后跑语义裁判（模型 B，会产生一次额外调用）",
+    "new.start": "开始生产",
+    "new.again": "再产一篇",
+    "new.running": "生产中…",
+    "new.done": "生产完成",
+    "new.res.check": "形式质检：",
+    "new.res.pass": "通过",
+    "new.res.fail": "{n} 处问题",
+    "new.res.judge": "语义裁判：",
+    "new.res.judge.skip": "未执行",
+    "new.res.p0": "P0 {n} 处",
+    "new.res.nop0": "无 P0",
+    "new.res.p1": "（P1 {n} 处）",
+    "new.res.fix": "自动修复：形式 {a} 轮 · 语义 {b} 轮",
+    "new.tooshort": "原文太短，至少 60 个词。",
+
+    "step.generating": "生成四级内容",
+    "step.checking": "形式质检",
+    "step.auto_fixing": "自动修复",
+    "step.auto_fixing_n": "自动修复（第 {n} 轮）",
+    "step.judging": "语义裁判",
+    "step.rendering": "渲染导出",
+    "step.done": "完成",
+
+    "toast.server_model": "服务端已配置模型，可直接新建生产。",
+    "toast.need_generate": "还没有配置生成模型，先到「模型设置」里填。",
+    "toast.need_judge": "还没有配置裁判模型，先到「模型设置」里填。",
+    "toast.check.pass": "形式质检通过",
+    "toast.check.fail": "仍有 {n} 处问题",
+    "toast.check.err": "质检失败：",
+    "toast.save.err": "保存失败：",
+    "toast.open.err": "打开失败：",
+    "toast.judge.running": "裁判中…",
+    "toast.judge.p0": "发现 {n} 处 P0",
+    "toast.judge.ok": "未发现语义问题",
+    "toast.judge.err": "裁判失败：",
+    "toast.fix.running": "修复中…",
+    "toast.fix.done": "自动修复完成，已通过全部检查",
+    "toast.fix.human": "达到上限，仍有 {n} 处问题需要人工处理",
+    "toast.fix.err": "修复失败：",
+    "fix.confirm": "{label}：机器会自己重写不达标的卡片，最多 3 轮形式修复 + 2 轮语义修复，超出上限才会停下来交给你。继续？",
+    "fix.confirm.judge": "自动修复（含裁判）",
+    "fix.confirm.form": "自动修复（仅形式层）",
+    "rewrite.prompt": "重写 {label}。可以补充一句要求（留空则只按质检问题重写）：",
+    "rewrite.running": "正在重写 {label}…",
+    "rewrite.done": "重写完成",
+    "rewrite.nochange": "模型未返回改动，请检查",
+    "rewrite.err": "重写失败：",
+    "rewrite.target.card": "{lv} 第 {n} 张卡",
+    "rewrite.target.q": "{lv} 第 {n} 题",
+    "export.ok": "已导出：{name}",
+    "export.err": "导出失败：",
+
+    "rule.card_count_mismatch": "卡片未对齐",
+    "rule.word_ratio": "词数占比",
+    "rule.sentence_too_long": "句子过长",
+    "rule.sentence_too_short": "句子过短",
+    "rule.flag_word": "超纲语法信号",
+    "rule.missing_topic_word": "主题词缺失",
+    "rule.question_count": "题目数",
+    "rule.option_count": "选项数",
+    "rule.invalid_answer": "答案无效",
+    "rule.explanation_quote_missing": "解析引文不一致",
+    "rule.question_quote_missing": "题干引文不一致",
+    "rule.same_answer_letters": "答案字母重复",
+    "rule.proper_noun_missing": "人名未保留",
+    "rule.split_failed": "切卡失败",
+
+    "type.fact_added": "新增事实",
+    "type.fact_dropped": "核心事实被删",
+    "type.fact_altered": "事实被改动",
+    "type.card_misaligned": "卡片错位",
+    "type.bridge_broken": "跨级衔接断裂",
+    "type.topic_word_weak": "主题词语境不足",
+    "type.answer_unsupported": "答案无正文依据",
+    "type.option_unfair": "干扰项不合理",
+    "type.unclassified": "未归类",
+
+    "status.pending": "待处理",
+    "status.generating": "生成中",
+    "status.checking": "质检中",
+    "status.auto_fixing": "自动修复",
+    "status.judging": "裁判中",
+    "status.rendering": "渲染中",
+    "status.done": "已完成",
+    "status.needs_human": "待人工",
+    "status.failed": "失败",
+
+    "msg.card_count_mismatch": "{level} 有 {got} 张卡，B2+ 有 {expected} 张，卡片未对齐",
+    "msg.word_ratio": "{level} 词数 {words}（占原文 {ratio}），目标 {lo}–{hi}，即 {min_words}–{max_words} 词",
+    "msg.sentence_too_long": "{level} 卡{card} 句子 {n} 词 > {max}：{sentence}",
+    "msg.sentence_too_short": "{level} 卡{card} 句子 {n} 词 < {min}：{sentence}",
+    "msg.flag_word": "{level} 出现可能超纲的 “{word}”，请人工确认",
+    "msg.missing_topic_word": "{level} 缺少主题词 “{word}”",
+    "msg.question_count": "{level} 题目数量 {got}，应为 {expected}",
+    "msg.option_count": "{level} Q{question} 选项不是 4 个",
+    "msg.invalid_answer": "{level} Q{question} 答案字母无效",
+    "msg.explanation_quote_missing": "{level} Q{question} 解析引用的句子在本级正文里找不到：“{quote}”",
+    "msg.question_quote_missing": "{level} Q{question} 题干引用的内容在本级正文里找不到：“{quote}”",
+    "msg.same_answer_letters": "{level} 三道题答案都是 {letter}",
+    "msg.proper_noun_missing": "A1- 未保留原文中的人名 “{name}”",
+    "msg.split_failed": "原文里找不到卡片起始句",
+    "hint.card_count_mismatch": "四个级别的卡片数必须相同，第 N 张卡讲同一件事",
+    "hint.missing_topic_word": "主题词在任何级别都不得替换成同义简单词",
+    "hint.proper_noun_missing": "关键人名必须保留：可写成 “Graves, a scientist” 这种形态（原名 + 同位语说明身份），不能泛化成 “A scientist”。此条为启发式判断，如非关键人名可忽略。",
+    "hint.split_failed": "检查 b2_card_starts 里每张卡开头的四个词，必须与原文逐字一致",
+  },
+
+  en: {
+    "app.name": "Yiluzhi",
+    "app.sub": "· Content Production Platform",
+    "app.title": "Yiluzhi · Content Production Platform",
+    "app.desc": "Turn one English source text into graded reading material at four levels — machine-checked, human-reviewed.",
+    "sr.title": "Yiluzhi · Content Production Platform: rewrite an English source into four graded reading levels, with scripted quality checks, human review and export.",
+
+    "nav.desk": "Workbench",
+    "nav.untitled": "Untitled",
+    "nav.settings": "Models",
+    "nav.new": "New run",
+    "nav.theme.group": "Theme",
+    "nav.theme.light": "Light",
+    "nav.theme.dark": "Dark",
+    "nav.lang.group": "Language",
+    "nav.lang.zh": "中文",
+    "nav.lang.en": "English",
+    "nav.lang.switched": "Switched to English",
+
+    "lib.aria": "Article library",
+    "lib.title": "Library",
+    "lib.empty": "No articles yet",
+    "lib.none": "No articles yet. Click “New run” and paste an English source text.",
+
+    "desk.h2": "Workbench",
+    "desk.lead": "One English source goes in; four graded versions come out. Form is judged by a deterministic script, meaning by a second model from a different vendor — you only handle what the machine cannot fix.",
+    "desk.new": "New run",
+    "desk.m.total": "Articles",
+    "desk.m.total.n": "including the sample",
+    "desk.m.passed": "Form checks passed",
+    "desk.m.passed.n": "articles with 0 errors",
+    "desk.m.blocked": "Needs attention",
+    "desk.m.blocked.n": "articles with open issues",
+    "desk.m.pending": "In progress",
+    "desk.m.pending.n": "articles not finished",
+    "desk.lib": "Content library",
+    "desk.count": "{n} article(s)",
+    "desk.words": "{n} words",
+
+    "badge.passed": "Checks passed",
+    "badge.issues": "{n} issue(s)",
+    "badge.unchecked": "Not checked",
+    "badge.pass": "Pass",
+    "badge.seed": "Sample",
+    "badge.form.pass": "Form passed",
+    "badge.form.issues": "{n} form issue(s)",
+
+    "editor.mode.compare": "All levels",
+    "editor.mode.b2": "B2+ source",
+    "editor.cards": "{n} cards",
+    "editor.hideq": "Hide questions",
+    "editor.showq": "Show questions",
+    "editor.card": "Card {n}",
+    "editor.source.tag": "Source",
+    "editor.rewrite": "Rewrite",
+    "editor.rewrite.card": "Rewrite this card only",
+    "editor.splitfail": "(card split did not match the source)",
+    "editor.empty": "This article has no content yet.",
+    "editor.empty.hint": "Use “Auto-fix” on the right to try generating it.",
+    "editor.aria.card": "{lv} card {n}",
+
+    "q.title": "{lv} questions",
+    "q.count": "{n} questions",
+    "q.kind.low": "Contextual meaning · Detail",
+    "q.kind.b1": "Detail · Reason · Attitude",
+    "q.kind.b2": "Figurative meaning · Paragraph relation · Author's purpose",
+    "q.stem.aria": "{lv} question {n} stem",
+    "q.opt.aria": "{lv} question {n} option {k}",
+    "q.expl.aria": "{lv} question {n} explanation",
+    "q.answer": "Answer",
+    "q.answer.group": "Correct answer",
+
+    "who.A1-": "Primary school",
+    "who.A2": "Junior high",
+    "who.B1": "Senior high",
+    "who.B2+": "Beyond senior high",
+
+    "panel.aria": "Quality panel",
+    "panel.title": "Quality",
+    "panel.form": "Form checks",
+    "panel.form.sub": "Script · 15 rule types",
+    "panel.judge": "Semantic judge",
+    "panel.judge.sub": "Model B · judges only, never edits",
+    "panel.notchecked": "Not checked yet",
+    "panel.noerr": "No blocking issues",
+    "panel.warn": "Warnings",
+    "panel.judge.none": "No semantic review has run yet.",
+    "panel.judge.none.hint": "Use “Re-run judge” below.",
+    "panel.judge.ok": "No semantic issues found",
+    "panel.judge.notrun": "Judge not run",
+    "panel.judge.unknown": "Type not in the preset enum — review manually",
+    "panel.judge.src": "Source: ",
+    "panel.judge.dst": "Rewritten: ",
+    "panel.stat.level": "Level",
+    "panel.stat.words": "Words",
+    "panel.stat.ratio": "Ratio",
+    "panel.stat.avg": "Avg sent",
+    "panel.stat.max": "Max",
+    "panel.btn.check": "Re-run form check",
+    "panel.btn.judge": "Re-run judge",
+    "panel.btn.fix": "Auto-fix",
+    "panel.btn.export": "Export docx",
+
+    "issue.article": "Whole article",
+    "issue.card": "Card {n}",
+    "issue.q": "Q{n}",
+
+    "set.title": "Model settings",
+    "set.close": "Close",
+    "set.cancel": "Cancel",
+    "set.save": "Save",
+    "set.intro": "Keys are stored only in this browser and forwarded with each request to the model provider — <strong>never written to the server disk, never committed to the repo</strong>. Both models speak the OpenAI-compatible API, so any compatible endpoint works.",
+    "set.gen": "Model A · Generation",
+    "set.judge": "Model B · Judge",
+    "set.url": "Base URL",
+    "set.url.hint": "Stop at the version number — <code>/chat/completions</code> is appended for you.",
+    "set.model": "Model name",
+    "set.key": "API Key",
+    "set.probe": "Test connection",
+    "set.judge.hint": "Use a model from a <strong>different vendor</strong> than the generator, so it does not check its own work.",
+    "set.limits": "Auto-fix round limits",
+    "set.limits.hint": "Up to {a} form rounds and {b} semantic rounds. Past the limit the run stops and marks the article “needs human” instead of retrying forever and burning credits.",
+    "set.saved": "Saved to this browser",
+    "probe.testing": "Testing…",
+    "probe.ok": "Connection OK · Model replied: {reply}",
+
+    "new.title": "New run",
+    "new.text.label": "English source (B2+)",
+    "new.text.ph": "Paste the full English source text. It will be split into 10 cards, rewritten down into A1-, A2 and B1, and given 3 questions per level.",
+    "new.count.tail": " words · at least 60 · the level is decided by you, the system will not second-guess it",
+    "new.opt": "Options",
+    "new.judge": "Run the semantic judge after generating (Model B, one extra call)",
+    "new.start": "Start",
+    "new.again": "Run another",
+    "new.running": "Running…",
+    "new.done": "Run finished",
+    "new.res.check": "Form check: ",
+    "new.res.pass": "passed",
+    "new.res.fail": "{n} issue(s)",
+    "new.res.judge": "Semantic judge: ",
+    "new.res.judge.skip": "not run",
+    "new.res.p0": "{n} P0",
+    "new.res.nop0": "no P0",
+    "new.res.p1": " ({n} P1)",
+    "new.res.fix": "Auto-fix: {a} form round(s) · {b} semantic round(s)",
+    "new.tooshort": "Source text too short — at least 60 words.",
+
+    "step.generating": "Generating four levels",
+    "step.checking": "Form check",
+    "step.auto_fixing": "Auto-fix",
+    "step.auto_fixing_n": "Auto-fix (round {n})",
+    "step.judging": "Semantic judge",
+    "step.rendering": "Render & export",
+    "step.done": "Done",
+
+    "toast.server_model": "The server has models configured — you can start a run right away.",
+    "toast.need_generate": "No generation model configured yet. Open “Models” and fill it in.",
+    "toast.need_judge": "No judge model configured yet. Open “Models” and fill it in.",
+    "toast.check.pass": "Form check passed",
+    "toast.check.fail": "{n} issue(s) remain",
+    "toast.check.err": "Check failed: ",
+    "toast.save.err": "Save failed: ",
+    "toast.open.err": "Could not open: ",
+    "toast.judge.running": "Judging…",
+    "toast.judge.p0": "{n} P0 finding(s)",
+    "toast.judge.ok": "No semantic issues found",
+    "toast.judge.err": "Judge failed: ",
+    "toast.fix.running": "Fixing…",
+    "toast.fix.done": "Auto-fix finished — all checks pass",
+    "toast.fix.human": "Round limit reached; {n} issue(s) still need a human",
+    "toast.fix.err": "Fix failed: ",
+    "fix.confirm": "{label}: the machine rewrites the cards that fail, up to 3 form rounds + 2 semantic rounds. Past the limit it stops and hands the article back to you. Continue?",
+    "fix.confirm.judge": "Auto-fix (with judge)",
+    "fix.confirm.form": "Auto-fix (form layer only)",
+    "rewrite.prompt": "Rewrite {label}. You may add one instruction (leave empty to rewrite only against the reported issues):",
+    "rewrite.running": "Rewriting {label}…",
+    "rewrite.done": "Rewrite finished",
+    "rewrite.nochange": "The model returned no changes — please check",
+    "rewrite.err": "Rewrite failed: ",
+    "rewrite.target.card": "{lv} card {n}",
+    "rewrite.target.q": "{lv} question {n}",
+    "export.ok": "Exported: {name}",
+    "export.err": "Export failed: ",
+
+    "rule.card_count_mismatch": "Cards not aligned",
+    "rule.word_ratio": "Word-count ratio",
+    "rule.sentence_too_long": "Sentence too long",
+    "rule.sentence_too_short": "Sentence too short",
+    "rule.flag_word": "Off-level grammar signal",
+    "rule.missing_topic_word": "Topic word missing",
+    "rule.question_count": "Question count",
+    "rule.option_count": "Option count",
+    "rule.invalid_answer": "Invalid answer",
+    "rule.explanation_quote_missing": "Explanation quote mismatch",
+    "rule.question_quote_missing": "Question quote mismatch",
+    "rule.same_answer_letters": "Repeated answer letter",
+    "rule.proper_noun_missing": "Proper noun dropped",
+    "rule.split_failed": "Card split failed",
+
+    "type.fact_added": "Fact added",
+    "type.fact_dropped": "Core fact dropped",
+    "type.fact_altered": "Fact altered",
+    "type.card_misaligned": "Card misaligned",
+    "type.bridge_broken": "Cross-level bridge broken",
+    "type.topic_word_weak": "Weak topic-word context",
+    "type.answer_unsupported": "Answer unsupported by the text",
+    "type.option_unfair": "Unfair distractor",
+    "type.unclassified": "Unclassified",
+
+    "status.pending": "Pending",
+    "status.generating": "Generating",
+    "status.checking": "Checking",
+    "status.auto_fixing": "Auto-fixing",
+    "status.judging": "Judging",
+    "status.rendering": "Rendering",
+    "status.done": "Done",
+    "status.needs_human": "Needs human",
+    "status.failed": "Failed",
+
+    "msg.card_count_mismatch": "{level} has {got} cards while B2+ has {expected} — cards are not aligned",
+    "msg.word_ratio": "{level} has {words} words ({ratio} of the source); target {lo}–{hi}, i.e. {min_words}–{max_words} words",
+    "msg.sentence_too_long": "{level} card {card}: a sentence of {n} words exceeds the {max}-word limit — {sentence}",
+    "msg.sentence_too_short": "{level} card {card}: a sentence of {n} words is below the {min}-word floor — {sentence}",
+    "msg.flag_word": "{level} contains a possibly off-level form “{word}” — please confirm",
+    "msg.missing_topic_word": "{level} is missing the topic word “{word}”",
+    "msg.question_count": "{level} has {got} questions, expected {expected}",
+    "msg.option_count": "{level} Q{question} does not have 4 options",
+    "msg.invalid_answer": "{level} Q{question} has an invalid answer letter",
+    "msg.explanation_quote_missing": "{level} Q{question} quotes a sentence in the explanation that is not in this level's text: “{quote}”",
+    "msg.question_quote_missing": "{level} Q{question} quotes text in the question stem that is not in this level's text: “{quote}”",
+    "msg.same_answer_letters": "{level} — all three answers are {letter}",
+    "msg.proper_noun_missing": "A1- drops the proper noun “{name}” that appears in the source",
+    "msg.split_failed": "Card split failed — a card-start marker does not match the source text",
+    "hint.card_count_mismatch": "All four levels must have the same number of cards, and card N must cover the same content.",
+    "hint.missing_topic_word": "Topic words must never be replaced by simpler synonyms at any level.",
+    "hint.proper_noun_missing": "Key proper nouns must be kept: write “Graves, a scientist” (name + appositive), never a generic “A scientist”. Heuristic check — ignore it if the name is not essential.",
+    "hint.split_failed": "Each card's first four words in b2_card_starts must appear verbatim in the source.",
+  },
+};
+
+let LANG = "zh";
+
+function t(key, vars) {
+  const dict = I18N[LANG] || I18N.zh;
+  let s = dict[key] != null ? dict[key] : I18N.zh[key];
+  if (s == null) return key;
+  if (vars) s = s.replace(/\{(\w+)\}/g, (m, k) => (vars[k] != null ? String(vars[k]) : m));
+  return s;
+}
+function has(key) { return (I18N[LANG] || {})[key] != null; }
+/** 取当前语言文案；当前语言没有就返回 null（用于「英文缺模板时回退后端中文」） */
+function tOpt(key, vars) { return has(key) ? t(key, vars) : null; }
+
+const LEVELS = ["A1-", "A2", "B1", "B2+"];
+const GRADED = ["A1-", "A2", "B1"];
+const LEVEL_RATIO = { "A1-": [0.30, 0.42], "A2": [0.48, 0.60], "B1": [0.65, 0.78] };
+/* 各级的字数占比与句长区间，来自佳阳老师工具包的质检参数 */
+const LEVEL_META = {
+  "A1-": { ratio: "30–42%", sent: "4–12" },
+  "A2":  { ratio: "48–60%", sent: "5–16" },
+  "B1":  { ratio: "65–78%", sent: "6–22" },
+  "B2+": { ratio: "—", sent: "—" },
+};
+const STATUS_CLS = {
+  pending: "", generating: "badge-accent", checking: "badge-accent",
+  auto_fixing: "badge-accent", judging: "badge-accent", rendering: "badge-accent",
+  done: "badge-ok", needs_human: "badge-warn", failed: "badge-err",
+};
+const STEP_KEYS = ["generating", "checking", "auto_fixing", "judging", "rendering"];
+
+/* ---------------------------------------------------------------- 工具 */
+const $ = (sel, root = document) => root.querySelector(sel);
+const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
+
+function esc(s) {
+  return String(s == null ? "" : s)
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function toast(msg, kind = "") {
+  const el = document.createElement("div");
+  el.className = "toast " + kind;
+  el.textContent = msg;
+  $("#toasts").appendChild(el);
+  setTimeout(() => {
+    el.style.transition = "opacity 240ms ease-out";
+    el.style.opacity = "0";
+    setTimeout(() => el.remove(), 260);
+  }, kind === "err" ? 6000 : 3200);
+}
+
+function fmtTime(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (isNaN(d)) return "";
+  const p = n => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+function loadConfig() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(LS_KEY) || "{}");
+    return {
+      generate: { base_url: "", api_key: "", model: "", ...(raw.generate || {}) },
+      judge:    { base_url: "", api_key: "", model: "", ...(raw.judge || {}) },
+    };
+  } catch {
+    return {
+      generate: { base_url: "", api_key: "", model: "" },
+      judge: { base_url: "", api_key: "", model: "" },
+    };
+  }
+}
+
+function saveConfig() {
+  localStorage.setItem(LS_KEY, JSON.stringify(state.config));
+}
+
+function modelFieldsReady(which) {
+  const c = state.config[which] || {};
+  return Boolean(c.base_url && c.api_key && c.model);
+}
+
+function autoResize(ta) {
+  ta.style.height = "auto";
+  ta.style.height = ta.scrollHeight + "px";
+}
+
+function autoResizeAll(root = document) {
+  $$("textarea.card-text, textarea.q-text, textarea.expl-input", root).forEach(autoResize);
+}
+
+/* ---------------------------------------------------------------- API */
+async function api(path, { method = "GET", body } = {}) {
+  const opts = { method, headers: {} };
+  if (body !== undefined) {
+    opts.headers["Content-Type"] = "application/json";
+    opts.body = JSON.stringify(body);
+  }
+  const res = await fetch(path, opts);
+  let json = null;
+  try { json = await res.json(); } catch { /* 非 JSON 响应 */ }
+  if (!res.ok || (json && json.ok === false)) {
+    const msg = (json && json.error && json.error.message) || `HTTP ${res.status}`;
+    throw new Error(msg);
+  }
+  return json ? json.data : null;
+}
+
+/* ============================================================================
+   语言与主题
+   ==========================================================================*/
+/** 只改「不依赖数据」的部分：标记、文档标题、静态标记文案。
+    首屏要尽早执行，否则切换按钮会有短暂的无选中态。 */
+function applyLangShell() {
+  document.documentElement.dataset.lang = LANG;
+  document.documentElement.lang = LANG === "en" ? "en" : "zh-CN";
+  document.title = t("app.title");
+  const md = $('meta[name="description"]');
+  if (md) md.setAttribute("content", t("app.desc"));
+  applyStaticI18n();
+}
+
+function applyLang(l) {
+  LANG = ["zh", "en"].includes(l) ? l : "zh";
+  localStorage.setItem(LS_LANG, LANG);
+  applyLangShell();
+
+  // 动态区域整体重渲染：文案、文章标题、质检报文都会跟着换语言
+  if (state.view === "editor" && state.article) { renderEditor(); setCrumb(); }
+  else { renderDesk(); setCrumb(); }
+  renderLibrary();
+}
+
+/** 静态标记：data-i18n / data-i18n-html / data-i18n-ph / data-i18n-title / data-i18n-aria */
+function applyStaticI18n() {
+  $$("[data-i18n]").forEach(el => { el.textContent = t(el.dataset.i18n); });
+  $$("[data-i18n-html]").forEach(el => { el.innerHTML = t(el.dataset.i18nHtml); });
+  $$("[data-i18n-ph]").forEach(el => { el.setAttribute("placeholder", t(el.dataset.i18nPh)); });
+  $$("[data-i18n-title]").forEach(el => { el.setAttribute("title", t(el.dataset.i18nTitle)); });
+  $$("[data-i18n-aria]").forEach(el => { el.setAttribute("aria-label", t(el.dataset.i18nAria)); });
+  $$("[data-theme-set]").forEach(b => {
+    b.setAttribute("aria-pressed", String(b.dataset.themeSet === document.documentElement.dataset.theme));
+  });
+  $$("[data-lang-set]").forEach(b => {
+    b.setAttribute("aria-pressed", String(b.dataset.langSet === LANG));
+  });
+  $("#limits-hint").textContent = t("set.limits.hint", {
+    a: state.limits.max_check_rounds, b: state.limits.max_judge_rounds,
+  });
+}
+
+function applyTheme(th) {
+  document.documentElement.dataset.theme = th;
+  localStorage.setItem(LS_THEME, th);
+  $$("[data-theme-set]").forEach(b => {
+    b.setAttribute("aria-pressed", String(b.dataset.themeSet === th));
+  });
+}
+
+/* 中文界面优先显示中文标题，英文界面优先显示英文标题；另一个作为副标题保留 */
+function titlePrimary(a) {
+  return LANG === "en" ? (a.title_en || a.title_zh || "") : (a.title_zh || a.title_en || "");
+}
+function titleSecondary(a) {
+  return LANG === "en" ? (a.title_zh || "") : (a.title_en || "");
+}
+
+/* ============================================================================
+   渲染 · 工作台
+   ==========================================================================*/
+function renderDesk() {
+  const arts = state.articles;
+  const passed = arts.filter(a => a.passed === true).length;
+  const blocked = arts.filter(a => a.passed === false).length;
+  const pending = arts.filter(a => a.status !== "done").length;
+
+  $("#stage").innerHTML = `
+    <div class="desk">
+      <div class="desk-inner">
+        <div class="desk-head reveal in">
+          <div class="lead">
+            <h2>${esc(t("desk.h2"))}</h2>
+            <p>${esc(t("desk.lead"))}</p>
+          </div>
+          <button class="btn btn-primary" id="desk-new">${esc(t("desk.new"))}</button>
+        </div>
+
+        <div class="metrics">
+          <div class="metric reveal in"><div class="k">${esc(t("desk.m.total"))}</div><div class="v">${arts.length}</div><div class="n">${esc(t("desk.m.total.n"))}</div></div>
+          <div class="metric reveal in"><div class="k">${esc(t("desk.m.passed"))}</div><div class="v ${passed ? "ok" : ""}">${passed}</div><div class="n">${esc(t("desk.m.passed.n"))}</div></div>
+          <div class="metric reveal in"><div class="k">${esc(t("desk.m.blocked"))}</div><div class="v ${blocked ? "err" : ""}">${blocked}</div><div class="n">${esc(t("desk.m.blocked.n"))}</div></div>
+          <div class="metric reveal in"><div class="k">${esc(t("desk.m.pending"))}</div><div class="v">${pending}</div><div class="n">${esc(t("desk.m.pending.n"))}</div></div>
+        </div>
+
+        ${arts.length ? `
+          <div class="sec-head desk-sec"><h3>${esc(t("desk.lib"))}</h3><span class="count">${esc(t("desk.count", { n: arts.length }))}</span></div>
+          <div class="grid">${arts.map(docCard).join("")}</div>`
+          : `<div class="empty">${esc(t("lib.none"))}</div>`}
+      </div>
+    </div>`;
+
+  $("#desk-new")?.addEventListener("click", openNewDialog);
+  $$(".doc-card").forEach(el => {
+    el.addEventListener("click", () => openArticle(el.dataset.id));
+  });
+
+  autoResizeAll($("#stage"));
+  runReveal();
+}
+
+function docCard(a) {
+  const stCls = STATUS_CLS[a.status] || "";
+  let check = "";
+  if (a.passed === true) check = `<span class="badge badge-ok"><i class="dot"></i>${esc(t("badge.passed"))}</span>`;
+  else if (a.passed === false) check = `<span class="badge badge-err"><i class="dot"></i>${esc(t("badge.issues", { n: a.error_count }))}</span>`;
+  else check = `<span class="badge"><i class="dot"></i>${esc(t("badge.unchecked"))}</span>`;
+  const p0 = a.p0_count ? `<span class="badge badge-err"><i class="dot"></i>P0 ${a.p0_count}</span>` : "";
+  const seed = a.is_seed ? `<span class="badge badge-accent">${esc(t("badge.seed"))}</span>` : "";
+  const sec = titleSecondary(a);
+
+  return `
+    <button class="doc-card reveal in" data-id="${esc(a.id)}">
+      <div>
+        <div class="en">${esc(titlePrimary(a) || t("nav.untitled"))}</div>
+        ${sec ? `<div class="zh">${esc(sec)}</div>` : ""}
+      </div>
+      <div class="row">
+        <span class="badge ${stCls}"><i class="dot"></i>${esc(t("status." + (STATUS_CLS[a.status] !== undefined ? a.status : "pending")))}</span>
+        ${check}${p0}${seed}
+      </div>
+      <div class="row" style="color:var(--text-3);font-size:var(--fs-xs)">
+        <span class="mono">${esc(t("desk.words", { n: a.words || 0 }))}</span><span>·</span><span>${esc(fmtTime(a.created_at))}</span>
+      </div>
+    </button>`;
+}
+
+/* ============================================================================
+   渲染 · 编辑台
+   ==========================================================================*/
+function renderEditor() {
+  const art = state.article;
+  if (!art) return;
+
+  const levels = state.mode === "compare" ? ["B2+", ...GRADED] : [state.level];
+  const cards = {};
+  LEVELS.forEach(lv => { cards[lv] = (art.levels[lv] || {}).cards || []; });
+  const n = Math.max(...LEVELS.map(lv => cards[lv].length), 0);
+
+  const blocks = [];
+  for (let i = 0; i < n; i++) {
+    blocks.push(`
+      <section class="card-block" id="card-${i + 1}" data-card="${i + 1}">
+        <div class="card-head">
+          <span class="no">${esc(t("editor.card", { n: String(i + 1).padStart(2, "0") }))}</span>
+          <span class="flags" data-flags="${i + 1}"></span>
+        </div>
+        ${levels.map(lv => levelRow(lv, i, cards[lv][i] || "", art)).join("")}
+      </section>`);
+  }
+
+  $("#stage").innerHTML = `
+    <div class="toolbar">
+      <div class="seg" role="group" aria-label="${esc(t("editor.mode.compare"))}">
+        <button data-mode="compare" aria-pressed="${state.mode === "compare"}">${esc(t("editor.mode.compare"))}</button>
+        ${GRADED.map(lv => `<button data-mode="${lv}" aria-pressed="${state.mode === lv}">${lv}</button>`).join("")}
+        <button data-mode="B2+" aria-pressed="${state.mode === "B2+"}">${esc(t("editor.mode.b2"))}</button>
+      </div>
+      <span class="tag">${esc(t("editor.cards", { n }))}</span>
+      <span class="spacer"></span>
+      <button class="btn btn-sm" id="btn-toggle-q">${esc(t(state.showQuestions ? "editor.hideq" : "editor.showq"))}</button>
+    </div>
+    <div class="editor">
+      <div class="editor-inner">
+        ${blocks.join("") || `<div class="empty">${esc(t("editor.empty"))}${art.original_text ? esc(t("editor.empty.hint")) : ""}</div>`}
+        ${state.showQuestions ? questionsSection(art) : ""}
+      </div>
+    </div>`;
+
+  bindEditor();
+  autoResizeAll($("#stage"));
+  renderPanel();
+  renderFlags();
+  runReveal();
+}
+
+function levelRow(lv, i, text, art) {
+  const isB2 = lv === "B2+";
+  return `
+    <div class="lvl-row ${isB2 ? "b2" : ""}" data-level="${lv}" data-index="${i + 1}">
+      <div class="lvl-code" title="${esc(t("who." + lv))}">${lv}</div>
+      <div class="lvl-body">
+        ${isB2
+          ? `<div class="readonly">${esc(text) || `<span style="color:var(--text-3)">${esc(t("editor.splitfail"))}</span>`}</div>`
+          : `<textarea class="card-text" data-level="${lv}" data-index="${i + 1}"
+                       spellcheck="false" aria-label="${esc(t("editor.aria.card", { lv, n: i + 1 }))}">${esc(text)}</textarea>`}
+      </div>
+      <div class="lvl-actions">
+        ${isB2 ? `<span class="tag">${esc(t("editor.source.tag"))}</span>`
+               : `<button class="btn btn-sm btn-ghost" data-rewrite="${lv}:${i + 1}" title="${esc(t("editor.rewrite.card"))}">${esc(t("editor.rewrite"))}</button>`}
+      </div>
+    </div>`;
+}
+
+function questionsSection(art) {
+  const parts = LEVELS.map(lv => {
+    const qs = ((art.levels[lv] || {}).questions) || [];
+    if (!qs.length) return "";
+    return `
+      <section class="q-block" data-qlevel="${lv}" id="qlevel-${lv}">
+        <div class="q-title">
+          <h2>${esc(t("q.title", { lv }))}</h2>
+          <span class="tag">${esc(t("who." + lv))}</span>
+          <span class="rule"></span>
+          <span class="tag">${esc(t("q.count", { n: qs.length }))}</span>
+        </div>
+        ${qs.map((q, qi) => questionCard(lv, qi, q)).join("")}
+      </section>`;
+  }).join("");
+  return parts ? `<div style="margin-top:40px">${parts}</div>` : "";
+}
+
+function questionCard(lv, qi, q) {
+  const opts = q.options || [];
+  const keys = ["A", "B", "C", "D"];
+  // 题型提示直接来自老师方法论：A1-/A2 考语境词义与细节，B1 加原因与态度，B2+ 考推断与写作意图
+  const kindKey = ["A1-", "A2"].includes(lv) ? "q.kind.low" : lv === "B1" ? "q.kind.b1" : "q.kind.b2";
+  return `
+    <article class="q-card" data-q-lv="${lv}" data-q-index="${qi + 1}">
+      <div class="q-head">
+        <span class="q-num">Q${qi + 1}</span>
+        <span class="tag">${esc(t(kindKey))}</span>
+        <span class="spacer" style="flex:1"></span>
+        <button class="btn btn-sm btn-ghost" data-rewrite-q="${lv}:${qi + 1}">${esc(t("editor.rewrite"))}</button>
+      </div>
+      <textarea class="q-text" data-qstem="${lv}:${qi + 1}" spellcheck="false"
+                style="font-size:var(--fs-lg);font-family:var(--font-ui)" aria-label="${esc(t("q.stem.aria", { lv, n: qi + 1 }))}">${esc(q.q || "")}</textarea>
+      <div style="margin-top:6px">
+        ${keys.map((k, oi) => `
+          <div class="opt-row ${q.answer === k ? "is-answer" : ""}">
+            <span class="opt-key">${k}</span>
+            <input class="q-inp" type="text" data-qopt="${lv}:${qi + 1}:${oi}" value="${esc(opts[oi] || "")}"
+                   spellcheck="false" aria-label="${esc(t("q.opt.aria", { lv, n: qi + 1, k }))}">
+          </div>`).join("")}
+      </div>
+      <div class="qa-meta">
+        <span class="tag">${esc(t("q.answer"))}</span>
+        <div class="ans" role="group" aria-label="${esc(t("q.answer.group"))}">
+          ${keys.map(k => `<button class="ans-key" data-qans="${lv}:${qi + 1}:${k}"
+                    aria-pressed="${q.answer === k}">${k}</button>`).join("")}
+        </div>
+        <span class="spacer" style="flex:1"></span>
+      </div>
+      <div class="expl">
+        <textarea class="q-text expl-input" data-qexpl="${lv}:${qi + 1}" spellcheck="false"
+                  style="font-family:var(--font-ui);font-size:var(--fs-sm);color:var(--text-2)"
+                  aria-label="${esc(t("q.expl.aria", { lv, n: qi + 1 }))}">${esc(q.explanation || "")}</textarea>
+      </div>
+    </article>`;
+}
+
+/* ---------------------------------------------------------------- 编辑台交互 */
+function bindEditor() {
+  $$("[data-mode]").forEach(b => b.addEventListener("click", () => {
+    const m = b.dataset.mode;
+    if (m === "compare") state.mode = "compare";
+    else { state.mode = "single"; state.level = m; }
+    renderEditor();
+  }));
+
+  $("#btn-toggle-q")?.addEventListener("click", () => {
+    state.showQuestions = !state.showQuestions;
+    renderEditor();
+  });
+
+  // 卡片正文：失焦保存
+  $$("textarea.card-text").forEach(ta => {
+    ta.addEventListener("input", () => autoResize(ta));
+    ta.addEventListener("blur", () => saveCard(ta));
+    ta.addEventListener("keydown", e => {
+      if (e.key === "Escape") { ta.value = ta.dataset.orig || ta.value; ta.blur(); }
+    });
+    ta.dataset.orig = ta.value;
+  });
+
+  $$("[data-rewrite]").forEach(b => b.addEventListener("click", () => {
+    const [lv, idx] = b.dataset.rewrite.split(":");
+    rewriteTargets([{ level: lv, card: Number(idx) }], t("rewrite.target.card", { lv, n: idx }));
+  }));
+
+  $$("[data-rewrite-q]").forEach(b => b.addEventListener("click", () => {
+    const [lv, idx] = b.dataset.rewriteQ.split(":");
+    rewriteTargets([{ level: lv, question: Number(idx) }], t("rewrite.target.q", { lv, n: idx }));
+  }));
+
+  // 题目：题干 / 选项 / 解析
+  $$("[data-qstem]").forEach(el => bindQField(el, "q"));
+  $$("[data-qexpl]").forEach(el => bindQField(el, "explanation"));
+  $$("[data-qopt]").forEach(el => {
+    el.addEventListener("input", () => autoResize(el));
+    el.addEventListener("blur", () => {
+      if (el.value === el.dataset.orig) return;
+      const [lv, qi, oi] = el.dataset.qopt.split(":");
+      saveQuestion(lv, Number(qi), { options: collectOptions(lv, Number(qi)) });
+    });
+    el.dataset.orig = el.value;
+  });
+
+  $$("[data-qans]").forEach(b => b.addEventListener("click", () => {
+    const [lv, qi, k] = b.dataset.qans.split(":");
+    saveQuestion(lv, Number(qi), { answer: k });
+  }));
+
+  autoResizeAll($("#stage"));
+}
+
+function bindQField(el, field) {
+  el.addEventListener("input", () => autoResize(el));
+  el.addEventListener("blur", () => {
+    if (el.value === el.dataset.orig) return;
+    const [lv, qi] = (el.dataset.qstem || el.dataset.qexpl).split(":");
+    saveQuestion(lv, Number(qi), { [field]: el.value });
+  });
+  el.dataset.orig = el.value;
+}
+
+function collectOptions(lv, qi) {
+  const inputs = $$(`[data-qopt^="${lv}:${qi}:"]`);
+  return inputs.sort((a, b) =>
+    Number(a.dataset.qopt.split(":")[2]) - Number(b.dataset.qopt.split(":")[2])
+  ).map(i => i.value);
+}
+
+async function saveCard(ta) {
+  const lv = ta.dataset.level, idx = Number(ta.dataset.index);
+  if (ta.value === ta.dataset.orig) return;
+  const row = ta.closest(".lvl-row");
+  row.classList.add("saving");
+  try {
+    await api(`/api/articles/${state.article.id}/cards`, {
+      method: "PUT", body: { level: lv, index: idx, text: ta.value },
+    });
+    ta.dataset.orig = ta.value;
+    row.classList.remove("saving");
+    row.classList.add("saved");
+    setTimeout(() => row.classList.remove("saved"), 900);
+    if (state.article.levels[lv]) state.article.levels[lv].cards[idx - 1] = ta.value;
+    const rep = await api(`/api/articles/${state.article.id}/check`, { method: "POST" });
+    state.article.check_report = rep;
+    renderPanel();
+    renderFlags();
+    refreshLibrary();
+  } catch (e) {
+    row.classList.remove("saving");
+    toast(t("toast.save.err") + e.message, "err");
+  }
+}
+
+async function saveQuestion(lv, qi, patch) {
+  try {
+    await api(`/api/articles/${state.article.id}/questions`, {
+      method: "PUT", body: { level: lv, index: qi, ...patch },
+    });
+    const q = state.article.levels[lv].questions[qi - 1];
+    Object.assign(q, patch);
+    if (patch.answer) {
+      $$(`[data-qans^="${lv}:${qi}:"]`).forEach(b => {
+        b.setAttribute("aria-pressed", String(b.dataset.qans === `${lv}:${qi}:${patch.answer}`));
+      });
+      $$(`.q-card[data-q-lv="${lv}"][data-q-index="${qi}"] .opt-row`).forEach((r, i) => {
+        r.classList.toggle("is-answer", "ABCD"[i] === patch.answer);
+      });
+    }
+    const rep = await api(`/api/articles/${state.article.id}/check`, { method: "POST" });
+    state.article.check_report = rep;
+    renderPanel();
+    renderFlags();
+  } catch (e) {
+    toast(t("toast.save.err") + e.message, "err");
+  }
+}
+
+/* ---------------------------------------------------------------- 标记与定位 */
+function renderFlags() {
+  const rep = state.article?.check_report;
+  $$("[data-flags]").forEach(el => { el.innerHTML = ""; });
+  const byCard = {};
+  const push = (idx, k, r) => {
+    (byCard[`${idx}`] = byCard[`${idx}`] || []).push({ k, r });
+  };
+  (rep?.errors || []).forEach(e => {
+    if (e.target && e.target.startsWith("card:")) push(Number(e.target.split(":")[1]), "err", e.rule);
+  });
+  (rep?.warnings || []).forEach(e => {
+    if (e.target && e.target.startsWith("card:")) push(Number(e.target.split(":")[1]), "warn", e.rule);
+  });
+  const jdg = state.article?.judge_report;
+  (jdg?.findings || []).forEach(f => {
+    if (f.card) push(f.card, f.severity === "P0" ? "err" : "warn", f.type);
+  });
+
+  Object.entries(byCard).forEach(([idx, items]) => {
+    const el = $(`[data-flags="${idx}"]`);
+    if (!el) return;
+    el.innerHTML = items.map(it =>
+      `<span class="badge ${it.k === "err" ? "badge-err" : "badge-warn"}"><i class="dot"></i>${esc(ruleLabel(it.r))}</span>`
+    ).join("");
+  });
+}
+
+/** 规则/发现类型 → 当前语言的可读名 */
+function ruleLabel(key) {
+  return tOpt("rule." + key) || tOpt("type." + key) || key;
+}
+
+function flashCard(cardNo) {
+  const el = $(`#card-${cardNo}`);
+  if (!el) return;
+  el.scrollIntoView({ behavior: "smooth", block: "center" });
+  el.classList.add("flash");
+  setTimeout(() => el.classList.remove("flash"), 1800);
+}
+
+/* ============================================================================
+   渲染 · 质检面板
+   ==========================================================================*/
+function renderPanel() {
+  const art = state.article;
+  if (!art) { $("#panel").hidden = true; return; }
+  $("#panel").hidden = false;
+
+  const rep = art.check_report;
+  const jdg = art.judge_report;
+  const errs = rep?.errors || [];
+  const warns = rep?.warnings || [];
+
+  const stats = (rep?.stats || []).map(s => {
+    const over = s.ratio > 0 && !isRatioOk(s.level, s.ratio);
+    return `<tr class="${over ? "over" : ""} ${s.level === "B2+" ? "b2" : ""}">
+      <td>${s.level}</td><td>${s.words}</td><td>${(s.ratio * 100).toFixed(0)}%</td>
+      <td>${s.avg_sent}</td><td>${s.max_sent}</td></tr>`;
+  }).join("");
+
+  $("#panel-summary").innerHTML = rep
+    ? `<span class="badge ${rep.passed ? "badge-ok" : "badge-err"}"><i class="dot"></i>${esc(rep.passed ? t("badge.form.pass") : t("badge.form.issues", { n: errs.length }))}</span>`
+    : "";
+
+  $("#panel-body").innerHTML = `
+    <div class="sec">
+      <div class="sec-head"><h3>${esc(t("panel.form"))}</h3><span class="count">${esc(t("panel.form.sub"))}</span></div>
+      ${rep ? `
+        <table class="stat-table" style="margin-bottom:10px">
+          <thead><tr><th>${esc(t("panel.stat.level"))}</th><th>${esc(t("panel.stat.words"))}</th><th>${esc(t("panel.stat.ratio"))}</th><th>${esc(t("panel.stat.avg"))}</th><th>${esc(t("panel.stat.max"))}</th></tr></thead>
+          <tbody>${stats}</tbody>
+        </table>` : `<div class="empty">${esc(t("panel.notchecked"))}</div>`}
+
+      ${errs.length ? errs.map(e => issueHTML(e, "error")).join("")
+        : rep ? `<div class="empty" style="color:var(--ok);border-color:color-mix(in srgb,var(--ok) 40%,transparent)">${esc(t("panel.noerr"))}</div>` : ""}
+
+      ${warns.length ? `<div class="sec-head" style="margin-top:14px"><h3 style="color:var(--text-2)">${esc(t("panel.warn"))}</h3><span class="count">${warns.length}</span></div>
+        ${warns.map(e => issueHTML(e, "warning")).join("")}` : ""}
+    </div>
+
+    <div class="sec">
+      <div class="sec-head"><h3>${esc(t("panel.judge"))}</h3><span class="count">${esc(t("panel.judge.sub"))}</span></div>
+      ${judgeHTML(jdg)}
+    </div>`;
+}
+
+function isRatioOk(level, ratio) {
+  const r = LEVEL_RATIO[level];
+  if (!r) return true;
+  return ratio >= r[0] && ratio <= r[1];
+}
+
+/** 把后端的中文报文按当前语言重写。中文直接用后端原文（更精确），英文用规则模板 + params。 */
+function issueText(e) {
+  const p = Object.assign({}, e.params || {});
+  if (p.ratio != null) p.ratio = Math.round(p.ratio * 100) + "%";
+  if (p.lo != null) p.lo = Math.round(p.lo * 100) + "%";
+  if (p.hi != null) p.hi = Math.round(p.hi * 100) + "%";
+
+  if (e.rule === "split_failed") {
+    const detail = (e.params && e.params.detail) || "";
+    return {
+      msg: LANG === "zh" ? e.message : (tOpt("msg.split_failed") || e.message),
+      hint: t("hint.split_failed") + (detail ? "\n" + detail : ""),
+    };
+  }
+  const msg = LANG === "zh" ? e.message : (tOpt("msg." + e.rule, p) || e.message);
+  const hint = e.hint_key ? t("hint." + e.hint_key) : (e.hint || "");
+  return { msg, hint };
+}
+
+function issueLocation(target) {
+  if (target && target.startsWith("card:")) return t("issue.card", { n: target.split(":")[1] });
+  if (target && target.startsWith("q:")) return t("issue.q", { n: target.split(":")[1] });
+  return t("issue.article");
+}
+
+function issueHTML(e, kind) {
+  const cardNo = e.target && e.target.startsWith("card:") ? Number(e.target.split(":")[1]) : null;
+  const { msg, hint } = issueText(e);
+  return `
+    <button class="issue" data-sev="${kind}" ${cardNo ? `data-goto="${cardNo}"` : ""}>
+      <div class="top">
+        <span class="loc">${esc(e.level)} · ${esc(issueLocation(e.target))}</span>
+        <span class="rule">${esc(ruleLabel(e.rule))}</span>
+      </div>
+      <div class="msg">${esc(msg)}</div>
+      ${hint ? `<div class="tiny">${esc(hint)}</div>` : ""}
+    </button>`;
+}
+
+function judgeHTML(jdg) {
+  // 未跑裁判时后端存的是中文占位结论，这里一律用界面语言的固定文案，避免中英混排
+  if (!jdg || jdg.not_run) {
+    return `<div class="empty">${esc(t("panel.judge.none"))}<br>${esc(t("panel.judge.none.hint"))}</div>`;
+  }
+  const fs = jdg.findings || [];
+  if (!fs.length) {
+    return `<div class="empty" style="color:var(--ok);border-color:color-mix(in srgb,var(--ok) 40%,transparent)">
+      ${esc(t("panel.judge.ok"))}<br><span style="color:var(--text-3);font-size:var(--fs-xs)">${esc(jdg.conclusion || "")}</span></div>`;
+  }
+  return fs.map(f => {
+    const loc = f.card ? t("issue.card", { n: f.card })
+      : f.question ? t("issue.q", { n: f.question }) : t("issue.article");
+    return `
+      <button class="issue" data-sev="${f.severity}" ${f.card ? `data-goto="${f.card}"` : ""}>
+        <div class="top">
+          <span class="loc">${esc(f.level)} · ${esc(loc)}</span>
+          <span class="rule">${f.severity} · ${esc(tOpt("type." + f.type) || f.type)}</span>
+        </div>
+        <div class="msg">${esc(f.why)}</div>
+        ${f.original || f.rewritten ? `
+          <div class="pair">
+            <div class="src">${esc(t("panel.judge.src"))}${esc(f.original || "—")}</div>
+            <div class="dst">${esc(t("panel.judge.dst"))}${esc(f.rewritten || "—")}</div>
+          </div>` : ""}
+        ${f.known_type === false ? `<div class="tiny">${esc(t("panel.judge.unknown"))}</div>` : ""}
+      </button>`;
+  }).join("");
+}
+
+/* ============================================================================
+   行为
+   ==========================================================================*/
+async function refreshLibrary() {
+  try {
+    state.articles = await api("/api/articles");
+    renderLibrary();
+  } catch (e) { /* 列表刷新失败不影响主流程 */ }
+}
+
+function renderLibrary() {
+  const list = $("#lib-list");
+  if (!state.articles.length) {
+    list.innerHTML = `<div style="padding:8px 12px;color:var(--text-3);font-size:var(--fs-sm)">${esc(t("lib.empty"))}</div>`;
+    return;
+  }
+  list.innerHTML = state.articles.map(a => {
+    const stCls = STATUS_CLS[a.status] || "";
+    const stName = STATUS_CLS[a.status] !== undefined ? a.status : "pending";
+    const cur = state.article && state.article.id === a.id;
+    let badge = "";
+    if (a.passed === true) badge = `<span class="badge badge-ok"><i class="dot"></i>${esc(t("badge.pass"))}</span>`;
+    else if (a.passed === false) badge = `<span class="badge badge-err"><i class="dot"></i>${a.error_count}</span>`;
+    else badge = `<span class="badge ${stCls}"><i class="dot"></i>${esc(t("status." + stName))}</span>`;
+    return `
+      <button class="doc-item" role="listitem" data-id="${esc(a.id)}" aria-current="${cur}">
+        <div class="t">${esc(titlePrimary(a) || t("nav.untitled"))}</div>
+        <div class="t-zh">${esc(titleSecondary(a) || fmtTime(a.created_at))}</div>
+        <div class="m">${badge}${a.is_seed ? `<span class="badge">${esc(t("badge.seed"))}</span>` : ""}</div>
+      </button>`;
+  }).join("");
+  $$(".doc-item", list).forEach(el => el.addEventListener("click", () => openArticle(el.dataset.id)));
+}
+
+function setCrumb() {
+  $("#crumb-name").textContent = state.view === "editor" && state.article
+    ? (titlePrimary(state.article) || t("nav.untitled")) : t("nav.desk");
+  const art = state.article;
+  $("#crumb-badge").innerHTML = (state.view === "editor" && art)
+    ? (() => {
+        const stCls = STATUS_CLS[art.status] || "";
+        const stName = STATUS_CLS[art.status] !== undefined ? art.status : "pending";
+        const rep = art.check_report;
+        const cls = rep ? (rep.passed ? "badge-ok" : "badge-err") : stCls;
+        const label = rep ? (rep.passed ? t("badge.form.pass") : t("badge.form.issues", { n: rep.error_count }))
+                          : t("status." + stName);
+        return `<span class="badge ${cls}"><i class="dot"></i>${esc(label)}</span>`;
+      })() : "";
+}
+
+function goDesk() {
+  state.view = "desk";
+  state.article = null;
+  $("#panel").hidden = true;
+  if (location.hash) history.replaceState(null, "", location.pathname);
+  renderDesk();
+  renderLibrary();
+  setCrumb();
+}
+
+async function openArticle(id) {
+  try {
+    state.article = await api(`/api/articles/${id}`);
+    state.view = "editor";
+    state.mode = "compare";
+    state.showQuestions = true;
+    $("#panel").hidden = false;
+    if (location.hash !== `#/a/${id}`) history.replaceState(null, "", `#/a/${id}`);
+    renderEditor();
+    renderLibrary();
+    setCrumb();
+  } catch (e) {
+    toast(t("toast.open.err") + e.message, "err");
+    goDesk();
+  }
+}
+
+// 深链：#/a/{id} 直接打开某篇文章，方便把某一篇发给同事看
+function routeFromHash() {
+  const m = location.hash.match(/^#\/a\/([A-Za-z0-9\-_.]+)$/);
+  if (m) openArticle(m[1]);
+  else goDesk();
+}
+
+/* ---------------------------------------------------------------- 任务轮询 */
+function pollJob(jobId, onTick, onDone) {
+  if (state.polling) clearInterval(state.polling);
+  state.polling = setInterval(async () => {
+    let job;
+    try { job = await api(`/api/jobs/${jobId}`); }
+    catch { return; }
+    onTick && onTick(job);
+    if (["done", "failed"].includes(job.status)) {
+      clearInterval(state.polling);
+      state.polling = null;
+      onDone && onDone(job);
+    }
+  }, 1600);
+}
+
+/** 任务状态 → 当前语言的可读标签（不用后端返回的中文 step 文案） */
+function stepLabel(job) {
+  if (job.status === "auto_fixing" && job.round) return t("step.auto_fixing_n", { n: job.round });
+  return STEP_KEYS.includes(job.status) ? t("step." + job.status) : t("toast.fix.running");
+}
+
+function renderSteps(job) {
+  const order = STEP_KEYS;
+  const failed = job.status === "failed";
+  const curIdx = job.status === "done" ? order.length : (failed ? 0 : order.indexOf(job.status));
+  $("#prog-steps").innerHTML = order.map((k, i) => {
+    let cls = "";
+    if (failed) cls = i === 0 ? "fail" : "";
+    else if (i < curIdx) cls = "done";
+    else if (i === curIdx) cls = "active";
+    const mark = failed && i === 0 ? "✕" : (cls === "done" ? "✓" : String(i + 1));
+    return `<div class="step ${cls}"><span class="mark">${mark}</span>${esc(t("step." + k))}</div>`;
+  }).join("");
+  $("#prog-bar").style.width = Math.max(4, job.progress || 0) + "%";
+}
+
+/* ---------------------------------------------------------------- 动作 */
+async function runCheck() {
+  if (!state.article) return;
+  try {
+    const rep = await api(`/api/articles/${state.article.id}/check`, { method: "POST" });
+    state.article.check_report = rep;
+    renderPanel();
+    renderFlags();
+    refreshLibrary();
+    toast(rep.passed ? t("toast.check.pass") : t("toast.check.fail", { n: rep.error_count }),
+      rep.passed ? "ok" : "err");
+  } catch (e) { toast(t("toast.check.err") + e.message, "err"); }
+}
+
+async function runJudge() {
+  if (!state.article) return;
+  if (!modelFieldsReady("judge")) {
+    toast(t("toast.need_judge"), "err");
+    openSettings();
+    return;
+  }
+  const btn = $("#btn-judge");
+  btn.disabled = true;
+  btn.textContent = t("toast.judge.running");
+  try {
+    const jdg = await api(`/api/articles/${state.article.id}/judge`, {
+      method: "POST",
+      body: { judge: state.config.judge, generate: state.config.generate, lang: LANG },
+    });
+    state.article.judge_report = jdg;
+    renderPanel();
+    renderFlags();
+    refreshLibrary();
+    toast(jdg.p0_count ? t("toast.judge.p0", { n: jdg.p0_count }) : t("toast.judge.ok"),
+      jdg.p0_count ? "err" : "ok");
+  } catch (e) {
+    toast(t("toast.judge.err") + e.message, "err");
+  } finally {
+    btn.disabled = false;
+    btn.textContent = t("panel.btn.judge");
+  }
+}
+
+async function runFix() {
+  if (!state.article) return;
+  if (!modelFieldsReady("generate")) {
+    toast(t("toast.need_generate"), "err");
+    openSettings();
+    return;
+  }
+  const hasJudge = modelFieldsReady("judge");
+  const label = t(hasJudge ? "fix.confirm.judge" : "fix.confirm.form");
+  if (!confirm(t("fix.confirm", { label }))) return;
+
+  const btn = $("#btn-fix");
+  btn.disabled = true;
+  btn.textContent = t("toast.fix.running");
+  try {
+    const r = await api(`/api/articles/${state.article.id}/fix`, {
+      method: "POST",
+      body: {
+        generate: state.config.generate, judge: state.config.judge,
+        run_judge: hasJudge, lang: LANG,
+      },
+    });
+    pollJob(r.job_id, job => {
+      btn.textContent = stepLabel(job);
+    }, async job => {
+      btn.disabled = false;
+      btn.textContent = t("panel.btn.fix");
+      if (job.status === "failed") {
+        toast(t("toast.fix.err") + (job.error || ""), "err");
+        return;
+      }
+      const res = job.result || {};
+      await openArticle(state.article.id);
+      toast(res.needs_human
+        ? t("toast.fix.human", { n: res.error_count || 0 })
+        : t("toast.fix.done"), res.needs_human ? "err" : "ok");
+    });
+  } catch (e) {
+    btn.disabled = false;
+    btn.textContent = t("panel.btn.fix");
+    toast(t("toast.fix.err") + e.message, "err");
+  }
+}
+
+async function rewriteTargets(targets, label) {
+  if (!state.article) return;
+  if (!modelFieldsReady("generate")) {
+    toast(t("toast.need_generate"), "err");
+    openSettings();
+    return;
+  }
+  const note = prompt(t("rewrite.prompt", { label }), "");
+  if (note === null) return;
+  toast(t("rewrite.running", { label }));
+  try {
+    const r = await api(`/api/articles/${state.article.id}/rewrite`, {
+      method: "POST",
+      body: { targets, instruction: note, generate: state.config.generate },
+    });
+    pollJob(r.job_id, null, async job => {
+      if (job.status === "failed") { toast(t("rewrite.err") + (job.error || ""), "err"); return; }
+      await openArticle(state.article.id);
+      const res = job.result || {};
+      const ok = res.changed && res.changed.length;
+      toast(ok ? t("rewrite.done") : t("rewrite.nochange"), ok ? "ok" : "err");
+    });
+  } catch (e) {
+    toast(t("rewrite.err") + e.message, "err");
+  }
+}
+
+async function exportDocx() {
+  if (!state.article) return;
+  try {
+    const r = await api(`/api/articles/${state.article.id}/export`, { method: "POST" });
+    const a = document.createElement("a");
+    a.href = r.download_url;
+    a.download = r.filename || "article.docx";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    toast(t("export.ok", { name: r.filename }), "ok");
+  } catch (e) { toast(t("export.err") + e.message, "err"); }
+}
+
+/* ---------------------------------------------------------------- 新建 */
+function openNewDialog() {
+  if (!modelFieldsReady("generate")) {
+    toast(t("toast.need_generate"), "err");
+    openSettings();
+    return;
+  }
+  const dlg = $("#dlg-new");
+  $("#new-text").value = "";
+  $("#new-count").textContent = "0";
+  $("#new-form").hidden = false;
+  $("#new-progress").hidden = true;
+  $("#btn-start").disabled = false;
+  $("#btn-start").textContent = t("new.start");
+  dlg.showModal();
+}
+
+async function startProduction() {
+  const text = $("#new-text").value.trim();
+  const words = text.split(/\s+/).filter(Boolean).length;
+  if (words < 60) { toast(t("new.tooshort"), "err"); return; }
+
+  const btn = $("#btn-start");
+  btn.disabled = true;
+  btn.textContent = t("new.running");
+  $("#new-form").hidden = true;
+  $("#new-progress").hidden = false;
+  renderSteps({ status: "generating", progress: 8 });
+
+  try {
+    const r = await api("/api/articles", {
+      method: "POST",
+      body: {
+        original_text: text,
+        run_judge: $("#new-judge").checked,
+        generate: state.config.generate,
+        judge: state.config.judge,
+        lang: LANG,
+      },
+    });
+    pollJob(r.job_id, renderSteps, async job => {
+      btn.disabled = false;
+      btn.textContent = t("new.again");
+      if (job.status === "failed") {
+        $("#prog-result").innerHTML = `<div class="issue" data-sev="P0"><div class="msg">${esc(job.error || "")}</div></div>`;
+        return;
+      }
+      const res = job.result || {};
+      const checkLine = res.passed
+        ? `<strong style="color:var(--ok)">${esc(t("new.res.pass"))}</strong>`
+        : `<strong style="color:var(--err)">${esc(t("new.res.fail", { n: res.error_count }))}</strong>`;
+      const judgeLine = (res.p0_count === null || res.p0_count === undefined)
+        ? esc(t("new.res.judge.skip"))
+        : (res.p0_count
+            ? `<strong style="color:var(--err)">${esc(t("new.res.p0", { n: res.p0_count }))}</strong>`
+            : `<strong style="color:var(--ok)">${esc(t("new.res.nop0"))}</strong>`)
+          + esc(t("new.res.p1", { n: res.p1_count || 0 }));
+      $("#prog-result").innerHTML = `
+        <div class="group" style="margin-bottom:0">
+          <div class="gh"><span>${esc(t("new.done"))}</span></div>
+          <div style="font-size:var(--fs-sm);color:var(--text-2);line-height:1.8">
+            ${esc(t("new.res.check"))}${checkLine}<br>
+            ${esc(t("new.res.judge"))}${judgeLine}<br>
+            ${esc(t("new.res.fix", { a: res.check_rounds || 0, b: res.judge_rounds || 0 }))}
+          </div>
+        </div>`;
+      await refreshLibrary();
+      setTimeout(() => { $("#dlg-new").close(); openArticle(r.article_id); }, 1200);
+    });
+  } catch (e) {
+    btn.disabled = false;
+    btn.textContent = t("new.start");
+    $("#prog-result").innerHTML = `<div class="issue" data-sev="P0"><div class="msg">${esc(e.message)}</div></div>`;
+  }
+}
+
+/* ---------------------------------------------------------------- 设置 */
+function openSettings() {
+  const c = state.config;
+  $("#gen-url").value = c.generate.base_url || "";
+  $("#gen-model").value = c.generate.model || "";
+  $("#gen-key").value = c.generate.api_key || "";
+  $("#judge-url").value = c.judge.base_url || "";
+  $("#judge-model").value = c.judge.model || "";
+  $("#judge-key").value = c.judge.api_key || "";
+  $("#limits-hint").textContent = t("set.limits.hint", {
+    a: state.limits.max_check_rounds, b: state.limits.max_judge_rounds,
+  });
+  $("#gen-probe").textContent = "";
+  $("#judge-probe").textContent = "";
+  $("#dlg-settings").showModal();
+}
+
+function persistSettings() {
+  state.config = {
+    generate: {
+      base_url: $("#gen-url").value.trim().replace(/\/+$/, ""),
+      model: $("#gen-model").value.trim(),
+      api_key: $("#gen-key").value.trim(),
+    },
+    judge: {
+      base_url: $("#judge-url").value.trim().replace(/\/+$/, ""),
+      model: $("#judge-model").value.trim(),
+      api_key: $("#judge-key").value.trim(),
+    },
+  };
+  saveConfig();
+  toast(t("set.saved"), "ok");
+  $("#dlg-settings").close();
+}
+
+async function probeModel(which) {
+  const el = $(which === "generate" ? "#gen-probe" : "#judge-probe");
+  const cfg = which === "generate"
+    ? { base_url: $("#gen-url").value.trim(), model: $("#gen-model").value.trim(), api_key: $("#gen-key").value.trim() }
+    : { base_url: $("#judge-url").value.trim(), model: $("#judge-model").value.trim(), api_key: $("#judge-key").value.trim() };
+  el.className = "probe";
+  el.textContent = t("probe.testing");
+  try {
+    const r = await api("/api/config/probe", { method: "POST", body: { which, [which]: cfg } });
+    el.className = "probe ok";
+    el.textContent = t("probe.ok", { reply: r.reply });
+  } catch (e) {
+    el.className = "probe err";
+    el.textContent = e.message;
+  }
+}
+
+function runReveal() {
+  requestAnimationFrame(() => {
+    $$(".reveal").forEach(el => el.classList.add("in"));
+  });
+}
+
+/* ---------------------------------------------------------------- 启动 */
+async function boot() {
+  // 语言优先级：URL 参数 > 本机记忆 > 中文（URL 参数便于把某个语言的链接直接发给别人）
+  const q = new URLSearchParams(location.search);
+  LANG = ["zh", "en"].includes(q.get("lang"))
+    ? q.get("lang")
+    : (["zh", "en"].includes(localStorage.getItem(LS_LANG)) ? localStorage.getItem(LS_LANG) : "zh");
+
+  // 主题优先级：URL 参数 > 本机记忆 > 浅色
+  const urlTheme = q.get("theme");
+  applyTheme(["dark", "light"].includes(urlTheme) ? urlTheme
+    : (localStorage.getItem(LS_THEME) || "light"));
+
+  applyLangShell();   // 先同步上标记与静态文案，不等网络
+
+  try {
+    const cfg = await api("/api/config");
+    state.limits = cfg.limits || state.limits;
+    // 服务端配了密钥、而本机没有时提示一下，避免用户以为必须自己填
+    if (!modelFieldsReady("generate") && cfg.generate.ready) {
+      toast(t("toast.server_model"));
+    }
+  } catch { /* 服务未就绪时用默认值 */ }
+
+  await refreshLibrary();
+  applyLang(LANG);          // 数据到位后按当前语言完整渲染一遍
+  routeFromHash();
+}
+
+window.addEventListener("hashchange", routeFromHash);
+
+/* 事件绑定 */
+$("#btn-settings").addEventListener("click", openSettings);
+$("#btn-save-settings").addEventListener("click", persistSettings);
+$("#btn-start").addEventListener("click", startProduction);
+
+$$("[data-theme-set]").forEach(b => b.addEventListener("click", () => {
+  applyTheme(b.dataset.themeSet);
+}));
+
+$$("[data-lang-set]").forEach(b => b.addEventListener("click", () => {
+  if (b.dataset.langSet === LANG) return;
+  applyLang(b.dataset.langSet);
+  toast(t("nav.lang.switched"));
+}));
+
+$("#new-text").addEventListener("input", e => {
+  $("#new-count").textContent = e.target.value.split(/\s+/).filter(Boolean).length;
+});
+$$("[data-probe]").forEach(b => b.addEventListener("click", () => probeModel(b.dataset.probe)));
+$$("[data-close]").forEach(b => b.addEventListener("click", () => b.closest("dialog").close()));
+
+// 质检面板的四个动作按钮（静态存在于 DOM，直接绑定即可）
+$("#btn-check").addEventListener("click", runCheck);
+$("#btn-judge").addEventListener("click", runJudge);
+$("#btn-fix").addEventListener("click", runFix);
+$("#btn-export").addEventListener("click", exportDocx);
+
+// 质检问题 → 定位到对应卡片
+$("#panel-body").addEventListener("click", e => {
+  const btn = e.target.closest("[data-goto]");
+  if (btn) flashCard(Number(btn.dataset.goto));
+});
+
+window.addEventListener("resize", () => autoResizeAll(document));
+
+boot();
+</script>
+</body>
+</html>
