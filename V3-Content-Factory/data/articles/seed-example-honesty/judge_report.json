@@ -1,7 +1,18 @@
 {
-  "findings": [],
-  "conclusion": "示例数据未跑语义裁判，点「L2 重跑裁判」可执行。",
-  "p0_count": 0,
-  "p1_count": 0,
-  "not_run": true
+  "findings": [
+    {
+      "level": "A1-",
+      "card": 6,
+      "question": null,
+      "type": "fact_altered",
+      "known_type": true,
+      "severity": "P0",
+      "original": "We have evolved with the capacity to be dishonest. It's part of our evolutionary psychological make up – because if we gain an advantage over the people around us, we have a greater chance of surviving.",
+      "rewritten": "Dishonest people get more than others. So they live longer.",
+      "why": "A1 将原文条件性、概率性的“如果获得优势，存活几率更大”改写成了确定性的“不诚实的人会得更多，因此活得更长”，主体从 if we 变成 all dishonest people，确定性从推测/可能变成断言，且 “chance of surviving” 不等于 live longer。"
+    }
+  ],
+  "conclusion": "共发现 1 处问题",
+  "p0_count": 1,
+  "p1_count": 0
 }
