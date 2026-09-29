@@ -877,6 +877,23 @@ dialog::backdrop { background: rgba(23, 23, 26, .42); backdrop-filter: blur(4px)
   </div>
 </dialog>
 
+<dialog id="dlg-code">
+  <div class="dlg-head">
+    <h2 data-i18n="code.title">需要访问口令</h2>
+  </div>
+  <div class="dlg-body">
+    <div class="field">
+      <label for="code-input" data-i18n="code.label">访问口令</label>
+      <input type="password" id="code-input" autocomplete="off" data-i18n-ph="code.ph" placeholder="请输入管理员给你的口令">
+      <div class="hint" data-i18n="code.hint">口令由管理员提供。输入一次，本机以后不用再输。</div>
+    </div>
+    <div id="code-err" style="color:var(--err);font-size:var(--fs-sm);min-height:1.5em"></div>
+  </div>
+  <div class="dlg-foot">
+    <button class="btn btn-primary" id="btn-code-ok" data-i18n="code.submit">进入</button>
+  </div>
+</dialog>
+
 <div class="toast-wrap" id="toasts" aria-live="polite" aria-atomic="false"></div>
 
 <script>
@@ -894,6 +911,8 @@ const DEFAULT_CONFIG = {
 /* 主题键带 .v2：早期版本把 "dark" 写进过 localStorage，沿用旧键会让
    「默认浅色」对老访客永远不生效。换键 = 一次性让旧值失效。 */
 const LS_THEME = "v3.theme.v2";
+/* 访问口令：服务端配了口令时，每个人第一次打开要输一次，之后存在本机。 */
+const LS_CODE = "v3.accessCode";
 const LS_LANG = "v3.lang";
 
 const state = {
@@ -1021,6 +1040,13 @@ const I18N = {
     "del.running": "删除中…",
     "del.ok": "已删除",
     "del.aria": "删除这篇文章",
+    "code.title": "需要访问口令",
+    "code.label": "访问口令",
+    "code.ph": "请输入管理员给你的口令",
+    "code.hint": "口令由管理员提供。输入一次，本机以后不用再输。",
+    "code.submit": "进入",
+    "code.wrong": "口令不正确，请重新输入。",
+    "code.need": "需要访问口令",
 
     "issue.article": "全篇",
     "issue.card": "卡 {n}",
@@ -1269,6 +1295,13 @@ const I18N = {
     "del.running": "Deleting…",
     "del.ok": "Deleted",
     "del.aria": "Delete this article",
+    "code.title": "Access code required",
+    "code.label": "Access code",
+    "code.ph": "Enter the code from your admin",
+    "code.hint": "Ask your admin for the code. You only enter it once on this device.",
+    "code.submit": "Enter",
+    "code.wrong": "Wrong code, please try again.",
+    "code.need": "Access code required",
 
     "issue.article": "Whole article",
     "issue.card": "Card {n}",
@@ -1515,11 +1548,18 @@ function autoResizeAll(root = document) {
 /* ---------------------------------------------------------------- API */
 async function api(path, { method = "GET", body } = {}) {
   const opts = { method, headers: {} };
+  const code = localStorage.getItem(LS_CODE);
+  if (code) opts.headers["X-Access-Code"] = code;
   if (body !== undefined) {
     opts.headers["Content-Type"] = "application/json";
     opts.body = JSON.stringify(body);
   }
   const res = await fetch(path, opts);
+  if (res.status === 401) {          // 服务端要口令：清掉本机旧值并请用户重输
+    localStorage.removeItem(LS_CODE);
+    openAccessDialog();
+    throw new Error(t("code.need"));
+  }
   let json = null;
   try { json = await res.json(); } catch { /* 非 JSON 响应 */ }
   if (!res.ok || (json && json.ok === false)) {
@@ -1527,6 +1567,33 @@ async function api(path, { method = "GET", body } = {}) {
     throw new Error(msg);
   }
   return json ? json.data : null;
+}
+
+/* ---------------------------------------------------------------- 访问口令 */
+/* 服务端配了口令时，所有人第一次打开都会被 401 拦下，由 api() 调到这里要口令。
+   输对了存在本机，之后所有请求自动带上；输错就地提示，不白刷新页面。 */
+function openAccessDialog() {
+  const dlg = $("#dlg-code");
+  if (!dlg || dlg.open) return;
+  $("#code-err").textContent = "";
+  dlg.showModal();
+  setTimeout(() => $("#code-input").focus(), 60);
+}
+
+async function submitAccessCode() {
+  const code = $("#code-input").value.trim();
+  if (!code) return;
+  const err = $("#code-err");
+  err.textContent = "";
+  localStorage.setItem(LS_CODE, code);
+  try {
+    await api("/api/config");          // 先验一次，错了就不用白刷新
+    location.reload();                 // 重新走 boot()，带着口令把数据取回来
+  } catch {
+    localStorage.removeItem(LS_CODE);
+    err.textContent = t("code.wrong");
+    $("#code-input").select();
+  }
 }
 
 /* ============================================================================
@@ -2527,7 +2594,10 @@ async function boot() {
     if (!modelFieldsReady("generate") && cfg.generate.ready) {
       toast(t("toast.server_model"));
     }
-  } catch { /* 服务未就绪时用默认值 */ }
+  } catch {
+    // 需要口令时先别拉数据，等用户在口令框里输完（api() 已经弹出来了）
+    if ($("#dlg-code")?.open) return;
+  }
 
   await refreshLibrary();
   applyLang(LANG);          // 数据到位后按当前语言完整渲染一遍
@@ -2566,6 +2636,8 @@ $("#new-text").addEventListener("input", e => {
 $$("[data-probe]").forEach(b => b.addEventListener("click", () => probeModel(b.dataset.probe)));
 $$("[data-close]").forEach(b => b.addEventListener("click", () => b.closest("dialog").close()));
 $("#btn-del-confirm").addEventListener("click", confirmDelete);
+$("#btn-code-ok").addEventListener("click", submitAccessCode);
+$("#code-input").addEventListener("keydown", e => { if (e.key === "Enter") submitAccessCode(); });
 
 // 质检面板的四个动作按钮（静态存在于 DOM，直接绑定即可）
 $("#btn-check").addEventListener("click", runCheck);

@@ -24,3 +24,6 @@ data/articles/*
 .env.json
 *.key
 **/keys.fallback.json
+# 服务端密钥与访问口令：线上没有环境变量入口，key 放这里随发布上传。
+# 本机 600 权限，绝不进公开仓库。
+server_keys.json

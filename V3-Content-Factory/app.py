@@ -73,6 +73,37 @@ ROUTE_ARTICLE = re.compile(r"^/api/articles/([A-Za-z0-9\-_.]+)(/[A-Za-z0-9\-_/]*
 
 # ---------------------------------------------------------------- 配置
 
+KEYS_FILE = ROOT / "server_keys.json"
+
+
+def _load_local_keys():
+    """把 server_keys.json 里的密钥补进环境变量。
+
+    为什么需要它：发布到线上后没有注入环境变量的入口，而服务端密钥又必须存在，
+    否则每位使用者都要自己填 key。**环境变量优先，文件只补空缺**，两者互不覆盖。
+    该文件不进公开仓库（见 .gitignore），本机权限 600。"""
+    if not KEYS_FILE.is_file():
+        return
+    try:
+        data = json.loads(KEYS_FILE.read_text(encoding="utf-8"))
+    except Exception:
+        traceback.print_exc()
+        return
+    for prefix, section in (("GEN", "generate"), ("JUDGE", "judge")):
+        given = data.get(section) or {}
+        for field in ("base_url", "api_key", "model"):
+            name = f"{prefix}_{field.upper()}"
+            if not os.environ.get(name) and given.get(field):
+                os.environ[name] = str(given[field])
+    code = str(data.get("access_code") or "").strip()
+    if code and not os.environ.get("ACCESS_CODE"):
+        os.environ["ACCESS_CODE"] = code
+
+
+_load_local_keys()
+ACCESS_CODE = os.environ.get("ACCESS_CODE", "").strip()
+
+
 def env_cfg(prefix):
     return {
         "base_url": os.environ.get(f"{prefix}_BASE_URL", ""),
@@ -362,6 +393,11 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS")
         for k, v in (extra or {}).items():
             self.send_header(k, v)
+        # 口令校验通过时顺手种个 Cookie：docx 下载走的是 <a href> 跳转，
+        # 浏览器不会带上自定义请求头，只能靠 Cookie 通过校验。
+        if getattr(self, "_set_code", None):
+            self.send_header("Set-Cookie",
+                             f"v3code={self._set_code}; Path=/; Max-Age=31536000; SameSite=Lax")
         self.end_headers()
         if self.command != "HEAD":
             self.wfile.write(body)
@@ -398,6 +434,30 @@ class Handler(BaseHTTPRequestHandler):
         ext = path.suffix.lower()
         self._send(200, path.read_bytes(), MIME.get(ext, "application/octet-stream"))
 
+    # ---------- 访问口令
+
+    def _cookie_code(self):
+        for part in (self.headers.get("Cookie") or "").split(";"):
+            k, _, v = part.strip().partition("=")
+            if k == "v3code":
+                return v.strip()
+        return ""
+
+    def _guard(self):
+        """口令保护：/api/* 必须带对口令；未配口令时全部放行（本地开发不受影响）。
+
+        同时接受请求头 X-Access-Code 与 Cookie —— Cookie 是必需的，
+        原因写在 _send 里（docx 下载靠浏览器跳转，带不上自定义请求头）。
+        """
+        if not ACCESS_CODE:
+            return True
+        given = (self.headers.get("X-Access-Code") or "").strip() or self._cookie_code()
+        if given == ACCESS_CODE:
+            self._set_code = ACCESS_CODE
+            return True
+        self._err(401, "需要访问口令")
+        return False
+
     # ---------- 路由
 
     def do_OPTIONS(self):
@@ -408,6 +468,9 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         path = unquote(urlparse(self.path).path)
+        # 静态资源放行（否则页面自身都加载不了）；/api/health 放行给平台探活。
+        if path.startswith("/api/") and path != "/api/health" and not self._guard():
+            return
         try:
             if path == "/" or path == "/index.html":
                 return self._file(PUBLIC / "index.html")
@@ -468,7 +531,9 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         path = unquote(urlparse(self.path).path)
-        body = self._body()
+        body = self._body()          # 先读完 body，否则 keep-alive 连接会错位
+        if not self._guard():
+            return
         try:
             # ---- 配置自检
             if path == "/api/config/probe":
@@ -573,7 +638,9 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_PUT(self):
         path = unquote(urlparse(self.path).path)
-        body = self._body()
+        body = self._body()          # 先读完 body，否则 keep-alive 连接会错位
+        if not self._guard():
+            return
         try:
             m = ROUTE_ARTICLE.match(path)
             if not m:
@@ -626,6 +693,8 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_DELETE(self):
         path = unquote(urlparse(self.path).path)
+        if not self._guard():
+            return
         m = ROUTE_ARTICLE.match(path)
         if m and not (m.group(2) or ""):
             ok = store.delete_article(m.group(1))
