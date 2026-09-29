@@ -485,6 +485,26 @@ aside.panel {
 .doc-card .zh { font-size: var(--fs-sm); color: var(--text-2); }
 .doc-card .row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: auto; }
 
+/* 卡片外层：只为承载右上角的删除按钮（button 里不能再嵌 button，故用 wrapper） */
+.doc-card-wrap { position: relative; display: flex; }
+.doc-card-wrap > .doc-card { flex: 1 1 auto; }
+.doc-del {
+  position: absolute; top: clamp(10px, .8vw, 14px); right: clamp(10px, .8vw, 14px);
+  width: clamp(28px, 1.8vw, 34px); height: clamp(28px, 1.8vw, 34px);
+  display: grid; place-items: center;
+  border: 1px solid var(--line-2); border-radius: var(--r-md);
+  background: var(--surface); color: var(--text-3); cursor: pointer;
+  transition: opacity var(--fast) ease-out, color var(--fast) ease-out,
+              border-color var(--fast) ease-out, background var(--fast) ease-out;
+}
+.doc-del:hover { color: var(--err); border-color: var(--err); background: color-mix(in srgb, var(--err) 10%, transparent); }
+.doc-del:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+/* 只在精确指针设备上「悬停才显形」，触屏设备常显，避免无法删除 */
+@media (hover: hover) and (pointer: fine) {
+  .doc-del { opacity: 0; }
+  .doc-card-wrap:hover .doc-del, .doc-del:focus-visible { opacity: 1; }
+}
+
 /* ---------------------------------------------------------------- 模态 */
 dialog {
   border: 1px solid var(--line-2); border-radius: var(--r-lg);
@@ -842,6 +862,21 @@ dialog::backdrop { background: rgba(23, 23, 26, .42); backdrop-filter: blur(4px)
   </div>
 </dialog>
 
+<dialog id="dlg-del">
+  <div class="dlg-head">
+    <h2 data-i18n="del.title">删除文章</h2>
+    <span class="spacer"></span>
+    <button class="btn btn-ghost btn-sm" data-close data-i18n="set.close">关闭</button>
+  </div>
+  <div class="dlg-body">
+    <p id="del-msg" style="margin:0;line-height:1.7"></p>
+  </div>
+  <div class="dlg-foot">
+    <button class="btn" data-close data-i18n="set.cancel">取消</button>
+    <button class="btn btn-danger" id="btn-del-confirm" data-i18n="del.confirm">确认删除</button>
+  </div>
+</dialog>
+
 <div class="toast-wrap" id="toasts" aria-live="polite" aria-atomic="false"></div>
 
 <script>
@@ -980,6 +1015,12 @@ const I18N = {
     "panel.btn.judge": "L2 重跑裁判",
     "panel.btn.fix": "一键自动修复",
     "panel.btn.export": "导出 docx",
+    "del.title": "删除文章",
+    "del.body": "即将删除《{title}》。此操作不可恢复：这篇文章的原文、各级卡片、题目与质检报告都会一并删除。",
+    "del.confirm": "确认删除",
+    "del.running": "删除中…",
+    "del.ok": "已删除",
+    "del.aria": "删除这篇文章",
 
     "issue.article": "全篇",
     "issue.card": "卡 {n}",
@@ -1222,6 +1263,12 @@ const I18N = {
     "panel.btn.judge": "Re-run judge",
     "panel.btn.fix": "Auto-fix",
     "panel.btn.export": "Export docx",
+    "del.title": "Delete article",
+    "del.body": "About to delete “{title}”. This cannot be undone — the original text, all level cards, questions and check reports will be removed with it.",
+    "del.confirm": "Delete",
+    "del.running": "Deleting…",
+    "del.ok": "Deleted",
+    "del.aria": "Delete this article",
 
     "issue.article": "Whole article",
     "issue.card": "Card {n}",
@@ -1579,6 +1626,9 @@ function renderDesk() {
   $$(".doc-card").forEach(el => {
     el.addEventListener("click", () => openArticle(el.dataset.id));
   });
+  $$(".doc-del").forEach(el => {
+    el.addEventListener("click", e => { e.stopPropagation(); askDelete(el.dataset.id); });
+  });
 
   autoResizeAll($("#stage"));
   runReveal();
@@ -1595,19 +1645,29 @@ function docCard(a) {
   const sec = titleSecondary(a);
 
   return `
-    <button class="doc-card reveal in" data-id="${esc(a.id)}">
-      <div>
-        <div class="en">${esc(titlePrimary(a) || t("nav.untitled"))}</div>
-        ${sec ? `<div class="zh">${esc(sec)}</div>` : ""}
-      </div>
-      <div class="row">
-        <span class="badge ${stCls}"><i class="dot"></i>${esc(t("status." + (STATUS_CLS[a.status] !== undefined ? a.status : "pending")))}</span>
-        ${check}${p0}${seed}
-      </div>
-      <div class="row" style="color:var(--text-3);font-size:var(--fs-xs)">
-        <span class="mono">${esc(t("desk.words", { n: a.words || 0 }))}</span><span>·</span><span>${esc(fmtTime(a.created_at))}</span>
-      </div>
-    </button>`;
+    <div class="doc-card-wrap reveal in">
+      <button class="doc-card" data-id="${esc(a.id)}">
+        <div>
+          <div class="en">${esc(titlePrimary(a) || t("nav.untitled"))}</div>
+          ${sec ? `<div class="zh">${esc(sec)}</div>` : ""}
+        </div>
+        <div class="row">
+          <span class="badge ${stCls}"><i class="dot"></i>${esc(t("status." + (STATUS_CLS[a.status] !== undefined ? a.status : "pending")))}</span>
+          ${check}${p0}${seed}
+        </div>
+        <div class="row" style="color:var(--text-3);font-size:var(--fs-xs)">
+          <span class="mono">${esc(t("desk.words", { n: a.words || 0 }))}</span><span>·</span><span>${esc(fmtTime(a.created_at))}</span>
+        </div>
+      </button>
+      <button type="button" class="doc-del" data-id="${esc(a.id)}"
+              title="${esc(t("del.title"))}" aria-label="${esc(t("del.aria"))}">
+        <svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+          <path d="M2.6 4.1h10.8M6 4.1V2.7c0-.33.27-.6.6-.6h2.8c.33 0 .6.27.6.6v1.4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M4.1 4.1l.62 9.05c.03.44.4.78.84.78h4.88c.44 0 .81-.34.84-.78L11.9 4.1" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>
+          <path d="M6.8 6.9v4.3M9.2 6.9v4.3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+        </svg>
+      </button>
+    </div>`;
 }
 
 /* ============================================================================
@@ -2275,6 +2335,43 @@ async function exportDocx() {
 }
 
 /* ---------------------------------------------------------------- 新建 */
+/* ---------------------------------------------------------------- 删除文章 */
+/* 删除是不可恢复的（后端直接删掉整篇目录），所以一律走二次确认。
+   待删 id 暂存在这里，弹窗确认后再真正调接口。 */
+let pendingDeleteId = null;
+
+function askDelete(id) {
+  const a = state.articles.find(x => x.id === id);
+  const title = (a && (titlePrimary(a) || t("nav.untitled"))) || id;
+  pendingDeleteId = id;
+  $("#del-msg").textContent = t("del.body", { title });
+  const btn = $("#btn-del-confirm");
+  btn.disabled = false;
+  btn.textContent = t("del.confirm");
+  $("#dlg-del").showModal();
+}
+
+async function confirmDelete() {
+  const id = pendingDeleteId;
+  if (!id) return;
+  const btn = $("#btn-del-confirm");
+  btn.disabled = true;
+  btn.textContent = t("del.running");
+  try {
+    await api(`/api/articles/${id}`, { method: "DELETE" });
+    pendingDeleteId = null;
+    $("#dlg-del").close();
+    toast(t("del.ok"));
+    state.articles = await api("/api/articles");   // 先取回新数据，再重画
+    renderDesk();
+    renderLibrary();
+  } catch (e) {
+    btn.disabled = false;
+    btn.textContent = t("del.confirm");
+    toast((e && e.message) || String(e), "err");
+  }
+}
+
 function openNewDialog() {
   if (!modelFieldsReady("generate")) {
     toast(t("toast.need_generate"), "err");
@@ -2468,6 +2565,7 @@ $("#new-text").addEventListener("input", e => {
 });
 $$("[data-probe]").forEach(b => b.addEventListener("click", () => probeModel(b.dataset.probe)));
 $$("[data-close]").forEach(b => b.addEventListener("click", () => b.closest("dialog").close()));
+$("#btn-del-confirm").addEventListener("click", confirmDelete);
 
 // 质检面板的四个动作按钮（静态存在于 DOM，直接绑定即可）
 $("#btn-check").addEventListener("click", runCheck);
