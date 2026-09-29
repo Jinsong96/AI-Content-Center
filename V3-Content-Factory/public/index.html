@@ -157,8 +157,16 @@ header {
 .brand h1 {
   margin: 0; font-family: var(--font-mono); font-size: var(--fs-lg); font-weight: 700;
   letter-spacing: .01em; white-space: nowrap;
+  transition: color .15s ease;
 }
 .brand .sub { color: var(--text-3); font-size: var(--fs-xs); font-family: var(--font-mono); }
+
+/* 在文章详情页时品牌区可点回工作台；工作台上不加任何交互暗示 */
+.brand[data-clickable="true"] { cursor: pointer; }
+.brand[data-clickable="true"]:hover h1 { color: var(--accent); }
+.brand[data-clickable="true"]:focus-visible {
+  outline: 2px solid var(--accent); outline-offset: 4px; border-radius: 4px;
+}
 
 .crumb {
   flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: var(--s3);
@@ -674,7 +682,9 @@ dialog::backdrop { background: rgba(23, 23, 26, .42); backdrop-filter: blur(4px)
 <h2 class="sr-only" data-i18n="sr.title">一鹿知 · 内容生产平台：把英文原文改写为四个难度的分级阅读材料，机器质检、人工审校、导出成品。</h2>
 
 <header>
-  <div class="brand">
+  <div class="brand" id="brand-home" role="button" tabindex="-1"
+       data-i18n-title="nav.home" data-i18n-aria="nav.home"
+       title="返回工作台" aria-label="返回工作台">
     <span class="brand-mark" aria-hidden="true"></span>
     <h1 data-i18n="app.name">一鹿知</h1>
     <span class="sub" data-i18n="app.sub">· 内容生产平台</span>
@@ -875,6 +885,7 @@ const I18N = {
     "sr.title": "一鹿知 · 内容生产平台：把英文原文改写为四个难度的分级阅读材料，机器质检、人工审校、导出成品。",
 
     "nav.desk": "工作台",
+    "nav.home": "返回工作台",
     "nav.untitled": "未命名",
     "nav.settings": "模型设置",
     "nav.new": "新建生产",
@@ -1114,6 +1125,7 @@ const I18N = {
     "sr.title": "Yiluzhi · Content Production Platform: rewrite an English source into four graded reading levels, with scripted quality checks, human review and export.",
 
     "nav.desk": "Workbench",
+    "nav.home": "Back to workbench",
     "nav.untitled": "Untitled",
     "nav.settings": "Models",
     "nav.new": "New run",
@@ -2049,6 +2061,14 @@ function setCrumb() {
                           : t("status." + stName);
         return `<span class="badge ${cls}"><i class="dot"></i>${esc(label)}</span>`;
       })() : "";
+
+  // 品牌区：只在文章详情页可点（回工作台）；在工作台上不进 tab 顺序
+  const brand = $("#brand-home");
+  if (brand) {
+    const clickable = state.view === "editor";
+    brand.dataset.clickable = clickable ? "true" : "false";
+    brand.tabIndex = clickable ? 0 : -1;
+  }
 }
 
 function goDesk() {
@@ -2416,6 +2436,15 @@ async function boot() {
 window.addEventListener("hashchange", routeFromHash);
 
 /* 事件绑定 */
+$("#brand-home").addEventListener("click", () => {
+  if (state.view === "editor") goDesk();
+});
+$("#brand-home").addEventListener("keydown", e => {
+  if (e.key !== "Enter" && e.key !== " ") return;
+  if (state.view !== "editor") return;
+  e.preventDefault();          // 空格默认会滚动页面
+  goDesk();
+});
 $("#btn-settings").addEventListener("click", openSettings);
 $("#btn-save-settings").addEventListener("click", persistSettings);
 $("#btn-start").addEventListener("click", startProduction);
