@@ -27,6 +27,17 @@ FLAG_WORDS = {
     "B1": ["were i", "had i", "not only", "whereby"],
 }
 
+# ---------- 多义实词提醒（第 16 类，确定性，不判语境） ----------
+# 同一个词在低级别容易被读成另一个义项，而"会不会读错"取决于语境 —— 那属于语义判断，
+# 脚本做不了（实测：裁判在长输入下只有约一半概率发现）。所以这里只做**词形命中**：
+# A1-/A2 里出现就提示人工确认。不算 error、不判对错；语境已经写清楚时属于误报，忽略即可。
+# 清单刻意收窄：只放义项跨度大、且低级别读者最可能选错义项的词。**宁窄勿宽** —— 报得太密就没人看了。
+POLYSEMY_WORDS = [
+    "degree", "term", "state", "match", "order", "present", "figure",
+    "charge", "board", "scale", "interest", "bank", "company", "class", "practice",
+]
+POLYSEMY_LEVELS = ["A1-", "A2"]
+
 WORD = re.compile(r"[A-Za-z0-9]+(?:['’][A-Za-z]+)?")
 
 # 专有名词启发式用的停用词：这些词虽然大写开头，但不是人名
@@ -132,7 +143,7 @@ def _issue(rule, level, target, message, hint=None, hint_key=None, **params):
 
 
 def check(data, cards):
-    """跑完整 15 类校验。cards 必须含四级（B2+ 由 split_original 得到）。"""
+    """跑完整 16 类校验。cards 必须含四级（B2+ 由 split_original 得到）。"""
     errors, warnings, stats = [], [], []
     n_b2 = len(cards["B2+"])
     orig_wc = len(words(" ".join(cards["B2+"]))) or 1
@@ -199,6 +210,17 @@ def check(data, cards):
                         "flag_word", lv, "article",
                         f"{lv} 出现可能超纲的 “{w}”，请人工确认",
                         word=w))
+
+            # 16. 多义实词提醒（仅警告）—— 词形命中即提示，不判语境（详见文件头 POLYSEMY_WORDS 说明）
+            if lv in POLYSEMY_LEVELS:
+                for w in POLYSEMY_WORDS:
+                    if re.search(rf"\b{w}(s|es|ed|ing)?\b", low):
+                        warnings.append(_issue(
+                            "polysemy_word", lv, "article",
+                            f"{lv} 出现多义实词 “{w}”，请人工确认该级读者不会读成别的义项",
+                            "多义实词在低级别容易被读成另一个义项（如 degree 被读成“30 度”）。"
+                            "这条只按词形命中提示、不看语境 —— 语境已经写清楚时属于误报，可直接忽略。",
+                            hint_key="polysemy_word", word=w))
 
         # 4. 主题词
         for tw in topic_words:
