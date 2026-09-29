@@ -751,13 +751,13 @@ dialog::backdrop { background: rgba(23, 23, 26, .42); backdrop-filter: blur(4px)
       <div class="gh"><span data-i18n="set.gen">模型 A · 生成</span><span id="gen-state"></span></div>
       <div class="field">
         <label for="gen-url" data-i18n="set.url">接口地址</label>
-        <input type="text" id="gen-url" placeholder="https://api.openai.com/v1" autocomplete="off" spellcheck="false">
+        <input type="text" id="gen-url" placeholder="https://api.deepseek.com" autocomplete="off" spellcheck="false">
         <div class="hint" data-i18n-html="set.url.hint">只填到版本号，程序会自动拼 <code>/chat/completions</code>。</div>
       </div>
       <div class="field-row">
         <div class="field">
           <label for="gen-model" data-i18n="set.model">模型名</label>
-          <input type="text" id="gen-model" placeholder="gpt-4o" autocomplete="off" spellcheck="false">
+          <input type="text" id="gen-model" placeholder="deepseek-v4-pro" autocomplete="off" spellcheck="false">
         </div>
         <div class="field">
           <label for="gen-key" data-i18n="set.key">API Key</label>
@@ -772,13 +772,13 @@ dialog::backdrop { background: rgba(23, 23, 26, .42); backdrop-filter: blur(4px)
       <div class="gh"><span data-i18n="set.judge">模型 B · 裁判</span><span id="judge-state"></span></div>
       <div class="field">
         <label for="judge-url" data-i18n="set.url">接口地址</label>
-        <input type="text" id="judge-url" placeholder="https://api.deepseek.com/v1" autocomplete="off" spellcheck="false">
+        <input type="text" id="judge-url" placeholder="https://api.siliconflow.cn/v1" autocomplete="off" spellcheck="false">
         <div class="hint" data-i18n-html="set.judge.hint">建议用与生成模型<strong>不同来源</strong>的模型，避免自己检查自己的偏差。</div>
       </div>
       <div class="field-row">
         <div class="field">
           <label for="judge-model" data-i18n="set.model">模型名</label>
-          <input type="text" id="judge-model" placeholder="deepseek-reasoner" autocomplete="off" spellcheck="false">
+          <input type="text" id="judge-model" placeholder="Qwen/Qwen3.8-27B" autocomplete="off" spellcheck="false">
         </div>
         <div class="field">
           <label for="judge-key" data-i18n="set.key">API Key</label>
@@ -840,6 +840,12 @@ dialog::backdrop { background: rgba(23, 23, 26, .42); backdrop-filter: blur(4px)
    状态：单一来源。所有视图都由它派生渲染，避免多处 DOM 互相打架。
    ==========================================================================*/
 const LS_KEY = "v3.modelConfig";
+/* 预置的默认模型：打开「模型设置」时地址与模型名已经填好，用的人只需要补自己的密钥。
+   密钥**永远默认为空**，只能由每个人自己填（或由服务端的 GEN_* / JUDGE_* 环境变量兜底）。 */
+const DEFAULT_CONFIG = {
+  generate: { base_url: "https://api.deepseek.com", model: "deepseek-v4-pro" },
+  judge:    { base_url: "https://api.siliconflow.cn/v1", model: "Qwen/Qwen3.8-27B" },
+};
 /* 主题键带 .v2：早期版本把 "dark" 写进过 localStorage，沿用旧键会让
    「默认浅色」对老访客永远不生效。换键 = 一次性让旧值失效。 */
 const LS_THEME = "v3.theme.v2";
@@ -1400,19 +1406,29 @@ function fmtTime(iso) {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
-function loadConfig() {
-  try {
-    const raw = JSON.parse(localStorage.getItem(LS_KEY) || "{}");
-    return {
-      generate: { base_url: "", api_key: "", model: "", ...(raw.generate || {}) },
-      judge:    { base_url: "", api_key: "", model: "", ...(raw.judge || {}) },
-    };
-  } catch {
-    return {
-      generate: { base_url: "", api_key: "", model: "" },
-      judge: { base_url: "", api_key: "", model: "" },
-    };
+/* 合并规则：默认值打底，localStorage 里的**非空**值覆盖。
+   用「非空才覆盖」而不是直接展开，是为了让老访客早先存下的空字符串
+   不会把新加的默认值顶掉（那些空值是在还没有默认值的时候存下来的）。 */
+function mergeConfig(def, saved) {
+  const out = { base_url: def.base_url, model: def.model, api_key: "" };
+  for (const k of ["base_url", "model", "api_key"]) {
+    const v = (saved || {})[k];
+    if (typeof v === "string" && v.trim()) out[k] = v.trim();
   }
+  return out;
+}
+
+function loadConfig() {
+  let raw = {};
+  try {
+    raw = JSON.parse(localStorage.getItem(LS_KEY) || "{}") || {};
+  } catch {
+    raw = {};
+  }
+  return {
+    generate: mergeConfig(DEFAULT_CONFIG.generate, raw.generate),
+    judge:    mergeConfig(DEFAULT_CONFIG.judge, raw.judge),
+  };
 }
 
 function saveConfig() {
