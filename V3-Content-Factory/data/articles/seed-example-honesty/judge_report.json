@@ -7,9 +7,9 @@
       "type": "fact_altered",
       "known_type": true,
       "severity": "P0",
-      "original": "We have evolved with the capacity to be dishonest. It's part of our evolutionary psychological make up – because if we gain an advantage over the people around us, we have a greater chance of surviving.",
+      "original": "He says: \"We have evolved with the capacity to be dishonest. It's part of our evolutionary psychological make up – because if we gain an advantage over the people around us, we have a greater chance of surviving.\"",
       "rewritten": "Dishonest people get more than others. So they live longer.",
-      "why": "A1 将原文条件性、概率性的“如果获得优势，存活几率更大”改写成了确定性的“不诚实的人会得更多，因此活得更长”，主体从 if we 变成 all dishonest people，确定性从推测/可能变成断言，且 “chance of surviving” 不等于 live longer。"
+      "why": "原文表达的是进化心理学观点：获得优势增加了生存几率（greater chance of surviving），这是一种概率和机制的描述。A1- 版本将其改写为“Dishost people get more than others. So they live longer.”，这变成了对个体事实的断言（不诚实的人确实活得更长），改变了原文的确定性程度和逻辑关系（从“增加生存几率”变为“导致寿命延长”），属于事实层面的扭曲。"
     }
   ],
   "conclusion": "共发现 1 处问题",
