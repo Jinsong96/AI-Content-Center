@@ -58,7 +58,7 @@ def now_iso():
     return datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds")
 
 
-def create_article(article_id, original_text, title_en="", title_zh=""):
+def create_article(article_id, original_text, title_en="", title_zh="", source_mode="b2"):
     d = _dir(article_id)
     d.mkdir(parents=True, exist_ok=True)
     (d / "original.txt").write_text(original_text or "", encoding="utf-8")
@@ -66,13 +66,15 @@ def create_article(article_id, original_text, title_en="", title_zh=""):
         "id": article_id,
         "title_en": title_en,
         "title_zh": title_zh,
+        # b2 = 原文即 B2+；news = 原文是新闻原稿，B2+ 也由模型生成
+        "source_mode": source_mode or "b2",
         "topic_words": [],
         "b2_card_starts": [],
         "levels": {
             "A1-": {"cards": [], "questions": []},
             "A2": {"cards": [], "questions": []},
             "B1": {"cards": [], "questions": []},
-            "B2+": {"questions": []},
+            "B2+": {"cards": [], "questions": []},
         },
         "original_text": original_text or "",
         "created_at": now_iso(),

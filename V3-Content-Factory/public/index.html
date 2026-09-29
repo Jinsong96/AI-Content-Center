@@ -839,9 +839,17 @@ dialog::backdrop { background: rgba(23, 23, 26, .42); backdrop-filter: blur(4px)
   </div>
   <div class="dlg-body" id="new-form">
     <div class="field">
-      <label for="new-text" data-i18n="new.text.label">英文原文（B2+）</label>
-      <textarea id="new-text" data-i18n-ph="new.text.ph" placeholder="把英文原文整段粘贴进来。程序会把它切成 10 张卡，向下生成 A1- / A2 / B1 三个难度，并为四个难度各出 3 道题。"></textarea>
-      <div class="hint"><span id="new-count">0</span><span data-i18n="new.count.tail"> 个词 · 至少 60 个词 · 等级由你人工判定，系统不会质疑</span></div>
+      <label data-i18n="new.src.label">稿子来源</label>
+      <div class="seg" id="new-src">
+        <button type="button" data-src="b2" aria-pressed="true" data-i18n="new.src.b2">B2 母稿</button>
+        <button type="button" data-src="news" aria-pressed="false" data-i18n="new.src.news">新闻原稿</button>
+      </div>
+      <div class="hint" id="new-src-hint"></div>
+    </div>
+    <div class="field">
+      <label for="new-text" id="new-text-label">英文原文（B2+）</label>
+      <textarea id="new-text" placeholder="把英文原文整段粘贴进来。程序会把它切成 10 张卡，向下生成 A1- / A2 / B1 三个难度，并为四个难度各出 3 道题。"></textarea>
+      <div class="hint"><span id="new-count">0</span><span id="new-count-tail"> 个词 · 至少 60 个词 · 等级由你人工判定，系统不会质疑</span></div>
     </div>
     <div class="field">
       <label data-i18n="new.opt">生产选项</label>
@@ -923,6 +931,8 @@ const state = {
   level: "A1-",
   showQuestions: true,
   config: loadConfig(),
+  newSource: "b2",         // b2 = 原文即 B2+（原流程） | news = 新闻原稿，四级全部生成
+  serverReady: { generate: false, judge: false },   // 服务端是否已配好模型（/api/config 拉回后填）
   limits: { max_check_rounds: 3, max_judge_rounds: 2 },
   polling: null,
 };
@@ -1072,9 +1082,17 @@ const I18N = {
     "probe.ok": "连接正常 · 模型回复：{reply}",
 
     "new.title": "新建生产",
+    "new.src.label": "稿子来源",
+    "new.src.b2": "B2 母稿",
+    "new.src.news": "新闻原稿",
+    "new.src.hint.b2": "原文本身就是 B2+，只向下生成 A1- / A2 / B1 三级，B2+ 不重新生成。",
+    "new.src.hint.news": "原稿是新闻稿：系统保留全部事实、压到 B2+ 水平，再向下生成 B1 / A2 / A1- 三级。四级全部重新写。",
     "new.text.label": "英文原文（B2+）",
+    "new.text.label.news": "英文新闻原稿",
     "new.text.ph": "把英文原文整段粘贴进来。程序会把它切成 10 张卡，向下生成 A1- / A2 / B1 三个难度，并为四个难度各出 3 道题。",
+    "new.text.ph.news": "把英文新闻原稿整段粘贴进来。系统会保留全部事实、压到 B2+ 水平，再向下生成 B1 / A2 / A1- 三个难度，并为四个难度各出 3 道题。",
     "new.count.tail": " 个词 · 至少 60 个词 · 等级由你人工判定，系统不会质疑",
+    "new.count.tail.news": " 个词 · 至少 60 个词 · 原稿难度由系统判定，偏易会提示你换稿",
     "new.opt": "生产选项",
     "new.judge": "生成后跑语义裁判（模型 B，会产生一次额外调用）",
     "new.start": "开始生产",
@@ -1327,9 +1345,17 @@ const I18N = {
     "probe.ok": "Connection OK · Model replied: {reply}",
 
     "new.title": "New run",
+    "new.src.label": "Source",
+    "new.src.b2": "B2 master",
+    "new.src.news": "News draft",
+    "new.src.hint.b2": "The text is already B2+. Only A1- / A2 / B1 are generated; B2+ is not rewritten.",
+    "new.src.hint.news": "The text is a news article: every fact is kept, the text is leveled down to B2+, then B1 / A2 / A1- are generated. All four levels are written fresh.",
     "new.text.label": "English source (B2+)",
+    "new.text.label.news": "English news draft",
     "new.text.ph": "Paste the full English source text. It will be split into 10 cards, rewritten down into A1-, A2 and B1, and given 3 questions per level.",
+    "new.text.ph.news": "Paste the full news article. Every fact is kept, the text is leveled down to B2+, then B1 / A2 / A1- are generated, with 3 questions per level.",
     "new.count.tail": " words · at least 60 · the level is decided by you, the system will not second-guess it",
+    "new.count.tail.news": " words · at least 60 · the system estimates the source level and warns you if it is too easy",
     "new.opt": "Options",
     "new.judge": "Run the semantic judge after generating (Model B, one extra call)",
     "new.start": "Start",
@@ -1536,6 +1562,13 @@ function modelFieldsReady(which) {
   return Boolean(c.base_url && c.api_key && c.model);
 }
 
+/** 这次到底有没有模型可用：本机填全了，或者服务端已配置（后端会按字段回退用服务端的 key）。
+    只看 modelFieldsReady 会漏掉服务端配置 —— 那样界面会一边提示「服务端已配置模型，可直接新建生产」，
+    一边把用户拦回设置框。 */
+function modelReady(which) {
+  return modelFieldsReady(which) || Boolean((state.serverReady || {})[which]);
+}
+
 function autoResize(ta) {
   ta.style.height = "auto";
   ta.style.height = ta.scrollHeight + "px";
@@ -1608,6 +1641,24 @@ function applyLangShell() {
   const md = $('meta[name="description"]');
   if (md) md.setAttribute("content", t("app.desc"));
   applyStaticI18n();
+  // 新建框里随「来源」变化的几处文案不在 data-i18n 里，切语言后要重刷一遍
+  applySourceMode();
+}
+
+/** 把「稿子来源」的选择同步到文案上。语言切换后也必须重跑 —— 
+    applyStaticI18n 不会管这几处（它们随选择变化，不随语言固定）。 */
+function applySourceMode() {
+  const src = state.newSource === "news" ? "news" : "b2";
+  const news = src === "news";
+  $$("#new-src button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.src === src)));
+  const label = $("#new-text-label");
+  if (label) label.textContent = t(news ? "new.text.label.news" : "new.text.label");
+  const ta = $("#new-text");
+  if (ta) ta.setAttribute("placeholder", t(news ? "new.text.ph.news" : "new.text.ph"));
+  const hint = $("#new-src-hint");
+  if (hint) hint.textContent = t(news ? "new.src.hint.news" : "new.src.hint.b2");
+  const tail = $("#new-count-tail");
+  if (tail) tail.textContent = t(news ? "new.count.tail.news" : "new.count.tail");
 }
 
 function applyLang(l) {
@@ -1766,7 +1817,7 @@ function renderEditor() {
       <div class="seg" role="group" aria-label="${esc(t("editor.mode.compare"))}">
         <button data-mode="compare" aria-pressed="${state.mode === "compare"}">${esc(t("editor.mode.compare"))}</button>
         ${GRADED.map(lv => `<button data-mode="${lv}" aria-pressed="${state.mode === lv}">${lv}</button>`).join("")}
-        <button data-mode="B2+" aria-pressed="${state.mode === "B2+"}">${esc(t("editor.mode.b2"))}</button>
+        <button data-mode="B2+" aria-pressed="${state.mode === "B2+"}">${esc(art.source_mode === "news" ? "B2+" : t("editor.mode.b2"))}</button>
       </div>
       <span class="tag">${esc(t("editor.cards", { n }))}</span>
       <span class="spacer"></span>
@@ -1787,7 +1838,9 @@ function renderEditor() {
 }
 
 function levelRow(lv, i, text, art) {
-  const isB2 = lv === "B2+";
+  // b2 模式下 B2+ 就是原文，只读；news 模式下 B2+ 也是模型产物，
+  // 要和其余三级一样可编辑、可重写，否则裁判报了 B2+ 的问题也修不了
+  const isB2 = lv === "B2+" && (!art || art.source_mode !== "news");
   return `
     <div class="lvl-row ${isB2 ? "b2" : ""}" data-level="${lv}" data-index="${i + 1}">
       <div class="lvl-code" title="${esc(t("who." + lv))}">${lv}</div>
@@ -2289,7 +2342,7 @@ async function runCheck() {
 
 async function runJudge() {
   if (!state.article) return;
-  if (!modelFieldsReady("judge")) {
+  if (!modelReady("judge")) {
     toast(t("toast.need_judge"), "err");
     openSettings();
     return;
@@ -2318,12 +2371,12 @@ async function runJudge() {
 
 async function runFix() {
   if (!state.article) return;
-  if (!modelFieldsReady("generate")) {
+  if (!modelReady("generate")) {
     toast(t("toast.need_generate"), "err");
     openSettings();
     return;
   }
-  const hasJudge = modelFieldsReady("judge");
+  const hasJudge = modelReady("judge");
   const label = t(hasJudge ? "fix.confirm.judge" : "fix.confirm.form");
   if (!confirm(t("fix.confirm", { label }))) return;
 
@@ -2362,7 +2415,7 @@ async function runFix() {
 
 async function rewriteTargets(targets, label) {
   if (!state.article) return;
-  if (!modelFieldsReady("generate")) {
+  if (!modelReady("generate")) {
     toast(t("toast.need_generate"), "err");
     openSettings();
     return;
@@ -2440,7 +2493,7 @@ async function confirmDelete() {
 }
 
 function openNewDialog() {
-  if (!modelFieldsReady("generate")) {
+  if (!modelReady("generate")) {
     toast(t("toast.need_generate"), "err");
     openSettings();
     return;
@@ -2448,6 +2501,8 @@ function openNewDialog() {
   const dlg = $("#dlg-new");
   $("#new-text").value = "";
   $("#new-count").textContent = "0";
+  state.newSource = "b2";        // 每次打开都回到默认，不把上次的选择留到下一次
+  applySourceMode();
   $("#new-form").hidden = false;
   $("#new-progress").hidden = true;
   $("#btn-start").disabled = false;
@@ -2472,6 +2527,7 @@ async function startProduction() {
       method: "POST",
       body: {
         original_text: text,
+        source_mode: state.newSource,
         run_judge: $("#new-judge").checked,
         generate: state.config.generate,
         judge: state.config.judge,
@@ -2590,6 +2646,11 @@ async function boot() {
   try {
     const cfg = await api("/api/config");
     state.limits = cfg.limits || state.limits;
+    // 记下服务端配置状态：后面所有「有没有模型可用」的判断都要算上它
+    state.serverReady = {
+      generate: !!(cfg.generate && cfg.generate.ready),
+      judge: !!(cfg.judge && cfg.judge.ready),
+    };
     // 服务端配了密钥、而本机没有时提示一下，避免用户以为必须自己填
     if (!modelFieldsReady("generate") && cfg.generate.ready) {
       toast(t("toast.server_model"));
@@ -2619,6 +2680,12 @@ $("#brand-home").addEventListener("keydown", e => {
 $("#btn-settings").addEventListener("click", openSettings);
 $("#btn-save-settings").addEventListener("click", persistSettings);
 $("#btn-start").addEventListener("click", startProduction);
+$$("#new-src button").forEach(b => {
+  b.addEventListener("click", () => {
+    state.newSource = b.dataset.src === "news" ? "news" : "b2";
+    applySourceMode();
+  });
+});
 
 $$("[data-theme-set]").forEach(b => b.addEventListener("click", () => {
   applyTheme(b.dataset.themeSet);

@@ -162,31 +162,75 @@ def load_prompt(name, prompts_dir):
     return _PROMPT_CACHE[key]
 
 
+# ---------------------------------------------------------------- 来源模式
+
+# 两种来源决定 B2+ 从哪来、用哪份提示词：
+#   b2   —— 原文本身就是 B2+，只向下生成三级（原有流程，行为一字不变）
+#   news —— 原文是新闻原稿，四级全部生成（B2+ 是原稿的简化版）
+SOURCE_B2 = "b2"
+SOURCE_NEWS = "news"
+
+
+def normalize_mode(mode):
+    """未知/缺省一律回落到 b2，保证老文章走原路径。"""
+    return SOURCE_NEWS if mode == SOURCE_NEWS else SOURCE_B2
+
+
+def prompt_name(base, mode=SOURCE_B2):
+    """按来源模式选提示词文件：b2 用原名，news 用 *_news.md。
+
+    刻意分成两份文件、而不是在一份里分叉：生成与裁判都是非确定性的，
+    提示词动一个字，原模式的结果就会变。分两份才能真正做到原流程零回归。
+    """
+    return f"{base}_news.md" if normalize_mode(mode) == SOURCE_NEWS else f"{base}.md"
+
+
 # ---------------------------------------------------------------- ① 生成
 
 LEVELS = quality.LEVELS
 GRADED = quality.GRADED
 
+# 新闻模式一次要吐出四级正文（B2+ 还是最长的一级），输出量约为原来的 1.7 倍。
+# 生成侧原先不传 max_tokens、用服务商默认值 —— 撞上就被硬截断，等于整篇白跑。
+#
+# ⚠️ 实测（deepseek-flash / 285 词新闻稿）：这个模型的 max_tokens **把思考 token 也算在内**，
+#    且思考用量极大 —— 同一次任务思考 27016 tokens、正文只有 12462 字符。
+#    设成 16384 时思考还没跑完就被截断（finish_reason=length），正文输出 0 字符，
+#    直接报「模型返回为空」。所以这个值必须**远大于正文长度**，而不是「够正文就行」。
+#    换模型后要重新标定：用真实原稿跑一次，看 usage 里的 reasoning_tokens 再定。
+# 只给 news 加限，b2 保持不传，确保原流程的请求体逐字不变。
+NEWS_MAX_TOKENS = 65536
 
-def build_generate_input(original_text):
+
+def build_generate_input(original_text, mode=SOURCE_B2):
+    if normalize_mode(mode) == SOURCE_NEWS:
+        return ("这是一篇英文新闻原稿，请按既定要求写出 B2+、B1、A2、A1- 四级内容，"
+                "并为四个级别各出 3 道题。\n\n===== 新闻原稿开始 =====\n"
+                f"{original_text.strip()}\n===== 新闻原稿结束 =====")
     return ("这是一篇英文原文，请按既定要求把它降级改写成 A1-、A2、B1 三级，"
             "并为四个级别各出 3 道题。\n\n===== 原文开始 =====\n"
             f"{original_text.strip()}\n===== 原文结束 =====")
 
 
-def normalize_generated(data):
+def normalize_generated(data, mode=SOURCE_B2):
     """把模型产出的 JSON 规整成系统内部结构，并做基本结构校验。"""
     if not isinstance(data, dict):
         raise LLMError("生成结果不是 JSON 对象")
 
+    mode = normalize_mode(mode)
     levels = data.get("levels") or {}
     for lv in GRADED:
         node = levels.get(lv) or {}
         if not node.get("cards"):
             raise LLMError(f"生成结果缺少 {lv} 的 cards")
+
+    # 校验顺序刻意与改动前保持一致（b2：GRADED → B2+ 题 → b2_card_starts），
+    # 免得原模式下报出的错误信息发生变化。
+    if mode == SOURCE_NEWS and not (levels.get("B2+") or {}).get("cards"):
+        raise LLMError("生成结果缺少 B2+ 的 cards")
     if not (levels.get("B2+") or {}).get("questions"):
         raise LLMError("生成结果缺少 B2+ 的 questions")
-    if not data.get("b2_card_starts"):
+    if mode != SOURCE_NEWS and not data.get("b2_card_starts"):
         raise LLMError("生成结果缺少 b2_card_starts（B2+ 每张卡开头的四个词）")
 
     out = {
@@ -196,6 +240,8 @@ def normalize_generated(data):
         "b2_card_starts": data.get("b2_card_starts") or [],
         "levels": {},
     }
+    if mode == SOURCE_NEWS:
+        out["source_level"] = (data.get("source_level") or "").strip()
     for lv in LEVELS:
         node = levels.get(lv) or {}
         questions = []
@@ -206,19 +252,24 @@ def normalize_generated(data):
                 "answer": (q.get("answer") or "").strip().upper()[:1],
                 "explanation": q.get("explanation", ""),
             })
+        # b2 模式下 B2+ 的正文由原文切分得到，不接受模型输出；
+        # news 模式下 B2+ 就是模型产物，必须保留。
+        keep_cards = lv in GRADED or mode == SOURCE_NEWS
         out["levels"][lv] = {
-            "cards": list(node.get("cards") or []) if lv in GRADED else [],
+            "cards": list(node.get("cards") or []) if keep_cards else [],
             "questions": questions,
         }
     return out
 
 
-def generate(original_text, gen_cfg, prompts_dir):
-    """调用模型 A 生成四级内容。返回规整后的结构。"""
-    system = load_prompt("generate.md", prompts_dir)
-    user = build_generate_input(original_text)
-    raw = chat(gen_cfg, system, user, timeout=600)
-    return normalize_generated(extract_json(raw))
+def generate(original_text, gen_cfg, prompts_dir, mode=SOURCE_B2):
+    """调用模型 A 生成内容。返回规整后的结构。"""
+    mode = normalize_mode(mode)
+    system = load_prompt(prompt_name("generate", mode), prompts_dir)
+    user = build_generate_input(original_text, mode)
+    raw = chat(gen_cfg, system, user, timeout=600,
+               max_tokens=NEWS_MAX_TOKENS if mode == SOURCE_NEWS else None)
+    return normalize_generated(extract_json(raw), mode)
 
 
 # ---------------------------------------------------------------- ② 裁判
@@ -241,10 +292,18 @@ JUDGE_LANG_NOTE = {
 }
 
 
-def build_judge_input(article, cards, lang="zh"):
-    """按卡对齐组装裁判输入：第 N 张卡的四个级别并排，之后再给题目。"""
+def build_judge_input(article, cards, lang="zh", mode=SOURCE_B2):
+    """按卡对齐组装裁判输入：第 N 张卡的四个级别并排，之后再给题目。
+
+    news 模式下 B2+ 也是产物、不再等于原文，「事实保真」就失去基准，
+    所以把新闻原稿一并附在开头（b2 模式不附，输入逐字不变）。
+    """
     L = JUDGE_LABELS.get(lang) or JUDGE_LABELS["zh"]
     lines = []
+    if normalize_mode(mode) == SOURCE_NEWS:
+        lines.append("===== 新闻原稿 =====")
+        lines.append((article.get("original_text") or "").strip())
+        lines.append("")
     n = len(cards.get("B2+") or [])
     for i in range(n):
         lines.append(f"===== {L['card'].format(n=i + 1)} =====")
@@ -298,7 +357,7 @@ def normalize_findings(raw):
     return out
 
 
-def judge(article, cards, judge_cfg, prompts_dir, lang="zh"):
+def judge(article, cards, judge_cfg, prompts_dir, lang="zh", mode=SOURCE_B2):
     """调用模型 B 做语义裁判，只判不改。lang 决定裁判输出的自然语言。
 
     裁判关思考（no_thinking=True）：裁判做的是「逐卡对照 + 按清单报问题」，
@@ -312,8 +371,9 @@ def judge(article, cards, judge_cfg, prompts_dir, lang="zh"):
     与「0 条 P0」两个相反结论，测出来的分数没有意义。
     （注：加了 temperature=0 后仍观察到 0/1/2/9 条的抖动，服务商侧本身有非确定性。）
     """
-    system = load_prompt("judge.md", prompts_dir) + JUDGE_LANG_NOTE.get(lang, "")
-    user = build_judge_input(article, cards, lang)
+    mode = normalize_mode(mode)
+    system = load_prompt(prompt_name("judge", mode), prompts_dir) + JUDGE_LANG_NOTE.get(lang, "")
+    user = build_judge_input(article, cards, lang, mode)
 
     # 裁判输出是自由文本，偶发 JSON 语法错误（漏逗号 / 被截断 / 短路）。
     # 关思考后概率明显上升 —— 但单次只要 2–20s，重试一次的成本
@@ -362,10 +422,13 @@ REWRITE_NOTE = """
 """
 
 
-def build_rewrite_input(article, cards, targets, problems):
+def build_rewrite_input(article, cards, targets, problems, mode=SOURCE_B2):
     """targets: [{"level": "A2", "card": 3}] 或 [{"level":"B1","question":2}]
     problems: 触发重写的问题清单（脚本质检项或裁判发现）"""
-    lines = ["===== 原文（B2+）=====", article.get("original_text", "").strip(), ""]
+    if normalize_mode(mode) == SOURCE_NEWS:
+        lines = ["===== 新闻原稿（保真基准）=====", article.get("original_text", "").strip(), ""]
+    else:
+        lines = ["===== 原文（B2+）=====", article.get("original_text", "").strip(), ""]
     lines.append("===== 当前四级内容 =====")
     n = len(cards.get("B2+") or [])
     for i in range(n):
@@ -398,8 +461,13 @@ def build_rewrite_input(article, cards, targets, problems):
     return "\n".join(lines)
 
 
-def apply_rewrite(article, patch):
-    """把局部重写结果合并回 article。"""
+def apply_rewrite(article, patch, mode=SOURCE_B2):
+    """把局部重写结果合并回 article。
+
+    news 模式下 B2+ 也是产物，必须允许被修 —— 原先写死只在 GRADED 里改，
+    裁判报了 B2+ 的问题会自动修复静默失效（说改了，其实没写进去）。
+    """
+    allow_b2 = normalize_mode(mode) == SOURCE_NEWS
     changed = []
     if patch.get("title_en") or patch.get("title_zh"):
         if patch.get("title_en"):
@@ -409,9 +477,13 @@ def apply_rewrite(article, patch):
         changed.append("title")
 
     for lv, items in (patch.get("cards") or {}).items():
-        if lv not in GRADED:
+        if lv not in LEVELS:
             continue
-        arr = article["levels"][lv]["cards"]
+        if lv not in GRADED and not allow_b2:
+            continue
+        arr = (article.get("levels") or {}).get(lv, {}).get("cards")
+        if arr is None:
+            continue
         for item in (items or []):
             idx = int(item.get("index") or 0) - 1
             if 0 <= idx < len(arr):
@@ -435,11 +507,12 @@ def apply_rewrite(article, patch):
     return changed
 
 
-def rewrite(article, cards, targets, problems, gen_cfg, prompts_dir):
+def rewrite(article, cards, targets, problems, gen_cfg, prompts_dir, mode=SOURCE_B2):
     """调用模型 A 做局部重写，返回 (改动列表, 原始 patch)。"""
-    system = load_prompt("generate.md", prompts_dir) + "\n" + REWRITE_NOTE
-    user = build_rewrite_input(article, cards, targets, problems)
+    mode = normalize_mode(mode)
+    system = load_prompt(prompt_name("generate", mode), prompts_dir) + "\n" + REWRITE_NOTE
+    user = build_rewrite_input(article, cards, targets, problems, mode)
     raw = chat(gen_cfg, system, user, timeout=600)
     patch = extract_json(raw)
-    changed = apply_rewrite(article, patch)
+    changed = apply_rewrite(article, patch, mode)
     return changed, patch

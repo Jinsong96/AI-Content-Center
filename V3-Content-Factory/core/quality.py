@@ -16,6 +16,12 @@ NUMS = "①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳"
 LEVELS = ["A1-", "A2", "B1", "B2+"]
 GRADED = ["A1-", "A2", "B1"]          # B2+ 是原文，不参与降级改写
 
+# 来源模式（与 core/llm.py 的常量同值；本模块不 import llm，避免循环依赖）
+#   b2   —— 原文本身就是 B2+，由原文切分得到
+#   news —— 原文是新闻原稿，B2+ 是模型产物
+SOURCE_B2 = "b2"
+SOURCE_NEWS = "news"
+
 # ---------- 质检参数（与老师脚本一致，按需可调） ----------
 RATIO = {"A1-": (0.30, 0.42), "A2": (0.48, 0.60), "B1": (0.65, 0.78)}
 MAX_SENT = {"A1-": 12, "A2": 16, "B1": 22}
@@ -143,7 +149,10 @@ def _issue(rule, level, target, message, hint=None, hint_key=None, **params):
 
 
 def check(data, cards):
-    """跑完整 16 类校验。cards 必须含四级（B2+ 由 split_original 得到）。"""
+    """跑完整 16 类校验（外加新闻模式专属的原稿难度提示）。
+
+    cards 必须含四级；B2+ 的来源随 source_mode 而定（原文切分 / 模型产物）。
+    """
     errors, warnings, stats = [], [], []
     n_b2 = len(cards["B2+"])
     orig_wc = len(words(" ".join(cards["B2+"]))) or 1
@@ -271,8 +280,13 @@ def check(data, cards):
                                    letter=answers[0]))
 
     # 12. 关键专有名词保留（新增）—— 只在 A1- 检查，因为它是最容易把人名泛化掉的一级
+    # 基准文本：b2 模式用 B2+（等于原文）；news 模式用新闻原稿（B2+ 是简化版，可能已删人名）
     a1_text = " ".join(cards.get("A1-") or [])
-    candidates = proper_noun_candidates(" ".join(cards.get("B2+") or []))
+    if data.get("source_mode") == SOURCE_NEWS:
+        ref_text = data.get("original_text") or ""
+    else:
+        ref_text = " ".join(cards.get("B2+") or [])
+    candidates = proper_noun_candidates(ref_text)
     for name in candidates:
         if name not in a1_text:
             errors.append(_issue(
@@ -281,6 +295,17 @@ def check(data, cards):
                 "关键人名必须保留：可写成 “Graves, a scientist” 这种形态（原名 + 同位语说明身份），"
                 "不能泛化成 “A scientist”。此条为启发式判断，如非关键人名可忽略。",
                 hint_key="proper_noun_missing", name=name))
+
+    # 17. 新闻原稿难度自评（仅 news 模式，仅警告）
+    # b2 模式没有 source_level 字段，因此这条天然不触发，原流程不受影响。
+    if data.get("source_mode") == SOURCE_NEWS:
+        sl = (data.get("source_level") or "").strip()
+        if sl in GRADED:
+            warnings.append(_issue(
+                "source_level_low", "B2+", "article",
+                f"新闻原稿难度估计为 {sl}，低于 B2+：四级之间拉不开梯度，建议换一篇更难的稿件",
+                "B2+ 是原稿的简化版；原稿本身若不超过 B2+，四级就退化成同一水平的两版改写。",
+                hint_key="source_level_low", source_level=sl))
 
     return {"stats": stats, "errors": errors, "warnings": warnings}
 
@@ -292,14 +317,24 @@ def evaluate(article):
     for lv in GRADED:
         cards[lv] = ((article.get("levels") or {}).get(lv) or {}).get("cards") or []
 
-    try:
-        cards["B2+"] = split_original(article.get("original_text") or "",
-                                      article.get("b2_card_starts") or [])
-    except ValueError as e:
-        cards["B2+"] = []
-        collected.append(_issue("split_failed", "B2+", "article", str(e),
-                                "检查 b2_card_starts 里每张卡开头的四个词，必须与原文逐字一致",
-                                hint_key="split_failed", detail=str(e)))
+    if article.get("source_mode") == SOURCE_NEWS:
+        # 新闻模式：B2+ 本身是模型产物，直接取用，不做原文切分。
+        cards["B2+"] = ((article.get("levels") or {}).get("B2+") or {}).get("cards") or []
+        if not cards["B2+"]:
+            collected.append(_issue(
+                "split_failed", "B2+", "article",
+                "B2+ 的正文为空（新闻原稿模式下 B2+ 由模型生成）",
+                "请重跑生成；B2+ 为空时四级的卡数对齐与词数占比都无法成立",
+                hint_key="split_failed", detail="B2+ cards 为空"))
+    else:
+        try:
+            cards["B2+"] = split_original(article.get("original_text") or "",
+                                          article.get("b2_card_starts") or [])
+        except ValueError as e:
+            cards["B2+"] = []
+            collected.append(_issue("split_failed", "B2+", "article", str(e),
+                                    "检查 b2_card_starts 里每张卡开头的四个词，必须与原文逐字一致",
+                                    hint_key="split_failed", detail=str(e)))
 
     report = check(article, cards)
     report["errors"] = collected + report["errors"]

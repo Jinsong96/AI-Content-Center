@@ -193,7 +193,8 @@ def run_quality_loop(article, gen_cfg, job_id, max_rounds=MAX_CHECK_ROUNDS):
         job_update(job_id, status="auto_fixing", step=f"形式层自动修复（第 {rounds} 轮）",
                    round=rounds, progress=40 + rounds * 5)
         try:
-            changed, _ = llm.rewrite(article, cards, targets, report["errors"], gen_cfg, PROMPTS)
+            changed, _ = llm.rewrite(article, cards, targets, report["errors"], gen_cfg, PROMPTS,
+                                     article.get("source_mode"))
         except llm.LLMError:
             raise
         store.append_fix_log(article["id"], {
@@ -213,7 +214,8 @@ def run_quality_loop(article, gen_cfg, job_id, max_rounds=MAX_CHECK_ROUNDS):
 def run_judge_loop(article, cards, gen_cfg, judge_cfg, job_id, max_rounds=MAX_JUDGE_ROUNDS, lang="zh"):
     """语义层：裁判 → 有 P0 就局部重写 → 回形式层 → 再裁判。"""
     rounds = 0
-    verdict = llm.judge(article, cards, judge_cfg, PROMPTS, lang=lang)
+    verdict = llm.judge(article, cards, judge_cfg, PROMPTS, lang=lang,
+                        mode=article.get("source_mode"))
     store.save_report(article["id"], "judge", verdict)
 
     while verdict["p0_count"] > 0 and rounds < max_rounds:
@@ -223,7 +225,8 @@ def run_judge_loop(article, cards, gen_cfg, judge_cfg, job_id, max_rounds=MAX_JU
         job_update(job_id, status="auto_fixing", step=f"语义层自动修复（第 {rounds} 轮）",
                    round=rounds, progress=70 + rounds * 5)
         try:
-            changed, _ = llm.rewrite(article, cards, targets, p0s, gen_cfg, PROMPTS)
+            changed, _ = llm.rewrite(article, cards, targets, p0s, gen_cfg, PROMPTS,
+                                     article.get("source_mode"))
         except llm.LLMError:
             raise
         store.append_fix_log(article["id"], {
@@ -237,7 +240,8 @@ def run_judge_loop(article, cards, gen_cfg, judge_cfg, job_id, max_rounds=MAX_JU
 
         report, cards = quality.evaluate(article)
         store.save_report(article["id"], "check", report)
-        verdict = llm.judge(article, cards, judge_cfg, PROMPTS, lang=lang)
+        verdict = llm.judge(article, cards, judge_cfg, PROMPTS, lang=lang,
+                        mode=article.get("source_mode"))
         store.save_report(article["id"], "judge", verdict)
 
     return verdict, cards, rounds
@@ -256,12 +260,16 @@ def job_produce(job_id, article_id, gen_cfg, judge_cfg, options):
             job_update(job_id, status="checking", step="跳过生成，直接质检", progress=35)
         else:
             job_update(job_id, status="generating", step="正在生成四级内容", progress=15)
-            gen = llm.generate(article["original_text"], gen_cfg, PROMPTS)
+            gen = llm.generate(article["original_text"], gen_cfg, PROMPTS,
+                               article.get("source_mode"))
             article["title_en"] = gen["title_en"] or article.get("title_en", "")
             article["title_zh"] = gen["title_zh"] or article.get("title_zh", "")
             article["topic_words"] = gen["topic_words"]
             article["b2_card_starts"] = gen["b2_card_starts"]
             article["levels"] = gen["levels"]
+            # 新闻模式下模型会自评原稿难度，落库后由质检给出「原稿偏易」提醒
+            if gen.get("source_level"):
+                article["source_level"] = gen["source_level"]
             store.save_article(article)
             job_update(job_id, status="checking", step="生成完成，开始形式质检", progress=35)
 
@@ -352,7 +360,8 @@ def job_rewrite(job_id, article_id, targets, instruction, gen_cfg):
                      "question": t.get("question"),
                      "message": instruction or "人工要求重写这一条"}] if instruction else []
         job_update(job_id, status="auto_fixing", step="局部重写中", progress=50)
-        changed, _ = llm.rewrite(article, cards, targets, problems, gen_cfg, PROMPTS)
+        changed, _ = llm.rewrite(article, cards, targets, problems, gen_cfg, PROMPTS,
+                                 article.get("source_mode"))
         store.append_fix_log(article_id, {
             "layer": "manual", "round": 0, "targets": targets,
             "problems": problems, "changed": changed})
@@ -504,12 +513,16 @@ class Handler(BaseHTTPRequestHandler):
                     art = store.get_article(aid)
                     if not art:
                         return self._err(404, "文章不存在")
-                    # B2+ 正文由原文按锚点切分得来，不进 cards.json，只在响应里补上
-                    try:
-                        art["levels"]["B2+"]["cards"] = quality.split_original(
-                            art.get("original_text") or "", art.get("b2_card_starts") or [])
-                    except ValueError:
-                        art["levels"]["B2+"]["cards"] = []
+                    # b2 模式：B2+ 正文由原文按锚点切分得来，不进 cards.json，只在响应里补上
+                    # news 模式：B2+ 本身就是模型产物、已存在 cards.json 里，不能覆盖
+                    if art.get("source_mode") == "news":
+                        art["levels"].setdefault("B2+", {}).setdefault("cards", [])
+                    else:
+                        try:
+                            art["levels"]["B2+"]["cards"] = quality.split_original(
+                                art.get("original_text") or "", art.get("b2_card_starts") or [])
+                        except ValueError:
+                            art["levels"]["B2+"]["cards"] = []
                     return self._ok(art)
                 if rest == "/export/download":
                     art = store.get_article(aid)
@@ -552,11 +565,14 @@ class Handler(BaseHTTPRequestHandler):
                 text = (body.get("original_text") or "").strip()
                 if len(text.split()) < 60:
                     return self._err(400, "原文太短（至少 60 个词），无法切卡与降级改写")
+                # 来源模式：b2 = 原文即 B2+（原有流程）；news = 新闻原稿，四级全部生成
+                source_mode = "news" if body.get("source_mode") == "news" else "b2"
                 gen_cfg = resolve_cfg(body, "generate")
                 judge_cfg = resolve_cfg(body, "judge")
                 aid = store.new_id()
                 store.create_article(aid, text,
-                                     body.get("title_en", ""), body.get("title_zh", ""))
+                                     body.get("title_en", ""), body.get("title_zh", ""),
+                                     source_mode)
                 options = {
                     "run_judge": body.get("run_judge", True),
                     "skip_generate": bool(body.get("skip_generate")),
@@ -591,7 +607,8 @@ class Handler(BaseHTTPRequestHandler):
                 _, cards = quality.evaluate(art)
                 try:
                     verdict = llm.judge(art, cards, judge_cfg, PROMPTS,
-                                        lang=body.get("lang") or "zh")
+                                        lang=body.get("lang") or "zh",
+                                        mode=art.get("source_mode"))
                 except llm.LLMError as e:
                     return self._err(400, str(e))
                 store.save_report(aid, "judge", verdict)
