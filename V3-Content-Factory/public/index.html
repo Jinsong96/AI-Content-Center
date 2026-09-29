@@ -757,7 +757,7 @@ dialog::backdrop { background: rgba(23, 23, 26, .42); backdrop-filter: blur(4px)
       <div class="field-row">
         <div class="field">
           <label for="gen-model" data-i18n="set.model">模型名</label>
-          <input type="text" id="gen-model" placeholder="deepseek-v4-pro" autocomplete="off" spellcheck="false">
+          <input type="text" id="gen-model" placeholder="deepseek-flash" autocomplete="off" spellcheck="false">
         </div>
         <div class="field">
           <label for="gen-key" data-i18n="set.key">API Key</label>
@@ -843,7 +843,7 @@ const LS_KEY = "v3.modelConfig";
 /* 预置的默认模型：打开「模型设置」时地址与模型名已经填好，用的人只需要补自己的密钥。
    密钥**永远默认为空**，只能由每个人自己填（或由服务端的 GEN_* / JUDGE_* 环境变量兜底）。 */
 const DEFAULT_CONFIG = {
-  generate: { base_url: "https://api.deepseek.com", model: "deepseek-v4-pro" },
+  generate: { base_url: "https://api.deepseek.com", model: "deepseek-flash" },
   judge:    { base_url: "https://api.siliconflow.cn/v1", model: "Qwen/Qwen3.8-27B" },
 };
 /* 主题键带 .v2：早期版本把 "dark" 写进过 localStorage，沿用旧键会让

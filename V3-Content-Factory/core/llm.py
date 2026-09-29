@@ -35,8 +35,21 @@ def severity_of(type_name):
 
 # ---------------------------------------------------------------- 底层调用
 
-def chat(cfg, system, user, timeout=300, temperature=None):
-    """OpenAI 兼容的一次对话调用，返回 assistant 文本。"""
+def chat(cfg, system, user, timeout=300, temperature=None, no_thinking=False,
+         max_tokens=None):
+    """OpenAI 兼容的一次对话调用，返回 assistant 文本。
+
+    no_thinking=True 时在请求体里加 `thinking: {"type": "disabled"}`，
+    让思考型模型跳过推理直接出正文（实测同一份输入 421s → 8~20s）。
+    但这个字段不是 OpenAI 官方协议，多家实现不一致：
+      - 硅基 Qwen 系：认 `thinking` 与 `enable_thinking`
+      - DeepSeek 官方：认 `thinking` 与 `reasoning_effort`，**不认** `enable_thinking`
+    所以默认关闭、只在明确需要低延迟的调用处（见 judge）显式打开。
+
+    max_tokens 不传时用服务商默认值，各家口径不同。裁判输出会随 findings
+    条数膨胀，撞过上限被硬截断（实测 `Unterminated string` 直接判失败），
+    所以裁判侧显式给足。
+    """
     if not cfg or not cfg.get("base_url"):
         raise LLMError("未配置模型：请在「模型设置」里填写接口地址、密钥与模型名")
     if not cfg.get("api_key"):
@@ -54,6 +67,10 @@ def chat(cfg, system, user, timeout=300, temperature=None):
     }
     if temperature is not None:
         payload["temperature"] = temperature
+    if no_thinking:
+        payload["thinking"] = {"type": "disabled"}
+    if max_tokens:
+        payload["max_tokens"] = max_tokens
 
     req = urllib.request.Request(
         url,
@@ -93,21 +110,43 @@ def probe(cfg):
 
 
 def extract_json(text):
-    """从模型输出里抠出 JSON：兼容 ```json 代码块与前后多余说明。"""
+    """从模型输出里抠出 JSON：兼容 ```json 代码块与前后多余说明。
+
+    解析用 strict=False：模型在长文本字段（original / rewritten / why）里
+    经常直接写裸换行而不转义成 \\n，严格模式会抛
+    「Invalid control character」把整次裁判判失败（实测踩到过）。
+
+    多候选依次尝试：**不能只信第一个代码块**。模型偶尔会在 `original`
+    这类要引用原文的字段里再写一个 ```，非贪婪匹配就会在中间断掉，
+    拿到半截 JSON（实测抛过 `Expecting ',' delimiter` / `Unterminated string`）。
+    所以同时准备「首个 {...} 整段」作为备选，谁能解析就用谁。
+    """
     if not text or not text.strip():
         raise LLMError("模型返回为空")
     t = text.strip()
+
+    candidates = []
     m = re.search(r"```(?:json)?\s*(.*?)```", t, re.S)
     if m:
-        t = m.group(1).strip()
-    else:
-        i, j = t.find("{"), t.rfind("}")
-        if i >= 0 and j > i:
-            t = t[i:j + 1]
-    try:
-        return json.loads(t)
-    except json.JSONDecodeError as e:
-        raise LLMError(f"模型返回的内容不是合法 JSON（{e.msg}）。原始开头：{t[:200]}") from e
+        candidates.append(m.group(1).strip())
+    i, j = t.find("{"), t.rfind("}")
+    if i >= 0 and j > i:
+        candidates.append(t[i:j + 1])
+    if i >= 0:
+        candidates.append(t[i:])
+
+    last_err = None
+    for c in candidates:
+        if not c:
+            continue
+        try:
+            return json.loads(c, strict=False)
+        except json.JSONDecodeError as e:
+            last_err = e
+    raise LLMError(
+        f"模型返回的内容不是合法 JSON（{last_err.msg if last_err else '空'}）。"
+        f"原始开头：{t[:200]}"
+    ) from last_err
 
 
 # ---------------------------------------------------------------- 提示词
@@ -259,11 +298,38 @@ def normalize_findings(raw):
 
 
 def judge(article, cards, judge_cfg, prompts_dir, lang="zh"):
-    """调用模型 B 做语义裁判，只判不改。lang 决定裁判输出的自然语言。"""
+    """调用模型 B 做语义裁判，只判不改。lang 决定裁判输出的自然语言。
+
+    裁判关思考（no_thinking=True）：裁判做的是「逐卡对照 + 按清单报问题」，
+    属于比对而非推演；开思考时 99% 的输出 token 花在推理上（实测 421s/次），
+    而正文只有 59 字符。关掉后同一份输入 8~20s 完成，且抓到了开思考漏掉的 P0。
+    ⚠️ 代价：关思考后 JSON 语法错误率上升（已加重试兜底），判断质量需人工复核。
+    要回退开思考，删掉下面的 no_thinking=True 即可。
+
+    固定 temperature=0：裁判是「判定」不是「创作」，必须可复现。此前不传
+    temperature 时，同一篇文章、同一提示词、同一模型会随机跑出「1 条 P0」
+    与「0 条 P0」两个相反结论，测出来的分数没有意义。
+    （注：加了 temperature=0 后仍观察到 0/1/2/9 条的抖动，服务商侧本身有非确定性。）
+    """
     system = load_prompt("judge.md", prompts_dir) + JUDGE_LANG_NOTE.get(lang, "")
     user = build_judge_input(article, cards, lang)
-    raw = chat(judge_cfg, system, user, timeout=600)
-    data = extract_json(raw)
+
+    # 裁判输出是自由文本，偶发 JSON 语法错误（漏逗号 / 被截断 / 短路）。
+    # 关思考后概率明显上升 —— 但单次只要 2–20s，重试一次的成本
+    # 远低于整篇生产白跑（实测一次失败 = 350–660s 全废）。
+    data = None
+    last_err = None
+    for _ in range(2):
+        raw = chat(judge_cfg, system, user, timeout=600,
+                   temperature=0, no_thinking=True, max_tokens=8192)
+        try:
+            data = extract_json(raw)
+            break
+        except LLMError as e:
+            last_err = e
+    if data is None:
+        raise last_err
+
     findings = normalize_findings(data)
     return {
         "findings": findings,
