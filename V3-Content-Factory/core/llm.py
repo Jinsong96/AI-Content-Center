@@ -19,6 +19,7 @@ from . import quality
 P0_TYPES = {
     "fact_added", "fact_dropped", "fact_altered",
     "card_misaligned", "answer_unsupported",
+    "ambiguous_word",
 }
 KNOWN_TYPES = P0_TYPES | {
     "bridge_broken", "topic_word_weak", "option_unfair",
