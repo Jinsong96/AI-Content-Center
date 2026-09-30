@@ -10,6 +10,8 @@
 """
 import json
 import re
+import threading
+import time
 import urllib.error
 import urllib.request
 
@@ -30,6 +32,51 @@ class LLMError(RuntimeError):
     pass
 
 
+# ---------------------------------------------------------------- 模型健康记录
+# 「字段填齐了」不等于「能用」：key 可能已欠费、被停用、或模型名被下线。
+# 线上真实踩过 —— 硅基流动的裁判账号余额耗尽，每次调用都 HTTP 402，
+# 而界面因为「三个字段都在」照样显示「已就绪」，点下去才炸。
+# 所以这里记下每个角色最近一次真实调用的结果，供 /api/config 判断。
+#   从未调用过 → 未知（界面照旧显示就绪，但标为「未验证」）
+#   调用过且失败 → 直接判为不可用，并把失败原因与时间带出去
+
+_HEALTH_LOCK = threading.Lock()
+_HEALTH = {}
+
+
+def record_health(role, ok, message=""):
+    """记下某个角色（generate / judge）最近一次真实调用的成败。"""
+    if not role:
+        return
+    with _HEALTH_LOCK:
+        _HEALTH[role] = {
+            "ok": bool(ok),
+            "message": (message or "")[:300],
+            "at": time.strftime("%Y-%m-%dT%H:%M:%S"),
+        }
+
+
+def health(role):
+    with _HEALTH_LOCK:
+        return dict(_HEALTH.get(role) or {})
+
+
+# HTTP 状态码 → 人话。只补「是什么毛病」，不掩盖服务商原文。
+_HTTP_HINT = {
+    400: "请求被拒（多半是模型名或参数不对）",
+    401: "密钥无效或未授权",
+    402: "账号余额不足，需要充值",
+    403: "密钥无权使用该模型",
+    404: "接口地址或模型名不存在",
+    408: "服务商处理超时",
+    429: "请求过于频繁，稍后再试",
+    500: "服务商内部错误",
+    502: "服务商网关错误",
+    503: "服务暂时不可用",
+    504: "服务商网关超时",
+}
+
+
 def severity_of(type_name):
     return "P0" if (type_name or "") in P0_TYPES else "P1"
 
@@ -37,8 +84,11 @@ def severity_of(type_name):
 # ---------------------------------------------------------------- 底层调用
 
 def chat(cfg, system, user, timeout=300, temperature=None, no_thinking=False,
-         max_tokens=None):
+         max_tokens=None, role=None):
     """OpenAI 兼容的一次对话调用，返回 assistant 文本。
+
+    role 只用于健康记录（"generate" / "judge"），不影响请求本身。
+    成功与失败都会写进 record_health()，供 /api/config 判断「到底能不能用」。
 
     no_thinking=True 时在请求体里加 `thinking: {"type": "disabled"}`，
     让思考型模型跳过推理直接出正文（实测同一份输入 421s → 8~20s）。
@@ -91,22 +141,46 @@ def chat(cfg, system, user, timeout=300, temperature=None, no_thinking=False,
             detail = e.read().decode("utf-8")[:400]
         except Exception:
             pass
-        raise LLMError(f"模型接口返回 HTTP {e.code}：{detail or e.reason}") from e
+        hint = _HTTP_HINT.get(e.code, "")
+        msg = f"模型接口返回 HTTP {e.code}" + (f"（{hint}）" if hint else "")
+        msg += f"：{detail or e.reason}"
+        record_health(role, False, msg)
+        raise LLMError(msg) from e
     except urllib.error.URLError as e:
-        raise LLMError(f"无法连接模型接口（{cfg['base_url']}）：{e.reason}") from e
+        msg = f"无法连接模型接口（{cfg['base_url']}）：{e.reason}"
+        record_health(role, False, msg)
+        raise LLMError(msg) from e
     except TimeoutError as e:
-        raise LLMError(f"模型接口超时（>{timeout}s）") from e
+        msg = f"模型接口超时（>{timeout}s）"
+        record_health(role, False, msg)
+        raise LLMError(msg) from e
 
     try:
-        return data["choices"][0]["message"]["content"]
+        text = data["choices"][0]["message"]["content"] or ""
     except (KeyError, IndexError, TypeError):
-        raise LLMError(f"模型返回格式异常：{json.dumps(data, ensure_ascii=False)[:400]}")
+        msg = f"模型返回格式异常：{json.dumps(data, ensure_ascii=False)[:400]}"
+        record_health(role, False, msg)
+        raise LLMError(msg)
+
+    # 空正文是真实故障：调用方要么解析 JSON 报错、要么拿到空内容。
+    # 提前一点、把话说清楚 —— 否则只会看到「JSON 解析失败」，看不出是模型没干活。
+    if not text.strip():
+        msg = "模型返回空内容（多半是被 max_tokens 截断或思考占满，也可能服务商异常）"
+        record_health(role, False, msg)
+        raise LLMError(msg)
+
+    record_health(role, True, "调用正常")
+    return text
 
 
-def probe(cfg):
-    """连通性自检：发一条极短请求，确认地址/密钥/模型名三者都对。"""
+def probe(cfg, role=None):
+    """连通性自检：发一条极短请求，确认地址/密钥/模型名三者都对。
+
+    这是「真体检」：调用会写进健康记录，所以自检过一次之后，
+    /api/config 就能给出有依据的结论，而不只是「字段填了没有」。
+    """
     text = chat(cfg, "You reply with one word only.", "Reply with: OK",
-                timeout=60, temperature=0)
+                timeout=60, temperature=0, role=role)
     return (text or "").strip()[:80]
 
 
@@ -268,7 +342,8 @@ def generate(original_text, gen_cfg, prompts_dir, mode=SOURCE_B2):
     system = load_prompt(prompt_name("generate", mode), prompts_dir)
     user = build_generate_input(original_text, mode)
     raw = chat(gen_cfg, system, user, timeout=600,
-               max_tokens=NEWS_MAX_TOKENS if mode == SOURCE_NEWS else None)
+               max_tokens=NEWS_MAX_TOKENS if mode == SOURCE_NEWS else None,
+               role="generate")
     return normalize_generated(extract_json(raw), mode)
 
 
@@ -382,7 +457,8 @@ def judge(article, cards, judge_cfg, prompts_dir, lang="zh", mode=SOURCE_B2):
     last_err = None
     for _ in range(2):
         raw = chat(judge_cfg, system, user, timeout=600,
-                   temperature=0, no_thinking=True, max_tokens=8192)
+                   temperature=0, no_thinking=True, max_tokens=8192,
+                   role="judge")
         try:
             data = extract_json(raw)
             break
@@ -512,7 +588,7 @@ def rewrite(article, cards, targets, problems, gen_cfg, prompts_dir, mode=SOURCE
     mode = normalize_mode(mode)
     system = load_prompt(prompt_name("generate", mode), prompts_dir) + "\n" + REWRITE_NOTE
     user = build_rewrite_input(article, cards, targets, problems, mode)
-    raw = chat(gen_cfg, system, user, timeout=600)
+    raw = chat(gen_cfg, system, user, timeout=600, role="generate")
     patch = extract_json(raw)
     changed = apply_rewrite(article, patch, mode)
     return changed, patch

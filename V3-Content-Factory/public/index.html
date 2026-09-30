@@ -225,6 +225,11 @@ header {
 .badge-warn { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 42%, transparent); background: color-mix(in srgb, var(--warn) 7%, transparent); }
 .badge-err { color: var(--err); border-color: color-mix(in srgb, var(--err) 42%, transparent); background: color-mix(in srgb, var(--err) 7%, transparent); }
 .badge-accent { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 46%, transparent); background: color-mix(in srgb, var(--accent) 7%, transparent); }
+/* 设置面板标题栏里的状态徽标：`.group > .gh span` 特异性更高，会把徽标颜色盖成灰色，这里纠回来 */
+.group > .gh span.badge { text-transform: none; letter-spacing: .04em; }
+.group > .gh span.badge-ok { color: var(--ok); }
+.group > .gh span.badge-warn { color: var(--warn); }
+.group > .gh span.badge-err { color: var(--err); }
 
 /* ---------------------------------------------------------------- 布局 */
 main { position: relative; z-index: 1; flex: 1 1 auto; min-height: 0; min-width: 0; display: flex; }
@@ -932,7 +937,8 @@ const state = {
   showQuestions: true,
   config: loadConfig(),
   newSource: "b2",         // b2 = 原文即 B2+（原流程） | news = 新闻原稿，四级全部生成
-  serverReady: { generate: false, judge: false },   // 服务端是否已配好模型（/api/config 拉回后填）
+  serverReady: { generate: false, judge: false },   // 服务端是否真的可用（含最近一次调用结果）
+  serverReadyDetail: {},                            // /api/config 里的完整状态，供设置面板展示原因
   limits: { max_check_rounds: 3, max_judge_rounds: 2 },
   polling: null,
 };
@@ -1119,6 +1125,10 @@ const I18N = {
     "step.done": "完成",
 
     "toast.server_model": "服务端已配置模型，可直接新建生产。",
+    "srv.verified": "服务端已配置 · 已跑通",
+    "srv.unchecked": "服务端已配置 · 未验证",
+    "srv.bad": "服务端配置不可用",
+    "toast.server_model_bad": "服务端配的模型现在用不了：{msg}",
     "toast.need_generate": "还没有配置生成模型，先到「模型设置」里填。",
     "toast.need_judge": "还没有配置裁判模型，先到「模型设置」里填。",
     "toast.check.pass": "形式质检通过",
@@ -1382,6 +1392,10 @@ const I18N = {
     "step.done": "Done",
 
     "toast.server_model": "The server has models configured — you can start a run right away.",
+    "srv.verified": "Server config · verified",
+    "srv.unchecked": "Server config · unverified",
+    "srv.bad": "Server config unusable",
+    "toast.server_model_bad": "The server's model is not working right now: {msg}",
     "toast.need_generate": "No generation model configured yet. Open “Models” and fill it in.",
     "toast.need_judge": "No judge model configured yet. Open “Models” and fill it in.",
     "toast.check.pass": "Form check passed",
@@ -1596,8 +1610,11 @@ async function api(path, { method = "GET", body } = {}) {
   let json = null;
   try { json = await res.json(); } catch { /* 非 JSON 响应 */ }
   if (!res.ok || (json && json.ok === false)) {
-    const msg = (json && json.error && json.error.message) || `HTTP ${res.status}`;
-    throw new Error(msg);
+    const detail = (json && json.error) || {};
+    const e = new Error(detail.message || `HTTP ${res.status}`);
+    e.status = res.status;
+    e.detail = detail;          // 后端可能附带额外信息（如 state），调用方按需取
+    throw e;
   }
   return json ? json.data : null;
 }
@@ -2351,21 +2368,30 @@ async function runJudge() {
   btn.disabled = true;
   btn.textContent = t("toast.judge.running");
   try {
-    const jdg = await api(`/api/articles/${state.article.id}/judge`, {
+    /* 后台任务：线上网关有 ~60 秒硬超时，同步等裁判返回会被掐断（大文章必中）。
+       改成提交任务 + 轮询进度，判多久都不会断。 */
+    const r = await api(`/api/articles/${state.article.id}/judge`, {
       method: "POST",
       body: { judge: state.config.judge, generate: state.config.generate, lang: LANG },
     });
-    state.article.judge_report = jdg;
-    renderPanel();
-    renderFlags();
-    refreshLibrary();
-    toast(jdg.p0_count ? t("toast.judge.p0", { n: jdg.p0_count }) : t("toast.judge.ok"),
-      jdg.p0_count ? "err" : "ok");
+    pollJob(r.job_id, job => {
+      btn.textContent = stepLabel(job);
+    }, async job => {
+      btn.disabled = false;
+      btn.textContent = t("panel.btn.judge");
+      if (job.status === "failed") {
+        toast(t("toast.judge.err") + (job.error || ""), "err");
+        return;
+      }
+      await openArticle(state.article.id);
+      const res = job.result || {};
+      toast(res.p0_count ? t("toast.judge.p0", { n: res.p0_count }) : t("toast.judge.ok"),
+        res.p0_count ? "err" : "ok");
+    });
   } catch (e) {
-    toast(t("toast.judge.err") + e.message, "err");
-  } finally {
     btn.disabled = false;
     btn.textContent = t("panel.btn.judge");
+    toast(t("toast.judge.err") + e.message, "err");
   }
 }
 
@@ -2571,6 +2597,36 @@ async function startProduction() {
 }
 
 /* ---------------------------------------------------------------- 设置 */
+/** 服务端那份模型配置的真实状态 → 面板标题右侧的小徽标。
+
+    三种情况要分清，之前它们全都被当成「就绪」：
+      · 服务端配了、也真跑通过            → 绿「已跑通」
+      · 服务端配了、但还没被真实调用过    → 黄「未验证」（字段齐 ≠ 能用）
+      · 服务端配了、最近一次调用失败      → 红「不可用」，鼠标悬停看失败原因
+    本机填的 key 不在这里表态 —— 那个要点「测试连接」才知道通不通。 */
+function renderServerState() {
+  [["generate", "#gen-state"], ["judge", "#judge-state"]].forEach(([which, sel]) => {
+    const el = $(sel);
+    if (!el) return;
+    const s = (state.serverReadyDetail || {})[which];
+    if (!s || !s.filled) { el.innerHTML = ""; return; }
+    let cls = "badge", text;
+    if (s.ready && s.checked) { cls += " badge-ok"; text = t("srv.verified"); }
+    else if (s.ready) { cls += " badge-warn"; text = t("srv.unchecked"); }
+    else { cls += " badge-err"; text = t("srv.bad"); }
+    el.innerHTML = `<span class="${cls}" title="${esc(s.reason || "")}">` +
+                   `<i class="dot"></i>${esc(text)}</span>`;
+  });
+}
+
+/** 把一次自检结果并回全局状态 —— 用户在设置里点完「测试连接」，徽标要立刻跟着变。 */
+function absorbServerState(which, st) {
+  if (!which || !st) return;
+  state.serverReadyDetail = Object.assign({}, state.serverReadyDetail, { [which]: st });
+  state.serverReady = Object.assign({}, state.serverReady, { [which]: !!st.ready });
+  renderServerState();
+}
+
 function openSettings() {
   const c = state.config;
   $("#gen-url").value = c.generate.base_url || "";
@@ -2584,6 +2640,7 @@ function openSettings() {
   });
   $("#gen-probe").textContent = "";
   $("#judge-probe").textContent = "";
+  renderServerState();
   $("#dlg-settings").showModal();
 }
 
@@ -2616,9 +2673,12 @@ async function probeModel(which) {
     const r = await api("/api/config/probe", { method: "POST", body: { which, [which]: cfg } });
     el.className = "probe ok";
     el.textContent = t("probe.ok", { reply: r.reply });
+    absorbServerState(which, r.state);
   } catch (e) {
     el.className = "probe err";
     el.textContent = e.message;
+    // 自检失败也是一次真实结论，服务端状态徽标要跟着更新
+    if (e.detail && e.detail.state) absorbServerState(which, e.detail.state);
   }
 }
 
@@ -2651,9 +2711,23 @@ async function boot() {
       generate: !!(cfg.generate && cfg.generate.ready),
       judge: !!(cfg.judge && cfg.judge.ready),
     };
+    state.serverReadyDetail = { generate: cfg.generate || {}, judge: cfg.judge || {} };
     // 服务端配了密钥、而本机没有时提示一下，避免用户以为必须自己填
     if (!modelFieldsReady("generate") && cfg.generate.ready) {
       toast(t("toast.server_model"));
+    }
+    // 服务端「字段填了、但实际用不了」（例如账号欠费）当场就说清楚，
+    // 不要等用户点了按钮撞上 402 才发现
+    const broken = ["generate", "judge"].filter(w => {
+      const s = state.serverReadyDetail[w];
+      return s && s.filled && !s.ready;
+    });
+    if (broken.length) {
+      toast(t("toast.server_model_bad", {
+        msg: broken.map(w =>
+          `${t(w === "judge" ? "set.judge" : "set.gen")}：${state.serverReadyDetail[w].reason || ""}`
+        ).join("；"),
+      }), "err");
     }
   } catch {
     // 需要口令时先别拉数据，等用户在口令框里输完（api() 已经弹出来了）

@@ -122,13 +122,36 @@ def resolve_cfg(payload, key):
     return merged
 
 
-def cfg_state(cfg):
-    return {
+def cfg_state(cfg, role=None):
+    """对外汇报某个模型角色的可用状态。
+
+    分两层：
+      1) 字段层 —— base_url / api_key / model 是否填齐
+      2) 实测层 —— 最近一次真实调用成功没有（llm.health）
+    只有两层都过才算 ready。这事线上踩过：裁判账号余额耗尽、每次调用 402，
+    但字段层是齐的，界面照样显示「已就绪」，点下去才炸。
+    """
+    filled = bool(cfg.get("base_url") and cfg.get("api_key") and cfg.get("model"))
+    state = {
         "base_url": cfg.get("base_url") or "",
         "model": cfg.get("model") or "",
         "has_key": bool(cfg.get("api_key")),
-        "ready": bool(cfg.get("base_url") and cfg.get("api_key") and cfg.get("model")),
+        "filled": filled,
     }
+    h = llm.health(role) if role else {}
+    state["checked"] = bool(h)                 # 有没有被真实调用验证过
+    state["last_ok"] = h.get("ok") if h else None
+    state["last_at"] = h.get("at") if h else None
+    if not filled:
+        state["ready"] = False
+        state["reason"] = "字段未填齐"
+    elif h and not h.get("ok"):
+        state["ready"] = False
+        state["reason"] = h.get("message") or "最近一次调用失败"
+    else:
+        state["ready"] = True
+        state["reason"] = None if h else "尚未验证（还没有真实调用过）"
+    return state
 
 
 # ---------------------------------------------------------------- 任务
@@ -348,6 +371,35 @@ def job_fix(job_id, article_id, gen_cfg, judge_cfg, run_judge, lang="zh"):
         job_update(job_id, status="failed", error=f"{type(e).__name__}: {e}")
 
 
+def job_judge(job_id, article_id, judge_cfg, lang="zh"):
+    """重跑语义裁判（后台任务）。
+
+    原先 /judge 是同步接口：前端点一下，HTTP 连接一直挂着等模型判完。
+    本地直跑约 31s 没问题，但线上网关有约 60 秒硬超时 —— 四级齐全的大文章
+    裁判要 60~90s，请求会被网关掐断（前端收到 504，裁判白跑）。
+    改成后台任务后，前端轮询进度，判多久都不会被掐。
+    """
+    try:
+        article = store.get_article(article_id)
+        if not article:
+            job_update(job_id, status="failed", error="文章不存在")
+            return
+        job_update(job_id, status="judging", step="语义裁判中", progress=30)
+        _, cards = quality.evaluate(article)
+        verdict = llm.judge(article, cards, judge_cfg, PROMPTS,
+                            lang=lang, mode=article.get("source_mode"))
+        store.save_report(article_id, "judge", verdict)
+        job_update(job_id, status="done", step="完成", progress=100,
+                   result={"p0_count": verdict.get("p0_count"),
+                           "p1_count": verdict.get("p1_count"),
+                           "conclusion": verdict.get("conclusion") or ""})
+    except llm.LLMError as e:
+        job_update(job_id, status="failed", error=str(e))
+    except Exception as e:
+        traceback.print_exc()
+        job_update(job_id, status="failed", error=f"{type(e).__name__}: {e}")
+
+
 def job_rewrite(job_id, article_id, targets, instruction, gen_cfg):
     """人工触发的局部重写。"""
     try:
@@ -493,8 +545,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._ok({"service": "v3-content-factory", "ready": True})
             if path == "/api/config":
                 return self._ok({
-                    "generate": cfg_state(env_cfg("GEN")),
-                    "judge": cfg_state(env_cfg("JUDGE")),
+                    "generate": cfg_state(env_cfg("GEN"), "generate"),
+                    "judge": cfg_state(env_cfg("JUDGE"), "judge"),
                     "limits": {"max_check_rounds": MAX_CHECK_ROUNDS,
                                "max_judge_rounds": MAX_JUDGE_ROUNDS},
                 })
@@ -549,16 +601,30 @@ class Handler(BaseHTTPRequestHandler):
             return
         try:
             # ---- 配置自检
+            # 这是一次真实调用，结果会写进健康记录，之后 /api/config 就以它为准。
+            # 例外：用户在自己浏览器里单独填了一整套 key —— 那只代表他这台机器，
+            # 不该算到「服务端配置」头上，所以这种时候不写健康记录（role=None）。
+            # 返回的 state 始终描述服务端那份配置。
             if path == "/api/config/probe":
-                which = body.get("which") or "generate"
-                cfg = resolve_cfg(body, "generate" if which == "generate" else "judge")
+                which = "judge" if body.get("which") == "judge" else "generate"
+                prefix = "GEN" if which == "generate" else "JUDGE"
+                cfg = resolve_cfg(body, which)
+                given = body.get(which) or {}
+                self_supplied = bool(given.get("base_url") and given.get("api_key")
+                                     and given.get("model"))
                 try:
-                    reply = llm.probe(cfg)
-                    return self._ok({"which": which, "reply": reply, "ok": True})
+                    reply = llm.probe(cfg, role=None if self_supplied else which)
+                    # state 要在自检「之后」取 —— 这次调用的结果已经进了健康记录
+                    return self._ok({"which": which, "reply": reply, "ok": True,
+                                     "state": cfg_state(env_cfg(prefix), which)})
                 except llm.LLMError as e:
-                    return self._err(400, str(e))
+                    return self._err(400, str(e),
+                                     extra={"which": which,
+                                            "state": cfg_state(env_cfg(prefix), which)})
                 except Exception as e:
-                    return self._err(400, f"{type(e).__name__}: {e}")
+                    return self._err(400, f"{type(e).__name__}: {e}",
+                                     extra={"which": which,
+                                            "state": cfg_state(env_cfg(prefix), which)})
 
             # ---- 新建并生产
             if path == "/api/articles":
@@ -599,20 +665,28 @@ class Handler(BaseHTTPRequestHandler):
                 return self._ok(report)
 
             # ---- L2 重跑裁判
+            # 默认走后台任务：线上网关有 ~60 秒硬超时，大文章同步等会被掐断。
+            # body 带 sync=true 时保留原来的同步返回，方便脚本直接拿结果。
             if rest == "/judge":
                 art = store.get_article(aid)
                 if not art:
                     return self._err(404, "文章不存在")
                 judge_cfg = resolve_cfg(body, "judge")
-                _, cards = quality.evaluate(art)
-                try:
-                    verdict = llm.judge(art, cards, judge_cfg, PROMPTS,
-                                        lang=body.get("lang") or "zh",
-                                        mode=art.get("source_mode"))
-                except llm.LLMError as e:
-                    return self._err(400, str(e))
-                store.save_report(aid, "judge", verdict)
-                return self._ok(verdict)
+                lang = body.get("lang") or "zh"
+                if body.get("sync"):
+                    _, cards = quality.evaluate(art)
+                    try:
+                        verdict = llm.judge(art, cards, judge_cfg, PROMPTS,
+                                            lang=lang, mode=art.get("source_mode"))
+                    except llm.LLMError as e:
+                        return self._err(400, str(e))
+                    store.save_report(aid, "judge", verdict)
+                    return self._ok(verdict)
+                jid = job_new(aid, "judge")
+                threading.Thread(
+                    target=job_judge, daemon=True,
+                    args=(jid, aid, judge_cfg, lang)).start()
+                return self._ok({"job_id": jid, "article_id": aid})
 
             # ---- 一键自动修复
             if rest == "/fix":
