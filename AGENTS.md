@@ -38,7 +38,7 @@
 | 模型调用 | 8 个工作流 | Dify 图 | **全链路只 2 次**（生成 1 + 裁判 1） |
 | 部署 | Railway | 同上 | WorkBuddy 托管 |
 
-产品名：**一鹿知 · 内容生产平台**（代码代号 `V3-Content-Factory`）。线上 `https://yiluzhi-content-factory.app.workbuddy.host/`（appId `wbapp_qjgd70pZpbr4URRBDYpC43`）。
+产品名：**一鹿知 · 内容生产平台**（代码代号 `V3-Content-Factory`）。线上 `https://graded-reading-factory.app.workbuddy.host/`（appId `wbapp_ht8T4x4I5dDuv5iZhcZ8fT`；旧应用 `yiluzhi-content-factory` 已弃用）。
 V3 的硬约束 / 架构 / 已知坑 / 需求澄清全过程全在该目录内（`AGENTS.md` · `HANDOFF.md` · `docs/00`~`docs/08`）。
 **不要在根文档里重复或改补充 V3 的内容。**
 

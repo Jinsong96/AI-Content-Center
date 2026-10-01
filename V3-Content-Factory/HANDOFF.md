@@ -1,35 +1,41 @@
 # HANDOFF —— 交接快照
 
 > 一页纸告诉你：现在在哪、东西在哪、下一步干什么。
-> 快照时间：2026-10-01 16:05（GMT+8）
+> 快照时间：2026-10-01 17:35（GMT+8）
 
 ---
 
 ## 1. 一句话状态
 
-**V3 已实现、已部署在「一鹿知」新应用上，代码与文档已同步到 `main` `96aee9f`。**
-「新闻原稿」来源模式、服务端密钥 + 访问口令都已上线。
+**V3 已实现并部署；线上正式入口重定为 `graded-reading-factory`（本机唯一可维护的那个）。**
+「新闻原稿」来源模式、服务端密钥能力都在；**访问口令已于 2026-10-01 按要求整体移除**。
 **未决的硬项两个**：① 月饼文的质量缺口（等 Bryan 拍板）② V4（等 CEFR 分级指南）。
 
 ---
 
 ## 2. 线上地址与应用管理
 
-**两个应用并存，本机只能发其中一个 —— 这是当前最大的坑。**
-
-| | 在用的 | 本机能发的 |
-|---|---|---|
-| 地址 | `https://yiluzhi-content-factory.app.workbuddy.host/` | `https://graded-reading-factory.app.workbuddy.host/` |
-| appId | `wbapp_qjgd70pZpbr4URRBDYpC43` | `wbapp_ht8T4x4I5dDuv5iZhcZ8fT` |
-| 创建自 | **另一台设备**（用户名 `jinsongli`）的工作区 | 本工作区 |
-| 访问口令 / 服务端密钥 | ✅ 有 | ❌ 无（用户需自填 key） |
-| 线上文章 | 4 篇 | 1 篇（seed） |
-| 本机能否发布到它 | ❌ **不能** | ✅ 能 |
+**正式入口只有一个：`graded-reading-factory`（本机可维护）。**
 
 | 项 | 值 |
 |---|---|
+| **正式入口** | `https://graded-reading-factory.app.workbuddy.host/` |
+| appId | `wbapp_ht8T4x4I5dDuv5iZhcZ8fT` |
+| 由谁发布 | 本机 / 本工作区（**也只有这里能更新它**） |
+| 访问口令 | ❌ 无（2026-10-01 按要求移除） |
+| 服务端密钥 | ❌ 无 → 使用者需在「模型设置」里各填一次自己的 key |
+| 线上文章 | 1 篇（seed） |
 | 发布目录 | `<工作区>/AI-Content-Center/V3-Content-Factory`（唯一副本） |
 | 管理入口 | WorkBuddy「设置 → 数据管理 → 发布的应用」 |
+
+**已弃用**：`yiluzhi-content-factory.app.workbuddy.host`（`wbapp_qjgd70pZpbr4URRBDYpC43`）
+—— 另一台设备（用户名 `jinsongli`、工作区路径不同）创建，**本机发布不到它**。
+Bryan 确认该链接**从未发出去**，因此换掉它没有成本。
+
+> ⚠️ **切换的代价**：`yiluzhi` 上有服务端模型密钥与 **4 篇线上文章**，本机两样都拿不到。
+> 现入口**服务端不代理模型调用** —— 每个人要在「模型设置」里各填一次自己的 key。
+> 要救回那 4 篇：去另一台设备取 `server_keys.json` 里的 `access_code`，
+> 或在曾成功打开过该应用的浏览器里读 localStorage 的 `v3.accessCode`。
 
 **发布机制（2026-10-01 实测，推翻了上一版的结论）**：
 
@@ -75,6 +81,15 @@
 - 弃用旧的开发副本（改名归档，未删除）—— 它曾造成两份 README 内容漂移
 - **补写本目录三份文档**（AGENTS / HANDOFF / README 在上一轮 12 个提交里一个字没更新）
 
+### 3.4 第四轮（2026-10-01 下午，本机）
+
+- **按要求整体移除访问口令**（Bryan：内部 demo，就几个人用，不需要设卡）
+  - 后端：删 `ACCESS_CODE` / `_guard()` / `_cookie_code()` / 鉴权 Cookie `v3code`（`app.py` 809 → 767 行）
+  - 前端：删 `dlg-code` 对话框 / `LS_CODE` / `X-Access-Code` 请求头 / 401 分支 / 中英 `code.*` 文案
+  - 验收：4 个接口全 200、无 401、渲染后 DOM 里「口令」出现 **0** 次、无 JS 报错、中英双语正常
+- **线上入口重定为 `graded-reading-factory`**；`yiluzhi` 弃用（链接从未发出，无迁移成本）
+- 删除已弃用的旧开发副本（移入**废纸篓**，非永久删除）
+
 ---
 
 ## 4. 跨设备怎么恢复（换电脑/换模型时的清单）
@@ -102,7 +117,7 @@ python3 seed.py              # 导入示例数据
 | 需要什么 | 用途 | 状态 |
 |---|---|---|
 | GitHub 推送凭据 | 推代码 | 需各自配。本机 09-29/10-01 用临时 PAT（**未落盘**）；另一台设备用 macOS 钥匙串 |
-| `server_keys.json` | 线上模型密钥 + 访问口令 | **不在仓库**，新设备需另配 |
+| `server_keys.json` | 服务端模型密钥（`access_code` 字段已废弃） | **不在仓库**，新设备需另配；**缺了不影响启动** |
 | 模型 API key | 生成 / 裁判 | 也可由各人在浏览器里填 |
 
 **本机可用的推送命令**（直连 github 的 git 协议不通，**必须走 7890 代理且必须用小写变量**）：
@@ -147,4 +162,5 @@ printf 'protocol=https\nhost=github.com\nusername=x-access-token\npassword=<ghp_
 - ❌ 不要新增模式时直接改 `generate.md` / `judge.md` —— **另起 `*_news.md`**
 - ❌ 不要引入第三方依赖（当前零依赖是刻意设计）
 - ❌ **不要换发布目录** —— 会新建应用、换链接，现有分享链接上的内容不会更新
-- ❌ 不要再往旧应用 `graded-reading-factory` 发东西（已弃用）
+- ❌ **不要再给 `/api/*` 加访问口令** —— 2026-10-01 按 Bryan 要求整体移除，不要放回来
+- ❌ 不要再往 `yiluzhi-content-factory` 发东西（已弃用；本机也发不到）

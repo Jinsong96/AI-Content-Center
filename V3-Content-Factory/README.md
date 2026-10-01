@@ -115,11 +115,15 @@ python3 app.py 8801     # 只用 Python 标准库，无需 pip install
 | 生成 | `https://api.deepseek.com` | `deepseek-flash` |
 | 裁判 | `https://api.siliconflow.cn/v1` | `Qwen/Qwen3.8-27B` |
 
-### 访问口令
+### 访问口令 —— 已于 2026-10-01 移除
 
-`server_keys.json` 里的 `access_code`，校验所有 `/api/*`（静态页与 `/api/health` 放行）。
-**未配口令时全部放行**，本地开发不受影响。口令通过后下发 Cookie `v3code`（docx 下载走
-`<a href>` 跳转带不上自定义头，必须靠 Cookie）。前端遇 401 自动弹口令框。
+Bryan 明确：**这是内部 demo，就几个人用，不需要口令。**
+
+后端 `_guard()` / `access_code` / 鉴权 Cookie `v3code`、前端 `dlg-code` 对话框与 401 分支
+**全部删除**。现在所有 `/api/*` 无鉴权直通。
+
+> **不要加回来。** 既然没有鉴权，**别把这个应用当成能放敏感数据的地方**。
+> （若日后真要恢复：docx 下载走 `<a href>` 跳转、带不上自定义请求头，鉴权只能靠 Cookie。）
 
 ---
 
@@ -127,9 +131,9 @@ python3 app.py 8801     # 只用 Python 标准库，无需 pip install
 
 ```
 V3-Content-Factory/
-├── app.py                   HTTP 服务 · 16 个接口 · 访问口令守卫 · 自动修复循环
+├── app.py                   HTTP 服务 · 16 个接口 · 自动修复循环
 ├── seed.py                  导入佳阳老师的示例文章
-├── server_keys.json         【本机文件，不进仓库】服务端密钥 + 访问口令
+├── server_keys.json         【本机文件，不进仓库】服务端模型密钥
 ├── core/
 │   ├── quality.py           关卡一：确定性质检（17 类规则，含 source_mode 分支）
 │   ├── llm.py               两类模型调用 + 局部重写 + 按模式切提示词
@@ -141,7 +145,7 @@ V3-Content-Factory/
 │   ├── generate_news.md     news 模式的生成提示词（含 source_level 自评）
 │   └── judge_news.md        news 模式的裁判提示词
 ├── assets/template.docx     佳阳老师提供的 docx 模板（含 Normal / DocTitle / DocLevel 样式）
-├── public/index.html        前端（单文件 · 浅/深双主题 · 中英双语 · 访问口令框）
+├── public/index.html        前端（单文件 · 浅/深双主题 · 中英双语）
 ├── docs/                    跨设备接手文档（见上方「仓库结构」）
 ├── refs/分级卡片工具包/      教研老师原始工具包（质量基准线）
 └── data/articles/{id}/      每篇一个目录：original.txt · cards.json · 报告 · fix_log
@@ -151,11 +155,11 @@ V3-Content-Factory/
 
 ## 接口一览（16 个）
 
-所有 `/api/*` 受访问口令保护（未配口令时全放行）；口令用请求头 `X-Access-Code` 或 Cookie `v3code`。
+所有 `/api/*` **无鉴权直通**（访问口令已于 2026-10-01 移除）。
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
-| GET | `/api/health` | 健康检查（**不需要口令**） |
+| GET | `/api/health` | 健康检查（给平台探活用） |
 | GET | `/api/config` | 模型配置状态（不含密钥）。`ready` = 字段填齐 **且** 最近一次真实调用成功 |
 | POST | `/api/config/probe` | 连通性自检（真打一次模型） |
 | GET | `/api/articles` | 文章列表 |
@@ -229,12 +233,14 @@ V3-Content-Factory/
 ## 当前状态
 
 - ✅ 需求已澄清、设计已定稿、V3 已实现并部署
-- ✅ 前端：浅色极简风 · 浅/深主题切换 · 中英双语 · 四级对照编辑台 · 结构化质检面板 · 访问口令框
+- ✅ 前端：浅色极简风 · 浅/深主题切换 · 中英双语 · 四级对照编辑台 · 结构化质检面板
 - ✅ 「新闻原稿」来源模式上线，线上端到端真跑通过
-- ✅ 服务端密钥 + 访问口令上线；`ready` 改为字段层 + 实测层双校验
+- ✅ 服务端密钥能力上线；`ready` 改为字段层 + 实测层双校验
+- ✅ **访问口令整体移除**（2026-10-01 —— 内部 demo，不设卡）
 - ⏳ **未决两个**：月饼文的两个质量缺口（等 Bryan 拍板）· V4（等 CEFR 分级指南）
 
-线上：`https://yiluzhi-content-factory.app.workbuddy.host/`
+线上正式入口（2026-10-01 起重定）：`https://graded-reading-factory.app.workbuddy.host/`
+已弃用：`https://yiluzhi-content-factory.app.workbuddy.host/`（另一台设备创建，本机发不到）
 
 下一步清单见 [`HANDOFF.md`](HANDOFF.md) §5。
 

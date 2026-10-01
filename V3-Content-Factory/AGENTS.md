@@ -1,8 +1,9 @@
 # AGENTS.md —— 给接手这个仓库的 AI 的工作说明
 
 > 这份文件是给**另一个设备、另一个模型**看的。目标：`git clone` 之后不靠口头交接就能继续干活。
-> 最后更新：2026-10-01 · 状态：V3 已实现并部署在**新应用**上，新增「新闻原稿」来源模式，
-> 服务端钥匙 + 访问口令已上线。**待办：月饼文两个质量缺口（等 Bryan 拍板）、V4（等 CEFR 分级指南）。**
+> 最后更新：2026-10-01 · 状态：V3 已实现并部署，新增「新闻原稿」来源模式，支持服务端密钥。
+> **访问口令已于 2026-10-01 按要求整体移除**（内部 demo，不再设卡）。
+> **待办：月饼文两个质量缺口（等 Bryan 拍板）、V4（等 CEFR 分级指南）。**
 
 ---
 
@@ -85,9 +86,9 @@
 
 ```
 V3-Content-Factory/
-├── app.py              HTTP 服务（ThreadingHTTPServer）· 16 个接口 · 访问口令守卫 · 后台任务 · 自动修复循环
+├── app.py              HTTP 服务（ThreadingHTTPServer）· 16 个接口 · 后台任务 · 自动修复循环
 ├── seed.py             导入佳阳老师的示例文章作种子数据（无密钥也能看完整形态）
-├── server_keys.json    【本机文件，不进仓库】服务端密钥与访问口令，见 §5.2
+├── server_keys.json    【本机文件，不进仓库】服务端模型密钥，见 §5.2
 ├── core/
 │   ├── quality.py       关卡一：17 类确定性质检 → 结构化 issue(rule, level, target, params, hint_key)
 │   │                    含 source_mode 分支：news 下 B2+ 取产物、人名基准换成新闻原稿
@@ -101,7 +102,7 @@ V3-Content-Factory/
 │   ├── generate_news.md news 模式的生成提示词（含 source_level 自评）
 │   └── judge_news.md    news 模式的裁判提示词
 ├── assets/template.docx 老师提供的 docx 模板
-├── public/index.html    前端（单文件 · 浅/深双主题 · 中英双语 · hash 路由 · 访问口令框）
+├── public/index.html    前端（单文件 · 浅/深双主题 · 中英双语 · hash 路由）
 └── data/articles/{id}/  每篇一个目录：original.txt · cards.json · check_report.json
                          · judge_report.json · fix_log.json · meta.json · *.docx
 ```
@@ -176,7 +177,9 @@ V3-Content-Factory/
   不设限时思考 27016 + 正文 12462 字符。→ `NEWS_MAX_TOKENS = 65536`，**仅 news 模式传，换模型必须重新标定**。
 - **新字段要记得落库**：`source_level` 没写进 `article` 时，第 17 类提醒永不触发。
 - 前端 `<dialog open>`（非模态）会被 `main { z-index: 1 }` 盖住 —— 这是非模态的产物，不是 bug。
-- **docx 下载走 `<a href>` 跳转，带不上自定义请求头** → 口令必须同时下发 Cookie（`v3code`）。
+- ~~docx 下载走 `<a href>` 跳转，带不上自定义请求头 → 鉴权必须同时下发 Cookie~~
+  **访问口令已于 2026-10-01 整体移除**（后端 `_guard` / Cookie `v3code` / 前端 `dlg-code` 全删）。
+  **若日后要重新加鉴权，这条结论仍然成立**：docx 下载是浏览器跳转，带不上自定义请求头，只能靠 Cookie。
 
 ### 4.3 验证纪律（血泪教训）
 
@@ -217,13 +220,14 @@ python3 seed.py            # 首次启动后导入示例数据（无密钥也能
 - 新设备接手时需要**另配**（这个文件不在 git 里）；**缺了不影响启动**（直接跳过），
   只是本地要用就得自己填 key
 
-### 5.3 访问口令
+### 5.3 访问口令 —— 已于 2026-10-01 移除
 
-`server_keys.json` 里的 `access_code`。校验所有 `/api/*`；静态页与 `/api/health` 放行。
+Bryan 明确：**这是内部 demo，只有几个人用，不需要口令。**
 
-- **未配口令时全部放行** → 本地开发不受影响
-- 口令通过后下发 Cookie `v3code`，给 docx 下载用
-- 前端遇 401 自动弹口令框 `dlg-code`
+已删除：`server_keys.json` 的 `access_code` 读取 · 后端 `_guard()` / `_cookie_code()` ·
+鉴权 Cookie `v3code` · 前端 `dlg-code` 对话框 / `LS_CODE` / `X-Access-Code` 请求头 / 401 分支。
+
+> **不要再加回来。** 现在所有 `/api/*` 无鉴权直通 —— 只放内部 demo 用，**别往上面放敏感数据**。
 
 ### 5.4 默认模型（`public/index.html` 的 `DEFAULT_CONFIG`）
 
@@ -239,21 +243,27 @@ V1 能出内容 · V2 形式达标 · V3 内容达标 · V4 门槛低 · V5 可�
 
 ## 6. 部署与发布（**本机改这里前必读**）
 
-### 6.1 当前线上（**两个应用，注意别发错**）
+### 6.1 当前线上 —— 2026-10-01 起重定为**单一入口**
 
-| | 在用的 | 本机能发的 |
-|---|---|---|
-| 地址 | `yiluzhi-content-factory.app.workbuddy.host` | `graded-reading-factory.app.workbuddy.host` |
-| appId | `wbapp_qjgd70pZpbr4URRBDYpC43` | `wbapp_ht8T4x4I5dDuv5iZhcZ8fT` |
-| 创建自 | **另一台设备**的工作区 | 本工作区 |
-| 访问口令 | ✅ 有（`/api/articles` 返回 401） | ❌ 无 |
-| 服务端密钥 | ✅ 有 `server_keys.json` | ❌ 无 |
-| 线上文章 | 4 篇 | 1 篇（seed） |
-| **本机能否发布到它** | ❌ **不能**（见 6.2） | ✅ 能 |
+| 项 | 值 |
+|---|---|
+| **正式入口** | `https://graded-reading-factory.app.workbuddy.host/` |
+| appId | `wbapp_ht8T4x4I5dDuv5iZhcZ8fT` |
+| 由谁发布 | **本机 / 本工作区**（也只有这里能更新它） |
+| 访问口令 | ❌ 无（2026-10-01 按要求移除） |
+| 服务端密钥 | ❌ 无 → **使用者需在「模型设置」里各填一次自己的 key** |
+| 线上文章 | 1 篇（seed） |
 
-> ⚠️ 2026-10-01：Bryan 要求「线上更新」，本机发布**两次都打在 `graded-reading-factory`**
-> （内容已是最新：前端 md5 与本地一致）。**在用的 `yiluzhi` 没被更新，也更新不了。**
-> 当时的原计划是「先在用的那个」—— 没能做到，原因见 6.2。
+**已弃用**：`yiluzhi-content-factory.app.workbuddy.host`（`wbapp_qjgd70pZpbr4URRBDYpC43`）
+—— 它由**另一台设备的工作区**创建，**本机发布不到它**（原因见 6.2）。
+Bryan 确认**这个链接从未发出去**，所以换掉它没有成本。
+
+> ⚠️ **切换的代价（必须知悉）**：`yiluzhi` 上有 `server_keys.json`（服务端模型密钥）与
+> **4 篇线上文章**，本机两样都拿不到（口令未知、文件不在本机）。切到正式入口后：
+> ① **使用者要各自在「模型设置」里填一次 key**；② 那 4 篇文章留在原应用，**没有迁过来**。
+>
+> 要救回来：去另一台设备取 `V3-Content-Factory/server_keys.json`（里面有 `access_code`），
+> 或用**曾经成功打开过该应用的浏览器**，从 devtools → localStorage 的 `v3.accessCode` 读出口令。
 
 ### 6.2 发布工具到底怎么认应用（2026-10-01 实测，**上一版这里写错了**）
 
@@ -300,12 +310,19 @@ V1 能出内容 · V2 形式达标 · V3 内容达标 · V4 门槛低 · V5 可�
 
 - ✅ 需求澄清（`docs/00`）· 设计总纲（`docs/01`）· Demo 规格 v1.1（`docs/02`）· 裁判 v0（`docs/03`）· 金标准（`docs/04`）
 - ✅ V3 全量实现：17 类质检 / 2 次模型调用 / 自动修复循环 / 16 个接口 / docx 导出
-- ✅ 前端：浅色极简风 · 浅深主题切换 · 中英双语 · 四级对照编辑台 · 结构化质检面板 · 访问口令框
+- ✅ 前端：浅色极简风 · 浅深主题切换 · 中英双语 · 四级对照编辑台 · 结构化质检面板
 - ✅ 种子数据实测：词数 175/242/321/443（40%/55%/72%），与老师 `report.txt` **完全一致**
 - ✅ **新增的人名保留规则当场抓出 `Franklin` 和 `Graves` 两个人名丢失** —— 而老师原脚本判「✓ 通过」
 - ✅ 「新闻原稿」来源模式上线（四级全部生成），线上端到端真跑通过
-- ✅ 服务端密钥 + 访问口令上线；`ready` 改为**字段层 + 实测层**双校验
+- ✅ 服务端密钥上线；`ready` 改为**字段层 + 实测层**双校验
 - ✅ 文章库支持删除；生成模型换 `deepseek-flash`；裁判关闭思考
+
+### 2026-10-01 追加（本轮）
+
+- ✅ **访问口令整体移除**（后端 + 前端 + 中英 i18n）：`app.py` 809 → 767 行，`index.html` 少 26 行
+- ✅ 线上入口**重定为 `graded-reading-factory`**（本机唯一能维护的应用），`yiluzhi` 弃用
+- ✅ 发布绑定机制查清并写进 §6.2：应用**按工作区收敛**，手写 `.genie` / 传 `appId` 都无效
+- ✅ 本地验收：4 个接口全 200、无 401 拦截、DOM 里 `口令` 出现 0 次、无 JS 报错、中英双语正常
 
 ### 下一步（按优先级）
 

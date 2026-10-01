@@ -95,13 +95,9 @@ def _load_local_keys():
             name = f"{prefix}_{field.upper()}"
             if not os.environ.get(name) and given.get(field):
                 os.environ[name] = str(given[field])
-    code = str(data.get("access_code") or "").strip()
-    if code and not os.environ.get("ACCESS_CODE"):
-        os.environ["ACCESS_CODE"] = code
 
 
 _load_local_keys()
-ACCESS_CODE = os.environ.get("ACCESS_CODE", "").strip()
 
 
 def env_cfg(prefix):
@@ -454,11 +450,6 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS")
         for k, v in (extra or {}).items():
             self.send_header(k, v)
-        # 口令校验通过时顺手种个 Cookie：docx 下载走的是 <a href> 跳转，
-        # 浏览器不会带上自定义请求头，只能靠 Cookie 通过校验。
-        if getattr(self, "_set_code", None):
-            self.send_header("Set-Cookie",
-                             f"v3code={self._set_code}; Path=/; Max-Age=31536000; SameSite=Lax")
         self.end_headers()
         if self.command != "HEAD":
             self.wfile.write(body)
@@ -495,30 +486,6 @@ class Handler(BaseHTTPRequestHandler):
         ext = path.suffix.lower()
         self._send(200, path.read_bytes(), MIME.get(ext, "application/octet-stream"))
 
-    # ---------- 访问口令
-
-    def _cookie_code(self):
-        for part in (self.headers.get("Cookie") or "").split(";"):
-            k, _, v = part.strip().partition("=")
-            if k == "v3code":
-                return v.strip()
-        return ""
-
-    def _guard(self):
-        """口令保护：/api/* 必须带对口令；未配口令时全部放行（本地开发不受影响）。
-
-        同时接受请求头 X-Access-Code 与 Cookie —— Cookie 是必需的，
-        原因写在 _send 里（docx 下载靠浏览器跳转，带不上自定义请求头）。
-        """
-        if not ACCESS_CODE:
-            return True
-        given = (self.headers.get("X-Access-Code") or "").strip() or self._cookie_code()
-        if given == ACCESS_CODE:
-            self._set_code = ACCESS_CODE
-            return True
-        self._err(401, "需要访问口令")
-        return False
-
     # ---------- 路由
 
     def do_OPTIONS(self):
@@ -529,9 +496,6 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         path = unquote(urlparse(self.path).path)
-        # 静态资源放行（否则页面自身都加载不了）；/api/health 放行给平台探活。
-        if path.startswith("/api/") and path != "/api/health" and not self._guard():
-            return
         try:
             if path == "/" or path == "/index.html":
                 return self._file(PUBLIC / "index.html")
@@ -597,8 +561,6 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         path = unquote(urlparse(self.path).path)
         body = self._body()          # 先读完 body，否则 keep-alive 连接会错位
-        if not self._guard():
-            return
         try:
             # ---- 配置自检
             # 这是一次真实调用，结果会写进健康记录，之后 /api/config 就以它为准。
@@ -730,8 +692,6 @@ class Handler(BaseHTTPRequestHandler):
     def do_PUT(self):
         path = unquote(urlparse(self.path).path)
         body = self._body()          # 先读完 body，否则 keep-alive 连接会错位
-        if not self._guard():
-            return
         try:
             m = ROUTE_ARTICLE.match(path)
             if not m:
@@ -784,8 +744,6 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_DELETE(self):
         path = unquote(urlparse(self.path).path)
-        if not self._guard():
-            return
         m = ROUTE_ARTICLE.match(path)
         if m and not (m.group(2) or ""):
             ok = store.delete_article(m.group(1))
