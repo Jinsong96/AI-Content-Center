@@ -239,28 +239,52 @@ V1 能出内容 · V2 形式达标 · V3 内容达标 · V4 门槛低 · V5 可�
 
 ## 6. 部署与发布（**本机改这里前必读**）
 
-### 6.1 当前线上
+### 6.1 当前线上（**两个应用，注意别发错**）
 
-| 项 | 值 |
+| | 在用的 | 本机能发的 |
+|---|---|---|
+| 地址 | `yiluzhi-content-factory.app.workbuddy.host` | `graded-reading-factory.app.workbuddy.host` |
+| appId | `wbapp_qjgd70pZpbr4URRBDYpC43` | `wbapp_ht8T4x4I5dDuv5iZhcZ8fT` |
+| 创建自 | **另一台设备**的工作区 | 本工作区 |
+| 访问口令 | ✅ 有（`/api/articles` 返回 401） | ❌ 无 |
+| 服务端密钥 | ✅ 有 `server_keys.json` | ❌ 无 |
+| 线上文章 | 4 篇 | 1 篇（seed） |
+| **本机能否发布到它** | ❌ **不能**（见 6.2） | ✅ 能 |
+
+> ⚠️ 2026-10-01：Bryan 要求「线上更新」，本机发布**两次都打在 `graded-reading-factory`**
+> （内容已是最新：前端 md5 与本地一致）。**在用的 `yiluzhi` 没被更新，也更新不了。**
+> 当时的原计划是「先在用的那个」—— 没能做到，原因见 6.2。
+
+### 6.2 发布工具到底怎么认应用（2026-10-01 实测，**上一版这里写错了**）
+
+**能确定的事实**（本机连发两次，都打在 `graded-reading-factory` 上）：
+
+| 记录 | 值 |
 |---|---|
-| 地址 | `https://yiluzhi-content-factory.app.workbuddy.host/` |
-| appId | `wbapp_qjgd70pZpbr4URRBDYpC43` |
-| **发布目录** | `<工作区>/AI-Content-Center/V3-Content-Factory` |
+| `deployTargetId` | `sha256(目录绝对路径)[:16]` —— 只是**这次发布的目录标识**，不是应用标识 |
+| 本次算出的 targetId | `1405f75c208f45b9`（目录 `…/AI-Content-Center/V3-Content-Factory`） |
+| 实际写入的 appId | `wbapp_ht8T4x4I5dDuv5iZhcZ8fT`（旧应用） |
 
-> ⚠️ 旧的 `graded-reading-factory.app.workbuddy.host`（`wbapp_ht8T4x4I5dDuv5iZhcZ8fT`）
-> 是历史遗留应用，**已弃用**，不要再往那儿发。
+**两条被证伪的做法**（别再浪费时间）：
 
-### 6.2 发布工具是**按目录的绝对路径**认应用的（实测出来的机制）
+- ❌ **手写 `.wbapp_<appId>.genie` 不能指定目标应用。**
+  2026-10-01 本机写过 `wbapp_qjgd…genie` 且 `localDir` 正确指向发布目录，
+  发布仍然打到 `ht8T4x4`；工具还自己补写了一个 `ht8T4x4` 的 genie。
+- ❌ **deploy 时传 `appId` 无效。** 传了 `appId=wbapp_qjgd70pZpbr4URRBDYpC43`，
+  返回的 `shareLink` 依旧是 `graded-reading-factory`。
 
-`deployTargetId = sha256(绝对路径)[:16]`，映射记录在
-`.wbapp_<id>.genie`（工作区根）与 `~/.workbuddy/cloudstudio-deploy-history/`。
+**推论（推测，但和两次实测一致）**：应用是**按「工作区」绑定**的 ——
+工具拿本工作区（`workspaceKey = dda6f87f64e0bb4b`）去查它已经发布过的应用，
+收敛到那一个，和你传哪个目录、哪个 appId 都无关。
 
-**推论（很重要）**：
+**由此得到的硬结论**：
 
-- 同一个项目**换个目录发布 = 新建一个应用、换一条链接**，旧链接上的内容不会更新。
-  → 这就是为什么会出现两个线上应用。
-- 想让**两台设备发到同一个应用**：两边的发布目录都要有指向**同一个 appId** 的记录。
-  本机已经补好（`2026-10-01`）。
+> **在另一个工作区里创建的应用，本机改不到。**
+> `yiluzhi-content-factory` 是另一台设备（用户名 `jinsongli`、工作区路径不同）创建的，
+> 所以**从本机发布，永远只会覆盖 `graded-reading-factory`**。
+
+改代码不影响这点；要更新在用的那个应用，只有两条路：
+① 回到创建它的那台设备发布；② 放弃它、另立一个本机能更新的链接作正式入口。
 
 ### 6.3 只有一份代码
 

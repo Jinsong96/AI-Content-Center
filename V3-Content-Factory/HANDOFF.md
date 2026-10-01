@@ -15,22 +15,32 @@
 
 ## 2. 线上地址与应用管理
 
+**两个应用并存，本机只能发其中一个 —— 这是当前最大的坑。**
+
+| | 在用的 | 本机能发的 |
+|---|---|---|
+| 地址 | `https://yiluzhi-content-factory.app.workbuddy.host/` | `https://graded-reading-factory.app.workbuddy.host/` |
+| appId | `wbapp_qjgd70pZpbr4URRBDYpC43` | `wbapp_ht8T4x4I5dDuv5iZhcZ8fT` |
+| 创建自 | **另一台设备**（用户名 `jinsongli`）的工作区 | 本工作区 |
+| 访问口令 / 服务端密钥 | ✅ 有 | ❌ 无（用户需自填 key） |
+| 线上文章 | 4 篇 | 1 篇（seed） |
+| 本机能否发布到它 | ❌ **不能** | ✅ 能 |
+
 | 项 | 值 |
 |---|---|
-| **线上地址（在用）** | `https://yiluzhi-content-factory.app.workbuddy.host/` |
-| appId（在用） | `wbapp_qjgd70pZpbr4URRBDYpC43` |
-| **发布目录** | `<工作区>/AI-Content-Center/V3-Content-Factory`（**唯一副本**） |
-| 访问口令 | `server_keys.json` 的 `access_code`（**不在仓库里**，新设备需另配） |
+| 发布目录 | `<工作区>/AI-Content-Center/V3-Content-Factory`（唯一副本） |
 | 管理入口 | WorkBuddy「设置 → 数据管理 → 发布的应用」 |
 
-> ⚠️ 旧应用 `graded-reading-factory.app.workbuddy.host`
-> （`wbapp_ht8T4x4I5dDuv5iZhcZ8fT`）**已弃用**，不要再往那儿发。
+**发布机制（2026-10-01 实测，推翻了上一版的结论）**：
 
-**发布机制（实测出来的，很重要）**：发布工具按**目录的绝对路径**认应用 ——
-`deployTargetId = sha256(绝对路径)[:16]`，映射记在 `.wbapp_<id>.genie`（工作区根）
-与 `~/.workbuddy/cloudstudio-deploy-history/`。
-所以**换目录发布 = 新建应用、换链接**；想让两台设备发到同一个应用，
-两边的发布目录都要有指向**同一个 appId** 的记录。
+- `deployTargetId = sha256(目录绝对路径)[:16]` 只标识**发布目录**，不决定应用。
+- **应用是按「工作区」绑定的**：工具拿本工作区的 `workspaceKey` 去查它发过的应用，收敛到那一个。
+- 因此：**手写 `.wbapp_<appId>.genie` 没用**（试过，仍打到旧应用）；
+  **deploy 传 `appId` 也没用**（试过，返回值不变）。
+- 结论：**别的设备创建的应用，本机改不到。** 想让两台设备发同一个应用，做不到
+  —— 只能约定「谁创建、谁发布」。
+
+> 详细实测记录见 `AGENTS.md` §6.2。
 
 ---
 
