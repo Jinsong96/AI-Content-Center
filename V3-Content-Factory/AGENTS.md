@@ -252,9 +252,9 @@ V1 能出内容 · V2 形式达标 · V3 内容达标 · V4 门槛低 · V5 可�
 | appId | `wbapp_ht8T4x4I5dDuv5iZhcZ8fT` |
 | 由谁发布 | **本机 / 本工作区**（也只有这里能更新它） |
 | 访问口令 | ❌ 无（2026-10-01 按要求移除） |
-| 服务端密钥 | ✅ 由 `server_keys.json` 提供，随发布上传（本机 600 权限，已 gitignore，不入公开仓库） |
+| 服务端密钥 | **只有裁判**：硅基流动的 key 由 `server_keys.json` 提供、随发布上传（本机 600 权限，已 gitignore，不入公开仓库）。**生成（DeepSeek）不由服务端提供 —— 使用者自己在「模型设置」里填**，存在自己浏览器的 localStorage；调用时随请求体经服务端转发给 DeepSeek，但**服务端不写盘、不回显、不写日志**。见下方 21:50 变更 |
 | 线上文章 | 1 篇（seed） |
-| 线上版本 | **2026-10-01 21:20 · 视觉改版（校样台 · Press Proof）+ 拉丁字体自托管**，线上 `index.html` md5 与本地一致 |
+| 线上版本 | **2026-10-01 21:51 · 生成密钥改「使用者自填」（裁判仍服务端）**；上一版 21:20 视觉改版（校样台 · Press Proof）+ 拉丁字体自托管。两次均实测线上 `index.html` md5 与本地一致 |
 
 **2026-10-01 21:20 重新发布实测**（这次是覆盖 `graded-reading-factory`）：
 
@@ -273,6 +273,56 @@ V1 能出内容 · V2 形式达标 · V3 内容达标 · V4 门槛低 · V5 可�
 > 实测（2026-10-01）：带着 `domainPrefix=yiluzhi-content-studio` 重新发布，
 > 返回的 `shareLink` **仍然是** `graded-reading-factory`，域名不会因为重发布而改变。
 > 顺带确认：**`unpublish` 也不删应用**（只让链接失效），所以「删掉再发」这条路同样换不到域名。
+
+### 2026-10-01 21:50 · 生成密钥改为「使用者自填」（裁判仍由服务端兜）
+
+**Bryan 的要求**：生成涉及真实产出、调用多消耗大，改成使用者自己填；裁判调用少，服务端填好就行。
+
+**改动**：`server_keys.json` 删掉 `generate` 段，只留 `judge`。
+
+| 角色 | 密钥来源 | 使用者要不要自己填 |
+|---|---|---|
+| 生成 · DeepSeek | **只能自己填** | 要 → 导航栏「模型设置」→ 模型 A |
+| 裁判 · 硅基流动 | 服务端 `server_keys.json` | 不用 |
+
+**链路已核（读代码 + 本地实测 `/api/config`）**：
+
+- 判定式 `modelReady(which) = modelFieldsReady(which) || state.serverReady[which]`
+- 三个入口 —— `openNewDialog`（新建生产）/ `rewriteTargets`（重写）/ `runFix`（修复）——
+  都会在未就绪时 `toast("还没有配置生成模型，先到「模型设置」里填")` **并自动 `openSettings()`**
+- `openSettings` 里 `#gen-url` / `#gen-model` 由 `DEFAULT_CONFIG` 预置
+  （`https://api.deepseek.com` / `deepseek-flash`），**使用者只需要补 Key**
+- 使用者填的 Key 存**自己浏览器的 localStorage**（键 `v3.modelConfig`）。点生成时它会随请求体
+  发到服务端，由服务端代调 DeepSeek —— 但 `resolve_cfg` 只把它放在内存里交给调用方，
+  `JOBS` 只记 `id / article_id / kind`（`job_new`），`store.create_article` 也不接收 cfg，
+  所以**服务端不写盘、不回显（`/api/config` 只输出 `has_key: true/false`）、不写日志**。
+- `toast.server_model`（"服务端已配置模型，可直接新建生产"）现在只可能因裁判触发，不会误导
+
+> **已知体验现状（未改，等 Bryan 决定）**：模型 A 的状态徽标在服务端没配时是**空白** ——
+> `renderServerState` 在 `filled=false` 时直接清空 `#gen-state`，不像模型 B 有「服务端已配置」绿标。
+> 使用者要点一次「新建生产」才会被明确拦下。想更主动的话，可以给模型 A 补一个「待填写」徽标。
+
+**2026-10-01 21:51 重新发布实测（让 21:50 的密钥改动上线）**：
+
+| 验证项 | 实测结果 |
+|---|---|
+| 线上 `/api/config` → `generate` | `has_key=false  filled=false  ready=false`，`base_url` / `model` 均为空串 → 服务端确实不再兜生成 |
+| 线上 `/api/config` → `judge` | `has_key=true  filled=true  ready=true`，`https://api.siliconflow.cn/v1` / `Qwen/Qwen3.8-27B` |
+| 响应脱敏 | 整个 JSON 里 **0 处** `sk-` 明文 |
+| `deployedAs` | `http-service`（跑 app.py） |
+
+**使用者视角实测**（无头 Chrome，CDP 注入脚本点真实按钮）：
+
+| 步骤 | 实测 |
+|---|---|
+| 打开页面前 `#gen-url` / `#gen-model` | 空（值是 `openSettings()` 运行时才回填的） |
+| 点「模型设置」`#btn-settings` 后 | `#gen-url` = `https://api.deepseek.com`、`#gen-model` = `deepseek-flash`、`#gen-key` 为空 → **只差 Key** |
+| `#judge-state` 徽标 | `服务端已配置 · 未验证` |
+| `#gen-state` 徽标 | **空字符串**（见上方「已知体验现状」） |
+
+> 模型名 `deepseek-flash` 已对照官方文档核实：`api-docs.deepseek.com` 明确写
+> "Use `deepseek-flash` as the model name"（旧的 `deepseek-chat` / `deepseek-reasoner` 已不是当前名）。
+> 所以使用者照抄预填值可以跑通。
 
 **已弃用**：`yiluzhi-content-factory.app.workbuddy.host`（`wbapp_qjgd70pZpbr4URRBDYpC43`）
 —— 它由**另一台设备的工作区**创建，**本机发布不到它**（原因见 6.2）。
