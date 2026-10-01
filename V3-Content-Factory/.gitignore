@@ -27,3 +27,8 @@ data/articles/*
 # 服务端密钥与访问口令：线上没有环境变量入口，key 放这里随发布上传。
 # 本机 600 权限，绝不进公开仓库。
 server_keys.json
+
+# 字体本地兜底目录（符号链接，仅本机预览时试静态服务方式用）
+# 线上实际由 app.py 跑：/static/<rel> 已映射到 public/<rel>，直接命中 public/fonts/。
+# 本应用有 16 个 API 接口，不可能跑在纯静态托管上，所以这条兜底不需要进仓库。
+public/static/
